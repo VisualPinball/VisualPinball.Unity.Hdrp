@@ -14,6 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+// ReSharper disable UnusedType.Global
+// ReSharper disable CheckNamespace
+
 using System;
 using System.Text;
 using UnityEngine;
@@ -21,7 +24,7 @@ using VisualPinball.Engine.VPT;
 
 namespace VisualPinball.Unity.Hdrp
 {
-	public class HdrpMaterialConverter : IMaterialConverter
+	public class MaterialConverter : IMaterialConverter
 	{
 		#region Shader Properties
 
