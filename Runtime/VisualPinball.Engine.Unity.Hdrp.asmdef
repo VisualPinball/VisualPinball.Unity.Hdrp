@@ -1,0 +1,12 @@
+{
+	"name": "VisualPinball.Engine.Unity.Hdrp",
+	"references": [
+		"Unity.RenderPipelines.HighDefinition.Runtime",
+		"Unity.RenderPipelines.HighDefinition.Config.Runtime",
+		"VisualPinball.Engine",
+		"VisualPinball.Unity"
+	],
+	"includePlatforms": [],
+	"excludePlatforms": [],
+	"allowUnsafeCode": true
+}
