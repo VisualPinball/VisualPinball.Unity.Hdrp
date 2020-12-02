@@ -4,7 +4,8 @@
 		"Unity.RenderPipelines.HighDefinition.Runtime",
 		"Unity.RenderPipelines.HighDefinition.Config.Runtime",
 		"VisualPinball.Engine",
-		"VisualPinball.Unity"
+		"VisualPinball.Unity",
+		"VisualPinball.Unity.Patcher"
 	],
 	"includePlatforms": [],
 	"excludePlatforms": [],

@@ -14,20 +14,25 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+// ReSharper disable UnusedType.Global
+// ReSharper disable CheckNamespace
+
 namespace VisualPinball.Unity.Hdrp
 {
-	public class HDRenderPipeline : IRenderPipeline
+	public class HighDefinitionRenderPipeline : IRenderPipeline
 	{
 		public string Name { get; } = "High Definition Render Pipeline";
 
 		public RenderPipelineType Type { get; } = RenderPipelineType.Hdrp;
 		public IMaterialConverter MaterialConverter { get; }
+		public IMaterialAdapter MaterialAdapter { get; }
 		public ILightConverter LightConverter { get; }
 
-		public HDRenderPipeline()
+		public HighDefinitionRenderPipeline()
 		{
 			MaterialConverter = new MaterialConverter();
 			LightConverter = new LightConverter();
+			MaterialAdapter = new MaterialAdapter();
 		}
 	}
 }

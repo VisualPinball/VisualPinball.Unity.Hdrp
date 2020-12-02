@@ -28,12 +28,14 @@ namespace VisualPinball.Unity.Hdrp
 	{
 		public void UpdateLight(Light light, LightData data)
 		{
-			// Set color and position
+			// retrieve hdrp light
 			var hdLight = light.GetComponent<HDAdditionalLightData>();
 			if (hdLight == null) {
 				hdLight = light.gameObject.AddComponent<HDAdditionalLightData>();
 				HDAdditionalLightData.InitDefaultHDAdditionalLightData(hdLight);
 			}
+
+			// color and position
 			hdLight.color = data.Color2.ToUnityColor();
 			hdLight.intensity = data.Intensity / 4f;
 			hdLight.range = data.Falloff * 0.001f;
@@ -42,7 +44,6 @@ namespace VisualPinball.Unity.Hdrp
 			light.transform.localPosition = new Vector3(0f, 0f, 25f);
 
 			hdLight.EnableShadows(false);
-
 		}
 	}
 }
