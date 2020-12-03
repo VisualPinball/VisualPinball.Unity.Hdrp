@@ -17,18 +17,15 @@
 // ReSharper disable UnusedType.Global
 // ReSharper disable CheckNamespace
 
+using UnityEngine;
+
 namespace VisualPinball.Unity.Hdrp
 {
-	public class HighDefinitionRenderPipeline : IRenderPipeline
+	public class BallConverter : IBallConverter
 	{
-		public const string PrefabPath = "Packages/org.visualpinball.engine.unity.hdrp/Prefabs";
-
-		public string Name { get; } = "High Definition Render Pipeline";
-
-		public RenderPipelineType Type { get; } = RenderPipelineType.Hdrp;
-		public IMaterialConverter MaterialConverter { get; } = new MaterialConverter();
-		public IMaterialAdapter MaterialAdapter { get; } = new MaterialAdapter();
-		public ILightConverter LightConverter { get; } = new LightConverter();
-		public IBallConverter BallConverter { get; } = new BallConverter();
+		public GameObject CreateDefaultBall()
+		{
+			return UnityEngine.Resources.Load<GameObject>("Prefabs/Ball");
+		}
 	}
 }
