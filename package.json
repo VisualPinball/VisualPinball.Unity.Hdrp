@@ -8,7 +8,9 @@
   "unityRelease": "0b12",
   "dependencies": {
     "com.unity.render-pipelines.high-definition": "10.2.0",
-    "com.unity.render-pipelines.high-definition-config": "10.2.0"
+    "com.unity.render-pipelines.high-definition-config": "10.2.0",
+    "org.visualpinball.engine.unity": "v0.0.1-preview.1",
+    "org.visualpinball.unity.assetlibrary.hdrp": "v0.0.1-preview.2"
   },
   "author": "freezy <freezy@vpdb.io>",
   "contributors": [
