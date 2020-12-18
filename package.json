@@ -1,8 +1,9 @@
 {
   "name": "org.visualpinball.engine.unity.hdrp",
-  "version": "0.1.0",
+  "version": "0.0.1-preview.0",
   "displayName": "Visual Pinball Engine (HDRP)",
-  "description": "Adds support for the High Definition Render Pipeline.",
+  "description": "High Definition Render Pipeline support",
+  "keywords": [ "Unity", "HDRP" ],
   "unity": "2020.2",
   "unityRelease": "0b12",
   "dependencies": {
@@ -20,5 +21,12 @@
     "Kleis Auke Wolthuizen <info@kleisauke.nl>",
     "Eli Curtz <eli@nuprometheus.com>",
     "Pandeli"
-  ]
+  ],
+  "repository": {
+    "url": "https://github.com/VisualPinball/VisualPinball.Unity.Hdrp.git",
+    "type": "git"
+  },
+  "publishConfig": {
+    "registry": "https://registry.visualpinball.org"
+  }
 }
