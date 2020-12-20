@@ -43,8 +43,6 @@ bld/
 #wwwroot/
 
 # Unity
-/*.meta
-
 /VisualPinball.Engine.Test/**/*.meta
 /VisualPinball.Resources/**/*.meta
 TestTables~/**
