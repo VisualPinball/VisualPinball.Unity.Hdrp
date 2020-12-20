@@ -10,7 +10,7 @@
     "com.unity.render-pipelines.high-definition": "10.2.2",
     "com.unity.render-pipelines.high-definition-config": "10.2.2",
     "org.visualpinball.engine.unity": "0.0.1-preview.1",
-    "org.visualpinball.unity.assetlibrary.hdrp": "0.0.1-preview.5"
+    "org.visualpinball.unity.assetlibrary.hdrp": "0.0.1-preview.6"
   },
   "author": "freezy <freezy@vpdb.io>",
   "contributors": [
