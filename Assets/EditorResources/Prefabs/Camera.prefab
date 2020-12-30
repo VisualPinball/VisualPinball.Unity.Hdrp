@@ -137,7 +137,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 347c4cae5c4c3d940b87f596e1d81881, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  cameraPreset: {fileID: 0}
+  activeSetting: {fileID: 11400000, guid: 8382dcf729afb0a41a97c9dedb148e3d, type: 2}
+  cameraPresets: []
 --- !u!1 &7872365585846497960
 GameObject:
   m_ObjectHideFlags: 0
