@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 13966, guid: 0000000000000000e000000000000000, type: 0}
+  m_Name: DefaultEmpty
+  m_EditorClassIdentifier: 
+  templateScene: {fileID: 102900000, guid: 52c9eb1b6495f40478bef9997a72eede, type: 3}
+  templateName: Default Empty Scene Template for VPE
+  description: 'A bare bones scene with the required camera, lighting and post process
+    setup for VPE table creation.  '
+  preview: {fileID: 2800000, guid: 91737e42e4d27d54e98596246aa81388, type: 3}
+  dependencies:
+  - dependency: {fileID: 8900000, guid: f4184fb865736e940b00650f4238111e, type: 3}
+    instantiationMode: 1
+  - dependency: {fileID: 5286990735523766648, guid: f5dea8906abfd8d42a3cefb9cb2ff0d8, type: 3}
+    instantiationMode: 1
+  - dependency: {fileID: 11400000, guid: b040cde7d523a55419b24ea3362abf8f, type: 2}
+    instantiationMode: 1
+  - dependency: {fileID: 2800000, guid: f20112bdeec2e8d4d9f80e8390e37263, type: 3}
+    instantiationMode: 1
+  - dependency: {fileID: 7872365585468035505, guid: a62dc6ecfacd7fa4da83d77d96bb113b, type: 3}
+    instantiationMode: 1
+  - dependency: {fileID: 2800000, guid: 3b77af68825357f47ae9f6d0b9d30f2d, type: 3}
+    instantiationMode: 1
+  - dependency: {fileID: 2800000, guid: 188dfe7e559f13248ba2c41eb5a59328, type: 3}
+    instantiationMode: 1
+  - dependency: {fileID: 1123326636132910626, guid: 3a32b392f9553364f85c02bc5d8b9214, type: 3}
+    instantiationMode: 1
+  - dependency: {fileID: 2800000, guid: 31f47d3807109374ab564767abda71ab, type: 3}
+    instantiationMode: 1
+  - dependency: {fileID: 11400000, guid: 2852cac934677914681bba19e71efd9c, type: 2}
+    instantiationMode: 1
+  templatePipeline: {fileID: 0}
+  addToDefaults: 1
