@@ -20,9 +20,10 @@
 using UnityEngine;
 using UnityEngine.Rendering.HighDefinition;
 using VisualPinball.Engine.VPT.Light;
+using VisualPinball.Unity;
 using Light = UnityEngine.Light;
 
-namespace VisualPinball.Unity.Hdrp
+namespace VisualPinball.Engine.Unity.Hdrp
 {
 	public class LightConverter : ILightConverter
 	{

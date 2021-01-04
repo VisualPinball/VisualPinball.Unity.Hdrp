@@ -18,8 +18,9 @@
 // ReSharper disable CheckNamespace
 
 using UnityEngine;
+using VisualPinball.Unity;
 
-namespace VisualPinball.Unity.Hdrp
+namespace VisualPinball.Engine.Unity.Hdrp
 {
 	public class MaterialAdapter : IMaterialAdapter
 	{

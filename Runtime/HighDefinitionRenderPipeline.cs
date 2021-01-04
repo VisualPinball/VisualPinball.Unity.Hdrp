@@ -17,7 +17,9 @@
 // ReSharper disable UnusedType.Global
 // ReSharper disable CheckNamespace
 
-namespace VisualPinball.Unity.Hdrp
+using VisualPinball.Unity;
+
+namespace VisualPinball.Engine.Unity.Hdrp
 {
 	public class HighDefinitionRenderPipeline : IRenderPipeline
 	{
