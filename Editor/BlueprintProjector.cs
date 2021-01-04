@@ -59,9 +59,9 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			}
 			if (ta == null) {
 				EditorUtility.DisplayDialog(
-					"Visual Pinball Layouts",
-					"Layouts added. You can switch between them using the drop down in the top right corner of the editor.",
-					"Got it!");
+					"Blueprint Projector",
+					"No table found in scene. The blueprint projector only works with a table.",
+					"Close");
 				return;
 			}
 
