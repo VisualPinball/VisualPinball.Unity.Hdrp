@@ -20,7 +20,6 @@ using UnityEngine;
 using UnityEngine.Rendering.HighDefinition;
 using UnityEngine.SceneManagement;
 using VisualPinball.Unity;
-using VisualPinball.Unity.AssetLibrary.Hdrp;
 
 namespace VisualPinball.Engine.Unity.Hdrp.Editor
 {
@@ -30,7 +29,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		private static void CreateBlueprintProjector()
 		{
 			// TODO: Move post-instantiation logic to BP authoring component. Extend to make it simpler to swap projections.
-			var decalProjector = AssetDatabase.LoadAssetAtPath(HdrpAssetPath.BlueprintPrefab, typeof(GameObject));
+			var decalProjector = AssetDatabase.LoadAssetAtPath(AssetPath.BlueprintPrefab, typeof(GameObject));
 
 			// Spawn the prefab in the scene.
 			var bluePrintProjector = (GameObject)PrefabUtility.InstantiatePrefab(decalProjector);
