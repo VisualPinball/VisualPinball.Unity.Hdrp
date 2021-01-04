@@ -13,7 +13,7 @@
     "com.unity.render-pipelines.high-definition": "10.2.2",
     "com.unity.render-pipelines.high-definition-config": "10.2.2",
     "org.visualpinball.engine.unity": "0.0.1-preview.24",
-    "org.visualpinball.unity.assetlibrary.hdrp": "0.0.1-preview.17"
+    "org.visualpinball.unity.assetlibrary": "0.0.1-preview.13"
   },
   "author": "freezy <freezy@vpdb.io>",
   "contributors": [
@@ -21,12 +21,15 @@
     "shaderbytes",
     "jsm174 <jsm174@gmail.com>",
     "Roger Bocksnick <roger.bocksnick@gmail.com>",
-    "VrôÕnsh <vroonsh@free.fr>",
+    "Vr\u00f4\u00d5nsh <vroonsh@free.fr>",
     "Rowlan",
     "Kleis Auke Wolthuizen <info@kleisauke.nl>",
     "Eli Curtz <eli@nuprometheus.com>",
     "Pandeli"
   ],
+  "documentationUrl": "https://docs.visualpinball.org/",
+  "changelogUrl": "https://docs.visualpinball.org/CHANGELOG.html",
+  "licensesUrl": "https://github.com/VisualPinball/VisualPinball.Unity.Hdrp/blob/master/LICENSE",
   "repository": {
     "url": "https://github.com/VisualPinball/VisualPinball.Unity.Hdrp.git",
     "type": "git"

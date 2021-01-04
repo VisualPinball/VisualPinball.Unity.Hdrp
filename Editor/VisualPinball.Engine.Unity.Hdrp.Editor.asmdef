@@ -4,7 +4,7 @@
 	"references": [
 		"Unity.RenderPipelines.HighDefinition.Runtime",
 		"VisualPinball.Unity",
-		"VisualPinball.Unity.AssetLibrary.Hdrp"
+		"VisualPinball.Unity.AssetLibrary"
 	],
 	"includePlatforms": [],
 	"excludePlatforms": [],
