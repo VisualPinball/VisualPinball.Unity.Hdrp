@@ -23,7 +23,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 	/// <remarks>
 	/// All paths contain the entire path, so they don't need to be concatenated.
 	/// </remarks>
-	internal class AssetPath
+	internal static class AssetPath
 	{
 		/// <summary>
 		/// Root package folder for the shared asset library.
