@@ -6,7 +6,7 @@
 		"VisualPinball.Unity",
 		"VisualPinball.Unity.AssetLibrary"
 	],
-	"includePlatforms": [],
+	"includePlatforms": [ "Editor" ],
 	"excludePlatforms": [],
 	"allowUnsafeCode": true,
 	"overrideReferences": false,
