@@ -23,6 +23,7 @@ using System.Text;
 using UnityEngine;
 using VisualPinball.Engine.VPT;
 using VisualPinball.Unity;
+using Material = UnityEngine.Material;
 
 namespace VisualPinball.Engine.Unity.Hdrp
 {
@@ -35,35 +36,49 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		private static readonly int Smoothness = Shader.PropertyToID("_Smoothness");
 		private static readonly int BaseColorMap = Shader.PropertyToID("_BaseColorMap");
 		private static readonly int NormalMap = Shader.PropertyToID("_NormalMap");
+		private static readonly int UVChannelSelect = Shader.PropertyToID("_UVChannelSelect");
 
 		#endregion
 
-		private static Shader GetShader()
+		public Shader GetShader()
 		{
 			return Shader.Find("HDRP/Lit");
 		}
 
-		public static UnityEngine.Material GetDefaultMaterial(BlendMode blendMode)
+		private Shader GetShader(PbrMaterial vpxMaterial)
+		{
+			return vpxMaterial.VertexLerpWithUvEnabled
+				? Shader.Find("Visual Pinball/Hdrp/LerpVertex")
+				: GetShader();
+		}
+
+		public static Material GetDefaultMaterial(BlendMode blendMode)
 		{
 			switch (blendMode)
 			{
 				case BlendMode.Opaque:
-					return UnityEngine.Resources.Load<UnityEngine.Material>("Materials/TableOpaque");
+					return UnityEngine.Resources.Load<Material>("Materials/TableOpaque");
 				case BlendMode.Cutout:
-					return UnityEngine.Resources.Load<UnityEngine.Material>("Materials/TableCutout");
+					return UnityEngine.Resources.Load<Material>("Materials/TableCutout");
 				case BlendMode.Translucent:
-					return UnityEngine.Resources.Load<UnityEngine.Material>("Materials/TableTranslucent");
+					return UnityEngine.Resources.Load<Material>("Materials/TableTranslucent");
 				default:
 					throw new ArgumentOutOfRangeException( "Undefined blend mode " + blendMode);
 			}
-
 		}
 
-		public UnityEngine.Material CreateMaterial(PbrMaterial vpxMaterial, TableAuthoring table, Type objectType, StringBuilder debug = null)
+		public Material CreateMaterial(PbrMaterial vpxMaterial, TableAuthoring table, Type objectType, StringBuilder debug = null)
 		{
-			UnityEngine.Material defaultMaterial = GetDefaultMaterial(vpxMaterial.MapBlendMode);
+			Material defaultMaterial = GetDefaultMaterial(vpxMaterial.MapBlendMode);
 
-			var unityMaterial = new UnityEngine.Material(GetShader());
+			var unityMaterial = new Material(GetShader(vpxMaterial))
+			{
+				name = vpxMaterial.Id
+			};
+
+			if (vpxMaterial.VertexLerpWithUvEnabled) {
+				unityMaterial.SetFloat(UVChannelSelect, 2);
+			}
 			unityMaterial.CopyPropertiesFromMaterial( defaultMaterial);
 			unityMaterial.name = vpxMaterial.Id;
 
