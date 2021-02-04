@@ -24,6 +24,7 @@ using UnityEngine;
 using VisualPinball.Engine.VPT;
 using VisualPinball.Unity;
 using Material = UnityEngine.Material;
+using Mesh = VisualPinball.Engine.VPT.Mesh;
 
 namespace VisualPinball.Engine.Unity.Hdrp
 {
@@ -36,7 +37,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		private static readonly int Smoothness = Shader.PropertyToID("_Smoothness");
 		private static readonly int BaseColorMap = Shader.PropertyToID("_BaseColorMap");
 		private static readonly int NormalMap = Shader.PropertyToID("_NormalMap");
-		private static readonly int UVChannelSelect = Shader.PropertyToID("_UVChannelSelect");
+		private static readonly int UVChannelVertices = Shader.PropertyToID("_UVChannelVertices");
+		private static readonly int UVChannelNormals = Shader.PropertyToID("_UVChannelNormals");
 
 		#endregion
 
@@ -76,11 +78,13 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				name = vpxMaterial.Id
 			};
 
-			if (vpxMaterial.VertexLerpWithUvEnabled) {
-				unityMaterial.SetFloat(UVChannelSelect, 2);
-			}
-			unityMaterial.CopyPropertiesFromMaterial( defaultMaterial);
+			unityMaterial.CopyPropertiesFromMaterial(defaultMaterial);
 			unityMaterial.name = vpxMaterial.Id;
+
+			if (vpxMaterial.VertexLerpWithUvEnabled) {
+				unityMaterial.SetFloat(UVChannelVertices, Mesh.AnimationUVChannelVertices);
+				unityMaterial.SetFloat(UVChannelNormals, Mesh.AnimationUVChannelNormals);
+			}
 
 			// apply some basic manipulations to the color. this just makes very
 			// very white colors be clipped to 0.8204 aka 204/255 is 0.8
