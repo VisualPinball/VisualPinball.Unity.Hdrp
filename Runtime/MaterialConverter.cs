@@ -50,7 +50,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		private Shader GetShader(PbrMaterial vpxMaterial)
 		{
 			return vpxMaterial.VertexLerpWithUvEnabled
-				? Shader.Find("Visual Pinball/Hdrp/LerpVertex")
+				? Shader.Find("Visual Pinball/Srp/LerpVertex")
 				: GetShader();
 		}
 
