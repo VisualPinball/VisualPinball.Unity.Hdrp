@@ -30,6 +30,9 @@ namespace VisualPinball.Engine.Unity.Hdrp
 {
 	public class MaterialConverter : IMaterialConverter
 	{
+		public Material DotMatrixDisplay => UnityEngine.Resources.Load<Material>("Materials/DotMatrixDisplay");
+		public Material SegmentDisplay => UnityEngine.Resources.Load<Material>("Materials/SegmentDisplay");
+
 		#region Shader Properties
 
 		private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
