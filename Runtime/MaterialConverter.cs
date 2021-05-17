@@ -72,7 +72,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			}
 		}
 
-		public Material CreateMaterial(PbrMaterial vpxMaterial, TableAuthoring table, Type objectType, StringBuilder debug = null)
+		public Material CreateMaterial(PbrMaterial vpxMaterial, ITextureProvider textureProvider, Type objectType, StringBuilder debug = null)
 		{
 			Material defaultMaterial = GetDefaultMaterial(vpxMaterial.MapBlendMode);
 
@@ -124,18 +124,16 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			unityMaterial.SetFloat(Smoothness, vpxMaterial.Roughness);
 
 			// map
-			if (table != null && vpxMaterial.HasMap)
-			{
-				unityMaterial.SetTexture(BaseColorMap,table.GetTexture(vpxMaterial.Map.Name));
+			if (vpxMaterial.HasMap) {
+				unityMaterial.SetTexture(BaseColorMap,textureProvider.GetTexture(vpxMaterial.Map.Name));
 			}
 
 			// normal map
-			if (table != null && vpxMaterial.HasNormalMap)
-			{
+			if (vpxMaterial.HasNormalMap) {
 				unityMaterial.EnableKeyword("_NORMALMAP");
 				unityMaterial.EnableKeyword("_NORMALMAP_TANGENT_SPACE");
 
-				unityMaterial.SetTexture( NormalMap, table.GetTexture(vpxMaterial.NormalMap.Name));
+				unityMaterial.SetTexture( NormalMap, textureProvider.GetTexture(vpxMaterial.NormalMap.Name));
 			}
 
 			return unityMaterial;
