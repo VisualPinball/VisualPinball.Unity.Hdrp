@@ -12,7 +12,7 @@
   "dependencies": {
     "com.unity.render-pipelines.high-definition": "10.2.2",
     "com.unity.render-pipelines.high-definition-config": "10.2.2",
-    "org.visualpinball.engine.unity": "0.0.1-preview.46",
+    "org.visualpinball.engine.unity": "0.0.1-preview.47",
     "org.visualpinball.unity.assetlibrary": "0.0.1-preview.16"
   },
   "author": "freezy <freezy@vpdb.io>",
