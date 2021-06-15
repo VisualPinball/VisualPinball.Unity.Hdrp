@@ -104,7 +104,7 @@ GameObject:
   - component: {fileID: 7872365585468035470}
   - component: {fileID: 7713342667789857940}
   m_Layer: 0
-  m_Name: Camera
+  m_Name: EditorCamera
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -137,8 +137,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 347c4cae5c4c3d940b87f596e1d81881, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  activeSetting: {fileID: 11400000, guid: 8382dcf729afb0a41a97c9dedb148e3d, type: 2}
-  cameraPresets: []
+  activeSetting: {fileID: 11400000, guid: c505b460084ae3b4d96d2b89a287916d, type: 2}
+  cameraPresets:
+  - {fileID: 11400000, guid: 845fc51004417a542a68ea947cc6d11d, type: 2}
+  - {fileID: 11400000, guid: 940f202676b6d8b47be711c08191b777, type: 2}
+  - {fileID: 11400000, guid: 3f8db0a1b935e974f8409d2f75b0c8e7, type: 2}
+  mouseSpeedH: 1
+  mouseSpeedV: 1
+  mouseSpeedT: 1
+  useInertia: 1
+  invertX: 0
+  invertY: 0
 --- !u!1 &7872365585846497960
 GameObject:
   m_ObjectHideFlags: 0
@@ -151,6 +160,7 @@ GameObject:
   - component: {fileID: 7872365585846497956}
   - component: {fileID: 7872365585846497959}
   - component: {fileID: 7872365585846497958}
+  - component: {fileID: 9020143271085178195}
   m_Layer: 0
   m_Name: VPEEditorCamera
   m_TagString: MainCamera
@@ -195,8 +205,8 @@ Camera:
     y: 0
     width: 1
     height: 1
-  near clip plane: 3.9332001
-  far clip plane: 6.83558
+  near clip plane: 0.01
+  far clip plane: 9
   field of view: 11.6
   orthographic: 0
   orthographic size: 5
@@ -337,3 +347,15 @@ MonoBehaviour:
       data1: 70915500316526
       data2: 6442450944
   defaultFrameSettings: 0
+--- !u!114 &9020143271085178195
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7872365585846497960}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 869da57aeeeeca34f879e2e9be2e23bb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
