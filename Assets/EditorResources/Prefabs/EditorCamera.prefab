@@ -24,7 +24,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1670641548208146797}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: -0.000000117659575, z: 0.009999881}
+  m_LocalPosition: {x: -0.026, y: -0.20100014, z: -0.06900012}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children:
   - {fileID: 4491614744995309949}
@@ -85,7 +85,7 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6059262530235526057}
-  m_LocalRotation: {x: 0.5934189, y: 0, z: 0, w: 0.8048938}
+  m_LocalRotation: {x: 0.39153427, y: 0, z: 0, w: 0.9201635}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children:
@@ -176,7 +176,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7872365585846497960}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: -4.56}
+  m_LocalPosition: {x: 0, y: 0, z: -2.03}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children: []
   m_Father: {fileID: 7969986926998772109}
@@ -198,16 +198,16 @@ Camera:
   m_FOVAxisMode: 0
   m_SensorSize: {x: 36, y: 24}
   m_LensShift: {x: 0, y: 0}
-  m_FocalLength: 118.137794
+  m_FocalLength: 63.205822
   m_NormalizedViewPortRect:
     serializedVersion: 2
     x: 0
     y: 0
     width: 1
     height: 1
-  near clip plane: 0.01
-  far clip plane: 9
-  field of view: 11.6
+  near clip plane: 0.6170058
+  far clip plane: 3.2678232
+  field of view: 21.5
   orthographic: 0
   orthographic size: 5
   m_Depth: -1
@@ -310,8 +310,8 @@ MonoBehaviour:
   taaMotionVectorRejection: 0
   taaAntiHistoryRinging: 1
   physicalParameters:
-    m_Iso: 100
-    m_ShutterSpeed: 0.0032478077
+    m_Iso: 200
+    m_ShutterSpeed: 0.01
     m_Aperture: 3
     m_BladeCount: 5
     m_Curvature: {x: 2, y: 11}
@@ -330,7 +330,7 @@ MonoBehaviour:
   exposureTarget: {fileID: 0}
   m_RenderingPathCustomFrameSettings:
     bitDatas:
-      data1: 72127876712890159
+      data1: 72127945432366895
       data2: 13763000468760363008
     lodBias: 1
     lodBiasMode: 0
