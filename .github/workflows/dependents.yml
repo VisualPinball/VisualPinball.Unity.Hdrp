@@ -1,0 +1,36 @@
+name: Dependents
+on:
+  repository_dispatch:
+    types: [ publish-complete ]
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v2
+      - id: version
+        run: |
+          VERSION=$(grep '"version":' package.json -m1 | cut -d\" -f4)
+          echo ::set-output name=version::${VERSION}
+
+  VisualPinball-Unity-Project-Hdrp:
+    runs-on: ubuntu-latest
+    needs: [ version ]
+    steps:
+      - name: Checkout VisualPinball.Unity.Project.Hdrp
+        uses: actions/checkout@v2
+        with:
+           repository: VisualPinball/VisualPinball.Unity.Project.Hdrp
+           token: ${{ secrets.GH_PAT }}
+      - name: Commit 
+        run: |
+          cd Packages
+          jq '.dependencies."org.visualpinball.engine.unity.hdrp" = "${{ needs.version.outputs.version }}"' manifest.json > manifest.json.tmp
+          mv manifest.json.tmp manifest.json
+          git config user.name "github-actions"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add manifest.json
+          git commit -m "chore(deps): Update org.visualpinball.engine.unity.hdrp to ${{ needs.version.outputs.version }}."
+          git push
