@@ -32,6 +32,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 	{
 		public Material DotMatrixDisplay => UnityEngine.Resources.Load<Material>("Materials/DotMatrixDisplay");
 		public Material SegmentDisplay => UnityEngine.Resources.Load<Material>("Materials/SegmentDisplay");
+		public int NormalMapProperty => NormalMap;
 
 		#region Shader Properties
 
