@@ -53,9 +53,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 		private Shader GetShader(PbrMaterial vpxMaterial)
 		{
-			return vpxMaterial.VertexLerpWithUvEnabled
-				? Shader.Find("Visual Pinball/Srp/LerpVertex")
-				: GetShader();
+			return GetShader();
 		}
 
 		public static Material GetDefaultMaterial(BlendMode blendMode)
@@ -84,11 +82,6 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 			unityMaterial.CopyPropertiesFromMaterial(defaultMaterial);
 			unityMaterial.name = vpxMaterial.Id;
-
-			if (vpxMaterial.VertexLerpWithUvEnabled) {
-				unityMaterial.SetFloat(UVChannelVertices, Mesh.AnimationUVChannelVertices);
-				unityMaterial.SetFloat(UVChannelNormals, Mesh.AnimationUVChannelNormals);
-			}
 
 			// apply some basic manipulations to the color. this just makes very
 			// very white colors be clipped to 0.8204 aka 204/255 is 0.8
