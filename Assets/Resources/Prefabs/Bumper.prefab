@@ -81,9 +81,6 @@ MonoBehaviour:
     IsReflectionEnabled: 0
     IsTimerEnabled: 0
     TimerInterval: 0
-  Radius: 45
-  Orientation: 0
-  Surface: {fileID: 0}
 --- !u!114 &1813312543483188556
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -99,10 +96,6 @@ MonoBehaviour:
   PhysicsMaterial: {fileID: 0}
   ShowColliderMesh: 0
   ShowAabbs: 0
-  Threshold: 1
-  Force: 15
-  Scatter: 0
-  HitEvent: 1
 --- !u!114 &558255656085877858
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -155,7 +148,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2782857395794746971}
-  m_Mesh: {fileID: 4300000, guid: d55cf3bf545887f439aa6732b5ef7598, type: 2}
+  m_Mesh: {fileID: 4300000, guid: 23cba34ca423ac64598eb00a6c49c21d, type: 2}
 --- !u!23 &8557801633222693968
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -242,8 +235,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: aff42798b4f4d7149b76ac24b29d83db, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  RingSpeed: 0.5
-  RingDropOffset: 0
 --- !u!33 &2838277533150802644
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -251,7 +242,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4831611243493218810}
-  m_Mesh: {fileID: 4300000, guid: d233abba9e49dd2479ef4d56c762ba35, type: 2}
+  m_Mesh: {fileID: 4300000, guid: 9ab275eadf37d214e9b19f950656e126, type: 2}
 --- !u!23 &2116278473410869078
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -345,7 +336,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5455811174752170985}
-  m_Mesh: {fileID: 4300000, guid: e22c94cc99fd0ca4390520da39cba2f7, type: 2}
+  m_Mesh: {fileID: 4300000, guid: 1c6eae054101b3d48b5866f6672ff86b, type: 2}
 --- !u!23 &4142735908450955278
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -426,7 +417,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5797145664016368702}
-  m_Mesh: {fileID: 4300000, guid: d733957a228d7614b8c1cf56b3259de1, type: 2}
+  m_Mesh: {fileID: 4300000, guid: 126ef1edc4ca89d438ecf6fcc62d59fe, type: 2}
 --- !u!23 &2855870074223701206
 MeshRenderer:
   m_ObjectHideFlags: 0
