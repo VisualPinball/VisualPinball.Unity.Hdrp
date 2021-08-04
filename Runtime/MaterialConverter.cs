@@ -24,7 +24,6 @@ using UnityEngine;
 using VisualPinball.Engine.VPT;
 using VisualPinball.Unity;
 using Material = UnityEngine.Material;
-using Mesh = VisualPinball.Engine.VPT.Mesh;
 
 namespace VisualPinball.Engine.Unity.Hdrp
 {
@@ -32,6 +31,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 	{
 		public Material DotMatrixDisplay => UnityEngine.Resources.Load<Material>("Materials/DotMatrixDisplay");
 		public Material SegmentDisplay => UnityEngine.Resources.Load<Material>("Materials/SegmentDisplay");
+
 		public int NormalMapProperty => NormalMap;
 
 		#region Shader Properties
@@ -118,12 +118,12 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			unityMaterial.SetFloat(Smoothness, vpxMaterial.Roughness);
 
 			// map
-			if (vpxMaterial.HasMap) {
+			if (vpxMaterial.HasMap && textureProvider != null) {
 				unityMaterial.SetTexture(BaseColorMap,textureProvider.GetTexture(vpxMaterial.Map.Name));
 			}
 
 			// normal map
-			if (vpxMaterial.HasNormalMap) {
+			if (vpxMaterial.HasNormalMap && textureProvider != null) {
 				unityMaterial.EnableKeyword("_NORMALMAP");
 				unityMaterial.EnableKeyword("_NORMALMAP_TANGENT_SPACE");
 
@@ -131,6 +131,20 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			}
 
 			return unityMaterial;
+		}
+
+		public Material MergeMaterials(PbrMaterial vpxMaterial, Material texturedMaterial)
+		{
+			var nonTexturedMaterial = CreateMaterial(vpxMaterial, null, null);
+			var mergedMaterial = new Material(GetShader());
+			mergedMaterial.CopyPropertiesFromMaterial(texturedMaterial);
+
+			mergedMaterial.name = nonTexturedMaterial.name;
+			mergedMaterial.SetColor(BaseColor, nonTexturedMaterial.GetColor(BaseColor));
+			mergedMaterial.SetFloat(Metallic, nonTexturedMaterial.GetFloat(Metallic));
+			mergedMaterial.SetFloat(Smoothness, nonTexturedMaterial.GetFloat(Smoothness));
+
+			return mergedMaterial;
 		}
 	}
 }
