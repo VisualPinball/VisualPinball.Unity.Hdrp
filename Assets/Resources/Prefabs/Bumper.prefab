@@ -81,6 +81,11 @@ MonoBehaviour:
     IsReflectionEnabled: 0
     IsTimerEnabled: 0
     TimerInterval: 0
+  Position: {x: 0, y: 0}
+  Radius: 45
+  HeightScale: 90
+  Orientation: 0
+  Surface: {fileID: 0}
 --- !u!114 &1813312543483188556
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -96,6 +101,10 @@ MonoBehaviour:
   PhysicsMaterial: {fileID: 0}
   ShowColliderMesh: 0
   ShowAabbs: 0
+  Threshold: 1
+  Force: 15
+  Scatter: 0
+  HitEvent: 1
 --- !u!114 &558255656085877858
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -235,6 +244,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: aff42798b4f4d7149b76ac24b29d83db, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  RingSpeed: 0.5
+  RingDropOffset: 0
 --- !u!33 &2838277533150802644
 MeshFilter:
   m_ObjectHideFlags: 0
