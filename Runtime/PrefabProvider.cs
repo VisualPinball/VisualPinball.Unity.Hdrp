@@ -14,7 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+using System;
 using UnityEngine;
+using VisualPinball.Engine.VPT;
 using VisualPinball.Unity;
 
 namespace VisualPinball.Engine.Unity.Hdrp
@@ -24,6 +26,21 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		public GameObject CreateBumper()
 		{
 			return UnityEngine.Resources.Load<GameObject>("Prefabs/Bumper");
+		}
+		public GameObject CreateGate(int type)
+		{
+			switch (type) {
+				case GateType.GateLongPlate:
+					return UnityEngine.Resources.Load<GameObject>("Prefabs/Gate - Long Plate");
+				case GateType.GatePlate:
+					return UnityEngine.Resources.Load<GameObject>("Prefabs/Gate - Plate");
+				case GateType.GateWireRectangle:
+					return UnityEngine.Resources.Load<GameObject>("Prefabs/Gate - Wire Rectangle");
+				case GateType.GateWireW:
+					return UnityEngine.Resources.Load<GameObject>("Prefabs/Gate - Wire W");
+				default:
+					throw new ArgumentException(nameof(type), $"Unknown gate type {type}.");
+			}
 		}
 	}
 }
