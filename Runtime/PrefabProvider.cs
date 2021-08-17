@@ -27,6 +27,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		{
 			return UnityEngine.Resources.Load<GameObject>("Prefabs/Bumper");
 		}
+
 		public GameObject CreateGate(int type)
 		{
 			switch (type) {
@@ -40,32 +41,6 @@ namespace VisualPinball.Engine.Unity.Hdrp
 					return UnityEngine.Resources.Load<GameObject>("Prefabs/Gate - Wire W");
 				default:
 					throw new ArgumentException(nameof(type), $"Unknown gate type {type}.");
-			}
-		}
-	public GameObject CreateTarget(int type)
-		{
-			switch (type)
-			{
-				case TargetType.DropTargetBeveled:
-					return UnityEngine.Resources.Load<GameObject>("Prefabs/Drop Target - Beveled");
-				case TargetType.DropTargetFlatSimple:
-					return UnityEngine.Resources.Load<GameObject>("Prefabs/Drop Target - Simple Flat");
-				case TargetType.DropTargetSimple:
-					return UnityEngine.Resources.Load<GameObject>("Prefabs/Drop Target - Simple");
-				case TargetType.HitFatTargetRectangle:
-					return UnityEngine.Resources.Load<GameObject>("Prefabs/Hit Target - Rectangle Fat");
-				case TargetType.HitFatTargetSlim:
-					return UnityEngine.Resources.Load<GameObject>("Prefabs/Hit Target - Rectangle Fat Narrow");
-				case TargetType.HitFatTargetSquare:
-					return UnityEngine.Resources.Load<GameObject>("Prefabs/Hit Target - Square Fat");
-				case TargetType.HitTargetRectangle:
-					return UnityEngine.Resources.Load<GameObject>("Prefabs/Hit Target - Rectangle");
-				case TargetType.HitTargetRound:
-					return UnityEngine.Resources.Load<GameObject>("Prefabs/Hit Target - Round");
-				case TargetType.HitTargetSlim:
-					return UnityEngine.Resources.Load<GameObject>("Prefabs/Hit Target - Narrow");
-				default:
-					throw new ArgumentException(nameof(type), $"Unknown target type {type}.");
 			}
 		}
 
@@ -88,6 +63,37 @@ namespace VisualPinball.Engine.Unity.Hdrp
 					return UnityEngine.Resources.Load<GameObject>("Prefabs/Kicker - Invisible");
 				default:
 					throw new ArgumentException(nameof(type), $"Unknown kicker type {type}.");
+			}
+		}
+
+		public GameObject CreateSpinner()
+		{
+			return UnityEngine.Resources.Load<GameObject>("Prefabs/Spinner");
+		}
+
+		public GameObject CreateTarget(int type)
+		{
+			switch (type) {
+				case TargetType.DropTargetBeveled:
+					return UnityEngine.Resources.Load<GameObject>("Prefabs/Drop Target - Beveled");
+				case TargetType.DropTargetFlatSimple:
+					return UnityEngine.Resources.Load<GameObject>("Prefabs/Drop Target - Simple Flat");
+				case TargetType.DropTargetSimple:
+					return UnityEngine.Resources.Load<GameObject>("Prefabs/Drop Target - Simple");
+				case TargetType.HitFatTargetRectangle:
+					return UnityEngine.Resources.Load<GameObject>("Prefabs/Hit Target - Rectangle Fat");
+				case TargetType.HitFatTargetSlim:
+					return UnityEngine.Resources.Load<GameObject>("Prefabs/Hit Target - Rectangle Fat Narrow");
+				case TargetType.HitFatTargetSquare:
+					return UnityEngine.Resources.Load<GameObject>("Prefabs/Hit Target - Square Fat");
+				case TargetType.HitTargetRectangle:
+					return UnityEngine.Resources.Load<GameObject>("Prefabs/Hit Target - Rectangle");
+				case TargetType.HitTargetRound:
+					return UnityEngine.Resources.Load<GameObject>("Prefabs/Hit Target - Round");
+				case TargetType.HitTargetSlim:
+					return UnityEngine.Resources.Load<GameObject>("Prefabs/Hit Target - Narrow");
+				default:
+					throw new ArgumentException(nameof(type), $"Unknown target type {type}.");
 			}
 		}
 	}
