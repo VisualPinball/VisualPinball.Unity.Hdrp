@@ -65,6 +65,10 @@ namespace VisualPinball.Engine.Unity.Hdrp
 					throw new ArgumentException(nameof(type), $"Unknown kicker type {type}.");
 			}
 		}
+		public GameObject CreateLight()
+		{
+			return UnityEngine.Resources.Load<GameObject>("Prefabs/Light");
+		}
 
 		public GameObject CreateSpinner()
 		{
