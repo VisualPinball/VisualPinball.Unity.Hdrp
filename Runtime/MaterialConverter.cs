@@ -71,7 +71,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			}
 		}
 
-		public Material CreateMaterial(PbrMaterial vpxMaterial, ITextureProvider textureProvider, Type objectType, StringBuilder debug = null)
+		public Material CreateMaterial(PbrMaterial vpxMaterial, ITextureProvider textureProvider, StringBuilder debug = null)
 		{
 			Material defaultMaterial = GetDefaultMaterial(vpxMaterial.MapBlendMode);
 
