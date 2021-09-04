@@ -15,11 +15,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 using UnityEditor;
-using UnityEditor.SceneManagement;
 using UnityEngine;
-using UnityEngine.Rendering.HighDefinition;
-using UnityEngine.SceneManagement;
-using VisualPinball.Unity;
 
 namespace VisualPinball.Engine.Unity.Hdrp.Editor
 {

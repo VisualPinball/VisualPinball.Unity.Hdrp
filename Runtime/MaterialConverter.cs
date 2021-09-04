@@ -29,8 +29,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 {
 	public class MaterialConverter : IMaterialConverter
 	{
-		public Material DotMatrixDisplay => UnityEngine.Resources.Load<Material>("Materials/DotMatrixDisplay");
-		public Material SegmentDisplay => UnityEngine.Resources.Load<Material>("Materials/SegmentDisplay");
+		public Material DotMatrixDisplay => UnityEngine.Resources.Load<Material>("Materials/Dot Matrix Display (SRP)");
+		public Material SegmentDisplay => UnityEngine.Resources.Load<Material>("Materials/Segment Display (SRP)");
 
 		public int NormalMapProperty => NormalMap;
 
