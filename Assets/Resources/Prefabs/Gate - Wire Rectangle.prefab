@@ -46,38 +46,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d975b3eb6ff5d434e8e9f7cd282fa881, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _data:
-    StoragePrefix: 0
-    StorageIndex: 0
-    IsLocked: 0
-    EditorLayerName: 
-    EditorLayerVisibility: 0
-    Name: 
-    AngleMax: 0
-    AngleMin: 0
-    Damping: 0
-    Elasticity: 0
-    Friction: 0
-    GateType: 0
-    GravityFactor: 0
-    Height: 0
-    IsCollidable: 0
-    IsReflectionEnabled: 0
-    IsVisible: 0
-    Length: 0
-    Rotation: 0
-    ShowBracket: 0
-    Material: 
-    Surface: 
-    TwoWay: 0
-    Center:
-      X: 0
-      Y: 0
-    IsTimerEnabled: 0
-    TimerInterval: 0
+  _isLocked: 0
+  _editorLayer: 0
+  _editorLayerName: 
+  _editorLayerVisibility: 1
   Position: {x: 0, y: 0, z: 0}
-  Rotation: 0
-  Length: 100
+  _rotation: 0
+  _length: 100
   _surface: {fileID: 0}
 --- !u!114 &3496935618586042827
 MonoBehaviour:
@@ -94,13 +69,13 @@ MonoBehaviour:
   PhysicsMaterial: {fileID: 0}
   ShowColliderMesh: 0
   ShowAabbs: 0
-  AngleMax: 1.5707964
-  AngleMin: 0
+  _angleMax: 90
+  _angleMin: 0
   Damping: 0.985
   Elasticity: 0.3
   Friction: 0.02
   GravityFactor: 0.25
-  TwoWay: 0
+  _twoWay: 0
 --- !u!1 &6497995796854627700
 GameObject:
   m_ObjectHideFlags: 0
