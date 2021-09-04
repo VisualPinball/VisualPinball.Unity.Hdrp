@@ -48,45 +48,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 51f2381f95b27d54aa19738b53e092e1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _data:
-    StoragePrefix: 0
-    StorageIndex: 0
-    IsLocked: 0
-    EditorLayerName: 
-    EditorLayerVisibility: 0
-    Name: 
-    DepthBias: 0
-    DisableLightingBelow: 0
-    DisableLightingTop: 0
-    DropSpeed: 0
-    IsReflectionEnabled: 0
-    RaiseDelay: 0
-    Elasticity: 0
-    ElasticityFalloff: 0
-    Friction: 0
-    IsCollidable: 0
-    IsDropped: 0
-    IsVisible: 0
-    IsLegacy: 0
-    OverwritePhysics: 0
-    RotZ: 0
-    Scatter: 0
-    Image: 
-    Material: 
-    PhysicsMaterial: 
-    TargetType: 0
-    Threshold: 0
-    UseHitEvent: 0
-    Position:
-      X: 0
-      Y: 0
-      Z: 0
-    Size:
-      X: 0
-      Y: 0
-      Z: 0
-    IsTimerEnabled: 0
-    TimerInterval: 0
+  _isLocked: 0
+  _editorLayer: 0
+  _editorLayerName: 
+  _editorLayerVisibility: 1
   Position: {x: 0, y: 0, z: 0}
   Rotation: 0
   Size: {x: 32, y: 32, z: 32}

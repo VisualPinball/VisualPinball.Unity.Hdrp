@@ -49,43 +49,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8fbf8908cf17c554ab7afb9da3d6775a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _data:
-    StoragePrefix: 0
-    StorageIndex: 0
-    IsLocked: 0
-    EditorLayerName: 
-    EditorLayerVisibility: 0
-    Name: Bumper
-    Center:
-      X: 0
-      Y: 0
-    Radius: 0
-    CapMaterial: 
-    RingMaterial: 
-    BaseMaterial: 
-    SocketMaterial: 
-    Threshold: 0
-    Force: 0
-    Scatter: 0
-    HeightScale: 0
-    RingSpeed: 0
-    Orientation: 0
-    RingDropOffset: 0
-    Surface: 
-    IsCapVisible: 0
-    IsBaseVisible: 0
-    IsRingVisible: 0
-    IsSocketVisible: 0
-    HitEvent: 0
-    IsCollidable: 0
-    IsReflectionEnabled: 0
-    IsTimerEnabled: 0
-    TimerInterval: 0
+  _isLocked: 0
+  _editorLayer: 0
+  _editorLayerName: 
+  _editorLayerVisibility: 1
   Position: {x: 0, y: 0}
   Radius: 45
   HeightScale: 90
   Orientation: 0
-  Surface: {fileID: 0}
+  _surface: {fileID: 0}
 --- !u!114 &1813312543483188556
 MonoBehaviour:
   m_ObjectHideFlags: 0
