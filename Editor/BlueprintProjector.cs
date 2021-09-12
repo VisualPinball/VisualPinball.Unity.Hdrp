@@ -38,25 +38,25 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			Undo.RegisterCreatedObjectUndo(bluePrintProjector, "Blueprint Decal");
 
 			// find table and parent
-			TableAuthoring ta;
+			TableComponent tableComp;
 			Transform parent;
 
 			// if nothing selected, use active table
 			if (Selection.activeGameObject == null) {
-				ta = TableSelector.Instance.SelectedTable;
+				tableComp = TableSelector.Instance.SelectedTable;
 				parent = bluePrintProjector.transform.root;
 
 			} else {
 				// otherwise, find parent in hierarchy
-				ta = Selection.activeGameObject.GetComponentInParent<TableAuthoring>();
+				tableComp = Selection.activeGameObject.GetComponentInParent<TableComponent>();
 				parent = Selection.activeGameObject.transform;
 
 				// if none in hierarchy, fall back to active table
-				if (ta == null) {
-					ta = TableSelector.Instance.SelectedTable;
+				if (tableComp == null) {
+					tableComp = TableSelector.Instance.SelectedTable;
 				}
 			}
-			if (ta == null) {
+			if (tableComp == null) {
 				EditorUtility.DisplayDialog(
 					"Blueprint Projector",
 					"No table found in scene. The blueprint projector only works with a table.",
@@ -65,7 +65,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			}
 
 			// adjust parameters
-			var playfieldAuthoring = ta.GetComponentInChildren<PlayfieldAuthoring>();
+			var playfieldAuthoring = tableComp.GetComponentInChildren<PlayfieldComponent>();
 			bluePrintProjector.transform.SetParent(parent, true);
 			var extents = playfieldAuthoring.GetComponent<MeshRenderer>().bounds.extents;
 			var center = playfieldAuthoring.GetComponent<MeshRenderer>().bounds.center;
