@@ -27,7 +27,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 {
 	public class LightConverter : ILightConverter
 	{
-		public void UpdateLight(Light light, LightData data)
+		public void UpdateLight(Light light, LightData data, bool isInsert)
 		{
 			// retrieve hdrp light
 			var hdLight = light.GetComponent<HDAdditionalLightData>();
@@ -38,13 +38,39 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 			// color and position
 			hdLight.color = data.Color2.ToUnityColor();
-			hdLight.intensity = data.Intensity / 4f;
-			hdLight.range = data.Falloff * 0.001f;
+			if (!isInsert) {
+				hdLight.intensity = data.Intensity / 4f;
+				hdLight.range = data.Falloff * 0.001f;
 
-			// TODO: vpe specific data for height
-			light.transform.localPosition = new Vector3(0f, 0f, 25f);
+				// TODO: vpe specific data for height
+				light.transform.localPosition = new Vector3(0f, 0f, 25f);
+			}
 
 			hdLight.EnableShadows(false);
+		}
+
+		public void SetColor(Light light, Color color)
+		{
+			var hdLight = light.GetComponent<HDAdditionalLightData>();
+			if (hdLight != null) {
+				hdLight.color = color;
+			}
+		}
+
+		public void SetIntensity(Light light, float intensityLumen)
+		{
+			var hdLight = light.GetComponent<HDAdditionalLightData>();
+			if (hdLight != null) {
+				hdLight.SetIntensity(intensityLumen, LightUnit.Lumen);
+			}
+		}
+
+		public void SpotLight(Light light, float outer, float innerPercent)
+		{
+			var hdLight = light.GetComponent<HDAdditionalLightData>();
+			if (hdLight != null) {
+				hdLight.SetSpotAngle(outer, innerPercent);
+			}
 		}
 	}
 }
