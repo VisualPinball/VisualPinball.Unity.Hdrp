@@ -72,5 +72,15 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				hdLight.SetSpotAngle(outer, innerPercent);
 			}
 		}
+
+		public void PyramidAngle(Light light, float angle, float aspectRatio)
+		{
+			var hdLight = light.GetComponent<HDAdditionalLightData>();
+			if (hdLight != null) {
+				hdLight.spotLightShape = SpotLightShape.Pyramid;
+				hdLight.SetSpotAngle(angle);
+				hdLight.aspectRatio = aspectRatio;
+			}
+		}
 	}
 }
