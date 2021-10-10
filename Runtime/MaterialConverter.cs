@@ -19,11 +19,18 @@
 // ReSharper disable CheckNamespace
 
 using System;
+using System.Globalization;
+using System.Linq;
+using System.Reflection;
 using System.Text;
+using NLog;
+using UnityEditor;
 using UnityEngine;
 using VisualPinball.Engine.VPT;
 using VisualPinball.Unity;
+using Logger = NLog.Logger;
 using Material = UnityEngine.Material;
+using Object = UnityEngine.Object;
 
 namespace VisualPinball.Engine.Unity.Hdrp
 {
@@ -43,8 +50,16 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		private static readonly int NormalMap = Shader.PropertyToID("_NormalMap");
 		private static readonly int UVChannelVertices = Shader.PropertyToID("_UVChannelVertices");
 		private static readonly int UVChannelNormals = Shader.PropertyToID("_UVChannelNormals");
+		private static readonly int DiffusionProfileAsset = Shader.PropertyToID("_DiffusionProfileAsset");
+		private static readonly int DiffusionProfileHash = Shader.PropertyToID("_DiffusionProfileHash");
+		private static readonly int MaterialID = Shader.PropertyToID("_MaterialID");
 
 		#endregion
+
+		private const string DiffusionProfilePlastic = "Packages/org.visualpinball.unity.assetlibrary/Assets/Settings/DiffusionProfiles/Plastic/PET_PETG.asset";
+
+		private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
 
 		public Shader GetShader()
 		{
@@ -114,8 +129,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 			unityMaterial.SetFloat(Metallic, metallicValue);
 
-			// roughness / glossiness
-			unityMaterial.SetFloat(Smoothness, vpxMaterial.Roughness);
+			SetSmoothness(unityMaterial, vpxMaterial.Roughness);
 
 			// map
 			if (vpxMaterial.HasMap && textureProvider != null) {
@@ -130,7 +144,19 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				unityMaterial.SetTexture( NormalMap, textureProvider.GetTexture(vpxMaterial.NormalMap.Name));
 			}
 
+			// diffusion profile
+			if (vpxMaterial.DiffusionProfile != DiffusionProfileTemplate.None) {
+				SetDiffusionProfile(unityMaterial, vpxMaterial.DiffusionProfile);
+			}
+
+			SetMaterialType(unityMaterial, vpxMaterial.MaterialType);
+
 			return unityMaterial;
+		}
+
+		public void SetSmoothness(Material unityMaterial, float smoothness)
+		{
+			unityMaterial.SetFloat(Smoothness, smoothness);
 		}
 
 		public Material MergeMaterials(PbrMaterial vpxMaterial, Material texturedMaterial)
@@ -146,5 +172,62 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 			return mergedMaterial;
 		}
+
+		public void SetDiffusionProfile(Material material, DiffusionProfileTemplate template)
+		{
+			#if UNITY_EDITOR
+
+			var diffusionProfilePath = template switch {
+				DiffusionProfileTemplate.Plastics => DiffusionProfilePlastic,
+				_ => throw new ArgumentOutOfRangeException(nameof(template), template, "Invalid diffusion profile.")
+			};
+
+			// unity, why tf would you make DiffusionProfileSettings internal!?!
+			var diffusionProfile = AssetDatabase.LoadAssetAtPath<Object>(diffusionProfilePath);
+
+			if (diffusionProfile != null) {
+
+				// need to get those through reflection..
+				var profile = diffusionProfile.GetType().GetRuntimeFields().First(f => f.Name == "profile").GetValue(diffusionProfile);
+				var profileHash = (uint)profile.GetType().GetRuntimeFields().First(f => f.Name == "hash").GetValue(profile);
+
+				var guid = AssetDatabase.AssetPathToGUID(diffusionProfilePath);
+				var newGuid = ConvertGUIDToVector4(guid);
+				var hash = AsFloat(profileHash);
+
+				// encode back GUID and it's hash
+				material.SetVector(DiffusionProfileAsset, newGuid);
+				material.SetFloat(DiffusionProfileHash, hash);
+
+			} else {
+				Logger.Warn($"Could not load diffusion profile at {diffusionProfilePath}");
+			}
+
+			#endif
+		}
+
+		public void SetMaterialType(Material material, MaterialType materialType)
+		{
+			material.SetFloat(MaterialID, (int)materialType);
+		}
+
+		private static Vector4 ConvertGUIDToVector4(string guid)
+		{
+			Vector4 vector;
+			byte[]  bytes = new byte[16];
+
+			for (int i = 0; i < 16; i++)
+				bytes[i] = byte.Parse(guid.Substring(i * 2, 2), NumberStyles.HexNumber);
+
+			unsafe
+			{
+				fixed (byte * b = bytes)
+					vector = *(Vector4 *)b;
+			}
+
+			return vector;
+		}
+
+		private static float AsFloat(uint val) { unsafe { return *((float*)&val); } }
 	}
 }
