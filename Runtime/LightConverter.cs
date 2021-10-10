@@ -56,12 +56,28 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				hdLight.color = color;
 			}
 		}
+		public void SetShadow(Light light, bool enabled, bool isDynamic, float nearPlane = 0.01f)
+		{
+			var hdLight = light.GetComponent<HDAdditionalLightData>();
+			if (hdLight != null) {
+				hdLight.EnableShadows(enabled);
+				hdLight.SetShadowNearPlane(nearPlane);
+				hdLight.SetShadowUpdateMode(isDynamic ? ShadowUpdateMode.EveryFrame : ShadowUpdateMode.OnEnable);
+			}
+		}
 
 		public void SetIntensity(Light light, float intensityLumen)
 		{
 			var hdLight = light.GetComponent<HDAdditionalLightData>();
 			if (hdLight != null) {
 				hdLight.SetIntensity(intensityLumen, LightUnit.Lumen);
+			}
+		}
+		public void SetTemperature(Light light, float temperature)
+		{
+			var hdLight = light.GetComponent<HDAdditionalLightData>();
+			if (hdLight != null) {
+				hdLight.SetColor(light.color, temperature);
 			}
 		}
 
