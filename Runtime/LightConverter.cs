@@ -65,6 +65,13 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				hdLight.SetShadowUpdateMode(isDynamic ? ShadowUpdateMode.EveryFrame : ShadowUpdateMode.OnEnable);
 			}
 		}
+		public void SetRange(Light light, float range)
+		{
+			var hdLight = light.GetComponent<HDAdditionalLightData>();
+			if (hdLight != null) {
+				hdLight.range = range;
+			}
+		}
 
 		public void SetIntensity(Light light, float intensityLumen)
 		{
@@ -85,6 +92,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		{
 			var hdLight = light.GetComponent<HDAdditionalLightData>();
 			if (hdLight != null) {
+				hdLight.type = HDLightType.Spot;
 				hdLight.SetSpotAngle(outer, innerPercent);
 			}
 		}
