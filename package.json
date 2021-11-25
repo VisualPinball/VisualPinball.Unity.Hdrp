@@ -1,6 +1,6 @@
 {
   "name": "org.visualpinball.engine.unity.hdrp",
-  "version": "0.0.1-preview.102",
+  "version": "0.0.1-preview.103",
   "displayName": "Visual Pinball Engine (HDRP)",
   "description": "High Definition Render Pipeline support",
   "keywords": [
