@@ -229,7 +229,6 @@ GameObject:
   - component: {fileID: 1154685457}
   - component: {fileID: 1154685460}
   - component: {fileID: 1154685459}
-  - component: {fileID: 1154685458}
   m_Layer: 0
   m_Name: FauxBulb
   m_TagString: Untagged
@@ -302,19 +301,6 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!135 &1154685458
-SphereCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1154685456}
-  m_Material: {fileID: 0}
-  m_IsTrigger: 0
-  m_Enabled: 1
-  serializedVersion: 2
-  m_Radius: 0.5
-  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1 &4423024720403102520
 GameObject:
   m_ObjectHideFlags: 0
@@ -454,8 +440,8 @@ MonoBehaviour:
   State: 0
   BlinkPattern: 
   BlinkInterval: 0
-  FadeSpeedUp: 0
-  FadeSpeedDown: 0
+  FadeSpeedUp: 0.2
+  FadeSpeedDown: 0.2
 --- !u!1 &8826137226957307700
 GameObject:
   m_ObjectHideFlags: 0
