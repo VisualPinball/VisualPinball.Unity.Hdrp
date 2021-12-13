@@ -77,7 +77,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3044962538057537860, guid: eb1c2a9b2ed84f64ba2f97523266bfeb, type: 3}
       propertyPath: m_Name
-      value: InsertSquareGrid Variant Green
+      value: Insert Rectangle Grid Variant Green
+      objectReference: {fileID: 0}
+    - target: {fileID: 4990728581348616789, guid: eb1c2a9b2ed84f64ba2f97523266bfeb, type: 3}
+      propertyPath: m_Intensity
+      value: 11
       objectReference: {fileID: 0}
     - target: {fileID: 6031798108859387825, guid: eb1c2a9b2ed84f64ba2f97523266bfeb, type: 3}
       propertyPath: m_Mesh
