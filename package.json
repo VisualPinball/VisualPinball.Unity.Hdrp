@@ -7,11 +7,11 @@
     "Unity",
     "HDRP"
   ],
-  "unity": "2020.3",
-  "unityRelease": "12f1",
+  "unity": "2021.2",
+  "unityRelease": "7f1",
   "dependencies": {
-    "com.unity.render-pipelines.high-definition": "10.5.0",
-    "com.unity.render-pipelines.high-definition-config": "10.5.0",
+    "com.unity.render-pipelines.high-definition": "12.1.2",
+    "com.unity.render-pipelines.high-definition-config": "12.1.2",
     "org.visualpinball.engine.unity": "0.0.1-preview.80",
     "org.visualpinball.unity.assetlibrary": "0.0.1-preview.49"
   },
