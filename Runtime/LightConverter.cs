@@ -44,7 +44,10 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 				// TODO: vpe specific data for height
 				light.transform.localPosition = new Vector3(0f, 0f, 25f);
+			} else {
+				hdLight.intensity = data.Intensity * 10f;
 			}
+
 
 			hdLight.EnableShadows(false);
 		}
