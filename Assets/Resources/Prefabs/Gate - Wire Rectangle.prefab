@@ -7,6 +7,10 @@ PrefabInstance:
   m_Modification:
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 2012952979694143057, guid: 39866beefccc860418d80ae53ef5ba09, type: 3}
+      propertyPath: m_Materials.Array.data[0]
+      value: 
+      objectReference: {fileID: 2100000, guid: 49e24ec397effc2459d67fc1af2e90ba, type: 2}
     - target: {fileID: 4689510019247135382, guid: 39866beefccc860418d80ae53ef5ba09, type: 3}
       propertyPath: m_Name
       value: Gate - Wire Rectangle
