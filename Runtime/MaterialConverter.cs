@@ -53,6 +53,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		private static readonly int DiffusionProfileAsset = Shader.PropertyToID("_DiffusionProfileAsset");
 		private static readonly int DiffusionProfileHash = Shader.PropertyToID("_DiffusionProfileHash");
 		private static readonly int MaterialID = Shader.PropertyToID("_MaterialID");
+		private static readonly int EmissiveColor = Shader.PropertyToID("_EmissiveColor");
 
 		#endregion
 
@@ -209,6 +210,16 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		public void SetMaterialType(Material material, MaterialType materialType)
 		{
 			material.SetFloat(MaterialID, (int)materialType);
+		}
+
+		public void SetEmissiveColor(MaterialPropertyBlock propBlock, Color color)
+		{
+			propBlock.SetColor(EmissiveColor, color);
+		}
+
+		public Color? GetEmissiveColor(Material material)
+		{
+			return material.GetColor(EmissiveColor);
 		}
 
 		private static Vector4 ConvertGUIDToVector4(string guid)
