@@ -46,9 +46,9 @@ Light:
   m_Type: 0
   m_Shape: 0
   m_Color: {r: 1, g: 0.64416593, b: 0.1745283, a: 1}
-  m_Intensity: 3.722997
+  m_Intensity: 0.87535214
   m_Range: 0.1
-  m_SpotAngle: 116.0216
+  m_SpotAngle: 113.96266
   m_InnerSpotAngle: 10.8
   m_CookieSize: 10
   m_Shadows:
@@ -109,9 +109,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Intensity: 11
-  m_EnableSpotReflector: 1
+  m_EnableSpotReflector: 0
   m_LuxAtDistance: 1
-  m_InnerSpotPercent: 61.889965
+  m_InnerSpotPercent: 89.3
   m_SpotIESCutoffPercent: 100
   m_LightDimmer: 1
   m_VolumetricDimmer: 8
