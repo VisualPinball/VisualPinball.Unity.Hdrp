@@ -22,7 +22,6 @@ Material:
   disabledShaderPasses:
   - MOTIONVECTORS
   - TransparentDepthPrepass
-  - RayTracingPrepass
   - TransparentDepthPostpass
   m_SavedProperties:
     serializedVersion: 3
@@ -356,7 +355,7 @@ Material:
     - _PPDPrimitiveWidth: 1
     - _Parallax: 0.02
     - _PlanarSpace: 0
-    - _RayTracing: 0
+    - _RayTracing: 1
     - _RayTracingTexFilteringScale: 0.07
     - _ReceivesSSR: 1
     - _ReceivesSSRTransparent: 0
