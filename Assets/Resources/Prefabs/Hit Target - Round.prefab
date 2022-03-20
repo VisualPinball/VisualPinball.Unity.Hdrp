@@ -10,7 +10,7 @@ PrefabInstance:
     - target: {fileID: 16544014384142367, guid: 313dc9c361c72b345b864a1922011792, type: 3}
       propertyPath: m_Materials.Array.data[0]
       value: 
-      objectReference: {fileID: 2100000, guid: c40cef1f81c71c7448e394a97753b115, type: 2}
+      objectReference: {fileID: 2100000, guid: 59b552d71385be046b0c69134162dc42, type: 2}
     - target: {fileID: 4811490838886355864, guid: 313dc9c361c72b345b864a1922011792, type: 3}
       propertyPath: m_Name
       value: Hit Target - Round
@@ -62,6 +62,6 @@ PrefabInstance:
     - target: {fileID: 8307013672536159350, guid: 313dc9c361c72b345b864a1922011792, type: 3}
       propertyPath: m_Mesh
       value: 
-      objectReference: {fileID: 4300000, guid: 5b08648d5159dcc438cd3b66f9547c5a, type: 2}
+      objectReference: {fileID: -7373221694247127110, guid: 378c7c8cc890b3345be6fe1ce54c0c60, type: 3}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 313dc9c361c72b345b864a1922011792, type: 3}
