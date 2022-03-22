@@ -53,7 +53,9 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		private static readonly int DiffusionProfileAsset = Shader.PropertyToID("_DiffusionProfileAsset");
 		private static readonly int DiffusionProfileHash = Shader.PropertyToID("_DiffusionProfileHash");
 		private static readonly int MaterialID = Shader.PropertyToID("_MaterialID");
-		private static readonly int EmissiveColor = Shader.PropertyToID("_EmissiveColor");
+		private static readonly int EmissiveColorHDR = Shader.PropertyToID("_EmissiveColor");
+		private static readonly int EmissiveColorLDR = Shader.PropertyToID("_EmissionColor");
+		private static readonly int EmissiveIntensity = Shader.PropertyToID("_EmissiveIntensity");
 
 		#endregion
 
@@ -214,12 +216,31 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 		public void SetEmissiveColor(MaterialPropertyBlock propBlock, Color color)
 		{
-			propBlock.SetColor(EmissiveColor, color);
+			propBlock.SetColor(EmissiveColorHDR, color);
 		}
 
 		public Color? GetEmissiveColor(Material material)
 		{
-			return material.GetColor(EmissiveColor);
+			return material.GetColor(EmissiveColorHDR);
+		}
+
+		public void SetEmissiveIntensity(Material material, MaterialPropertyBlock propBlock, float intensity)
+		{
+			var ldr = material.GetColor(EmissiveColorLDR);
+			var hdr = new Color(Mathf.GammaToLinearSpace(ldr.r) * intensity, Mathf.GammaToLinearSpace(ldr.g) * intensity, Mathf.GammaToLinearSpace(ldr.b) * intensity);
+//			var hdr = ldr * intensity;
+			propBlock.SetColor(EmissiveColorHDR, hdr);
+
+			Debug.Log($"SET intensity ({material.name}) = {intensity} -> {ldr} / {hdr}");
+		}
+
+		public float GetEmissiveIntensity(Material material)
+		{
+			var hdr = material.GetColor(EmissiveColorHDR);
+			var ldr = material.GetColor(EmissiveColorLDR);
+			var intensity = hdr.r / ldr.r; // just look at red for now
+			Debug.Log($"GET intensity = {intensity} ({hdr} / {ldr})");
+			return intensity;
 		}
 
 		private static Vector4 ConvertGUIDToVector4(string guid)
