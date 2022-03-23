@@ -227,19 +227,22 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		public void SetEmissiveIntensity(Material material, MaterialPropertyBlock propBlock, float intensity)
 		{
 			var ldr = material.GetColor(EmissiveColorLDR);
-			var hdr = new Color(Mathf.GammaToLinearSpace(ldr.r) * intensity, Mathf.GammaToLinearSpace(ldr.g) * intensity, Mathf.GammaToLinearSpace(ldr.b) * intensity);
-//			var hdr = ldr * intensity;
-			propBlock.SetColor(EmissiveColorHDR, hdr);
-
-			Debug.Log($"SET intensity ({material.name}) = {intensity} -> {ldr} / {hdr}");
+			var hdr = ldr * intensity;
+			// https://issuetracker.unity3d.com/issues/hdrp-setting-emission-property-emissivecolor-via-material-and-via-material-property-block-leads-to-different-results
+			propBlock.SetColor(EmissiveColorHDR, hdr.gamma);
 		}
 
 		public float GetEmissiveIntensity(Material material)
 		{
 			var hdr = material.GetColor(EmissiveColorHDR);
 			var ldr = material.GetColor(EmissiveColorLDR);
-			var intensity = hdr.r / ldr.r; // just look at red for now
-			Debug.Log($"GET intensity = {intensity} ({hdr} / {ldr})");
+			var intensity = hdr.r > 0 // look at the first non-0 value
+				? hdr.r / ldr.r
+				: hdr.g > 0
+					? hdr.g / ldr.g
+					: hdr.b > 0
+						? hdr.b / ldr.b
+						: 0;
 			return intensity;
 		}
 
