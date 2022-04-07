@@ -216,7 +216,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 		public void SetEmissiveColor(MaterialPropertyBlock propBlock, Color color)
 		{
-			propBlock.SetColor(EmissiveColorHDR, color);
+			propBlock.SetColor(EmissiveColorHDR, color.gamma);
 		}
 
 		public Color? GetEmissiveColor(Material material)
