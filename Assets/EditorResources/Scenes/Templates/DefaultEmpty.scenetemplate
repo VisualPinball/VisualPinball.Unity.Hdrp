@@ -18,8 +18,12 @@ MonoBehaviour:
     setup for VPE table creation.  '
   preview: {fileID: 2800000, guid: 91737e42e4d27d54e98596246aa81388, type: 3}
   dependencies:
-  - dependency: {fileID: 8900000, guid: f4184fb865736e940b00650f4238111e, type: 3}
+  - dependency: {fileID: 11400000, guid: 845fc51004417a542a68ea947cc6d11d, type: 2}
     instantiationMode: 1
+  - dependency: {fileID: 8900000, guid: 78ad6abc64729ba488aed3d1bdfd0903, type: 3}
+    instantiationMode: 0
+  - dependency: {fileID: 2800000, guid: dd801084fa3a35646b55f2503bc1d775, type: 3}
+    instantiationMode: 0
   - dependency: {fileID: 5286990735523766648, guid: f5dea8906abfd8d42a3cefb9cb2ff0d8, type: 3}
     instantiationMode: 1
   - dependency: {fileID: 11400000, guid: b040cde7d523a55419b24ea3362abf8f, type: 2}
@@ -28,11 +32,17 @@ MonoBehaviour:
     instantiationMode: 1
   - dependency: {fileID: 7872365585468035505, guid: a62dc6ecfacd7fa4da83d77d96bb113b, type: 3}
     instantiationMode: 1
-  - dependency: {fileID: 2800000, guid: 3b77af68825357f47ae9f6d0b9d30f2d, type: 3}
+  - dependency: {fileID: 11400000, guid: 940f202676b6d8b47be711c08191b777, type: 2}
     instantiationMode: 1
   - dependency: {fileID: 2800000, guid: 188dfe7e559f13248ba2c41eb5a59328, type: 3}
     instantiationMode: 1
   - dependency: {fileID: 1123326636132910626, guid: 3a32b392f9553364f85c02bc5d8b9214, type: 3}
+    instantiationMode: 1
+  - dependency: {fileID: 11400000, guid: 3f8db0a1b935e974f8409d2f75b0c8e7, type: 2}
+    instantiationMode: 1
+  - dependency: {fileID: 2800000, guid: 3cf9dbe33a13a8f4f8b3af292603b900, type: 3}
+    instantiationMode: 0
+  - dependency: {fileID: 11400000, guid: c505b460084ae3b4d96d2b89a287916d, type: 2}
     instantiationMode: 1
   - dependency: {fileID: 2800000, guid: 31f47d3807109374ab564767abda71ab, type: 3}
     instantiationMode: 1
