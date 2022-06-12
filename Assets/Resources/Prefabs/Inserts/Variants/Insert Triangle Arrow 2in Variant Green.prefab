@@ -23,13 +23,33 @@ PrefabInstance:
       propertyPath: m_Color.r
       value: 0.02573694
       objectReference: {fileID: 0}
+    - target: {fileID: 2309623798319419708, guid: 9d6d3a518a4c7a644afe6a28801066ea, type: 3}
+      propertyPath: m_Intensity
+      value: 2.8359911
+      objectReference: {fileID: 0}
+    - target: {fileID: 2309623798319419708, guid: 9d6d3a518a4c7a644afe6a28801066ea, type: 3}
+      propertyPath: m_SpotAngle
+      value: 135
+      objectReference: {fileID: 0}
+    - target: {fileID: 2309623798319419708, guid: 9d6d3a518a4c7a644afe6a28801066ea, type: 3}
+      propertyPath: m_InnerSpotAngle
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 2898662308436787364, guid: 9d6d3a518a4c7a644afe6a28801066ea, type: 3}
       propertyPath: m_Materials.Array.data[0]
       value: 
       objectReference: {fileID: 2100000, guid: a87caab55a08b3a4dbd9c90b6bed086d, type: 2}
+    - target: {fileID: 3017317757238351232, guid: 9d6d3a518a4c7a644afe6a28801066ea, type: 3}
+      propertyPath: m_InnerSpotPercent
+      value: 32.801685
+      objectReference: {fileID: 0}
+    - target: {fileID: 3017317757238351232, guid: 9d6d3a518a4c7a644afe6a28801066ea, type: 3}
+      propertyPath: m_CustomSpotLightShadowCone
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 3565607443949717086, guid: 9d6d3a518a4c7a644afe6a28801066ea, type: 3}
       propertyPath: m_Name
-      value: Triangle 2in_005
+      value: Insert Triangle Arrow 2in Variant Green
       objectReference: {fileID: 0}
     - target: {fileID: 4681404690836092093, guid: 9d6d3a518a4c7a644afe6a28801066ea, type: 3}
       propertyPath: m_RootOrder
