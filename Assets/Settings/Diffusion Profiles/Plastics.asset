@@ -13,7 +13,8 @@ MonoBehaviour:
   m_Name: Plastics
   m_EditorClassIdentifier: 
   profile:
-    scatteringDistance: {r: 135.58704, g: 135.58704, b: 135.58704, a: 1}
+    scatteringDistance: {r: 0.7490196, g: 0.7490196, b: 0.7490196, a: 1}
+    scatteringDistanceMultiplier: 181.01933
     transmissionTint: {r: 1, g: 0.8933878, b: 0.7688679, a: 1}
     texturingMode: 0
     transmissionMode: 0
@@ -21,4 +22,4 @@ MonoBehaviour:
     worldScale: 0.03
     ior: 1.6357
     hash: 1079858023
-  m_Version: 1
+  m_Version: 2
