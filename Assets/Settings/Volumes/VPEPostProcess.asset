@@ -1,33 +1,5 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!114 &-4243120252318606632
-MonoBehaviour:
-  m_ObjectHideFlags: 3
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d877a03bef431a847adca8ab343db3e1, type: 3}
-  m_Name: RayTracingSettings
-  m_EditorClassIdentifier: 
-  active: 0
-  rayBias:
-    m_OverrideState: 1
-    m_Value: 0.001
-  extendShadowCulling:
-    m_OverrideState: 1
-    m_Value: 0
-  extendCameraCulling:
-    m_OverrideState: 1
-    m_Value: 0
-  directionalShadowRayLength:
-    m_OverrideState: 1
-    m_Value: 1
-  directionalShadowFallbackIntensity:
-    m_OverrideState: 1
-    m_Value: 1
 --- !u!114 &-3926694173329570152
 MonoBehaviour:
   m_ObjectHideFlags: 3
@@ -73,6 +45,9 @@ MonoBehaviour:
     m_Value:
       serializedVersion: 2
       m_Bits: 4294967295
+  specularOcclusion:
+    m_OverrideState: 0
+    m_Value: 0.5
   occluderMotionRejection:
     m_OverrideState: 1
     m_Value: 1
@@ -106,42 +81,6 @@ MonoBehaviour:
   m_DenoiserRadius:
     m_OverrideState: 1
     m_Value: 0.5
---- !u!114 &-1519290562632484394
-MonoBehaviour:
-  m_ObjectHideFlags: 3
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 46a79c9cffef5cc469553b1341c2ecdf, type: 3}
-  m_Name: RecursiveRendering
-  m_EditorClassIdentifier: 
-  active: 0
-  enable:
-    m_OverrideState: 1
-    m_Value: 1
-  layerMask:
-    m_OverrideState: 0
-    m_Value:
-      serializedVersion: 2
-      m_Bits: 4294967295
-  maxDepth:
-    m_OverrideState: 1
-    m_Value: 3
-  rayLength:
-    m_OverrideState: 1
-    m_Value: 2
-  minSmoothness:
-    m_OverrideState: 1
-    m_Value: 0.008
-  rayMiss:
-    m_OverrideState: 1
-    m_Value: 1
-  lastBounce:
-    m_OverrideState: 1
-    m_Value: 1
 --- !u!114 &-1093262081320583061
 MonoBehaviour:
   m_ObjectHideFlags: 3
@@ -191,6 +130,9 @@ MonoBehaviour:
   lastBounceFallbackHierarchy:
     m_OverrideState: 1
     m_Value: 1
+  ambientProbeDimmer:
+    m_OverrideState: 0
+    m_Value: 0
   layerMask:
     m_OverrideState: 0
     m_Value:
@@ -251,6 +193,9 @@ MonoBehaviour:
   mode:
     m_OverrideState: 1
     m_Value: 2
+  useFullACES:
+    m_OverrideState: 0
+    m_Value: 0
   toeStrength:
     m_OverrideState: 1
     m_Value: 0.488
@@ -275,6 +220,33 @@ MonoBehaviour:
   lutContribution:
     m_OverrideState: 0
     m_Value: 1
+  neutralHDRRangeReductionMode:
+    m_OverrideState: 0
+    m_Value: 2
+  acesPreset:
+    m_OverrideState: 0
+    m_Value: 3
+  fallbackMode:
+    m_OverrideState: 0
+    m_Value: 1
+  hueShiftAmount:
+    m_OverrideState: 0
+    m_Value: 0
+  detectPaperWhite:
+    m_OverrideState: 0
+    m_Value: 0
+  paperWhite:
+    m_OverrideState: 0
+    m_Value: 300
+  detectBrightnessLimits:
+    m_OverrideState: 0
+    m_Value: 1
+  minNits:
+    m_OverrideState: 0
+    m_Value: 0.005
+  maxNits:
+    m_OverrideState: 0
+    m_Value: 1000
 --- !u!114 &11400000
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -293,57 +265,9 @@ MonoBehaviour:
   - {fileID: 3964870959202532271}
   - {fileID: -1093262081320583061}
   - {fileID: 4268203337614676726}
-  - {fileID: 1016691571427736098}
   - {fileID: -66664524551535178}
   - {fileID: 3465786869178732986}
-  - {fileID: 632311011764388832}
-  - {fileID: -4243120252318606632}
-  - {fileID: -1519290562632484394}
   - {fileID: 5886781464246408485}
---- !u!114 &632311011764388832
-MonoBehaviour:
-  m_ObjectHideFlags: 3
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2f1984a7ac01bf84b86559f7595cdc68, type: 3}
-  m_Name: LightCluster
-  m_EditorClassIdentifier: 
-  active: 0
-  cameraClusterRange:
-    m_OverrideState: 1
-    m_Value: 5
---- !u!114 &1016691571427736098
-MonoBehaviour:
-  m_ObjectHideFlags: 3
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f034cba68ab55e046ae1445a42f18c0e, type: 3}
-  m_Name: IndirectLightingController
-  m_EditorClassIdentifier: 
-  active: 0
-  indirectDiffuseLightingMultiplier:
-    m_OverrideState: 1
-    m_Value: 1
-  indirectDiffuseLightingLayers:
-    m_OverrideState: 1
-    m_Value: 255
-  reflectionLightingMultiplier:
-    m_OverrideState: 1
-    m_Value: 1
-  reflectionLightingLayers:
-    m_OverrideState: 1
-    m_Value: 255
-  reflectionProbeIntensityMultiplier:
-    m_OverrideState: 1
-    m_Value: 1
 --- !u!114 &3465786869178732986
 MonoBehaviour:
   m_ObjectHideFlags: 3
@@ -359,7 +283,7 @@ MonoBehaviour:
   active: 1
   quality:
     m_OverrideState: 1
-    m_Value: 0
+    m_Value: 3
   enabled:
     m_OverrideState: 1
     m_Value: 1
@@ -389,16 +313,40 @@ MonoBehaviour:
     m_Value: 0.055
   accumulationFactor:
     m_OverrideState: 1
-    m_Value: 0.753
+    m_Value: 0.537
+  biasFactor:
+    m_OverrideState: 0
+    m_Value: 0.5
+  speedRejectionParam:
+    m_OverrideState: 0
+    m_Value: 0.5
+  speedRejectionScalerFactor:
+    m_OverrideState: 0
+    m_Value: 0.2
+  speedSmoothReject:
+    m_OverrideState: 0
+    m_Value: 0
+  speedSurfaceOnly:
+    m_OverrideState: 0
+    m_Value: 1
+  speedTargetOnly:
+    m_OverrideState: 0
+    m_Value: 1
+  enableWorldSpeedRejection:
+    m_OverrideState: 0
+    m_Value: 0
   m_RayMaxIterations:
     m_OverrideState: 1
-    m_Value: 16
+    m_Value: 64
   rayMiss:
     m_OverrideState: 0
     m_Value: 3
   lastBounceFallbackHierarchy:
     m_OverrideState: 0
     m_Value: 3
+  ambientProbeDimmer:
+    m_OverrideState: 0
+    m_Value: 1
   layerMask:
     m_OverrideState: 0
     m_Value:
@@ -458,7 +406,7 @@ MonoBehaviour:
     m_Value: 1.1
   intensity:
     m_OverrideState: 1
-    m_Value: 0.818
+    m_Value: 0.81
   scatter:
     m_OverrideState: 1
     m_Value: 0.6
@@ -598,6 +546,9 @@ MonoBehaviour:
     m_OverrideState: 0
     m_Value: 1
   m_PhysicallyBased:
+    m_OverrideState: 0
+    m_Value: 0
+  m_LimitManualRangeNearBlur:
     m_OverrideState: 0
     m_Value: 0
 --- !u!114 &7875158258559519830
