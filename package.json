@@ -13,7 +13,7 @@
     "com.unity.render-pipelines.high-definition": "12.1.2",
     "com.unity.render-pipelines.high-definition-config": "12.1.2",
     "org.visualpinball.engine.unity": "0.0.1-preview.125",
-    "org.visualpinball.unity.assetlibrary": "0.0.1-preview.56"
+    "org.visualpinball.unity.assetlibrary": "0.0.1-preview.57"
   },
   "author": "freezy <freezy@vpdb.io>",
   "contributors": [
