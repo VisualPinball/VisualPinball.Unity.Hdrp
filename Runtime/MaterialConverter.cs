@@ -234,6 +234,9 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 		public float GetEmissiveIntensity(Material material)
 		{
+			if (!material) {
+				return 0;
+			}
 			var hdr = material.GetColor(EmissiveColorHDR);
 			var ldr = material.GetColor(EmissiveColorLDR);
 			var intensity = hdr.r > 0 // look at the first non-0 value
