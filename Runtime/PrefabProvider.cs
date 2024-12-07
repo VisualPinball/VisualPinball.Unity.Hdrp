@@ -36,13 +36,13 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			var gatesPath = $"{AssetLibraryPath}/Gates/VPX";
 			switch (type) {
 				case GateType.GateLongPlate:
-					return AssetDatabase.LoadAssetAtPath<GameObject>($"{gatesPath}/Gate - Long Plate.prefab");
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{gatesPath}/Gate (VPX) - Plate, Long.prefab");
 				case GateType.GatePlate:
-					return AssetDatabase.LoadAssetAtPath<GameObject>($"{gatesPath}/Gate - Plate.prefab");
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{gatesPath}/Gate (VPX) - Plate.prefab");
 				case GateType.GateWireRectangle:
-					return AssetDatabase.LoadAssetAtPath<GameObject>($"{gatesPath}/Gate - Wire Rectangle.prefab");
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{gatesPath}/Gate (VPX) - Wire, Rectangle.prefab");
 				case GateType.GateWireW:
-					return AssetDatabase.LoadAssetAtPath<GameObject>($"{gatesPath}/Gate - Wire W.prefab");
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{gatesPath}/Gate (VPX) - Wire, W.prefab");
 				default:
 					throw new ArgumentException(nameof(type), $"Unknown gate type {type}.");
 			}
