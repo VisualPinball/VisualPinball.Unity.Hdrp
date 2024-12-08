@@ -28,7 +28,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 		public GameObject CreateBumper()
 		{
-			return AssetDatabase.LoadAssetAtPath<GameObject>($"{AssetLibraryPath}/Bumpers/VPX/Bumper.prefab");
+			return AssetDatabase.LoadAssetAtPath<GameObject>($"{AssetLibraryPath}/Bumpers/VPX/Bumper (VPX).prefab");
 		}
 
 		public GameObject CreateGate(int type)
@@ -36,13 +36,13 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			var gatesPath = $"{AssetLibraryPath}/Gates/VPX";
 			switch (type) {
 				case GateType.GateLongPlate:
-					return AssetDatabase.LoadAssetAtPath<GameObject>($"{gatesPath}/Gate (VPX) - Plate, Long.prefab");
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{gatesPath}/Gate - Plate, Long (VPX).prefab");
 				case GateType.GatePlate:
-					return AssetDatabase.LoadAssetAtPath<GameObject>($"{gatesPath}/Gate (VPX) - Plate.prefab");
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{gatesPath}/Gate - Plate (VPX).prefab");
 				case GateType.GateWireRectangle:
-					return AssetDatabase.LoadAssetAtPath<GameObject>($"{gatesPath}/Gate (VPX) - Wire, Rectangle.prefab");
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{gatesPath}/Gate - Wire, Rectangle (VPX).prefab");
 				case GateType.GateWireW:
-					return AssetDatabase.LoadAssetAtPath<GameObject>($"{gatesPath}/Gate (VPX) - Wire, W.prefab");
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{gatesPath}/Gate - Wire, W (VPX).prefab");
 				default:
 					throw new ArgumentException(nameof(type), $"Unknown gate type {type}.");
 			}
@@ -53,19 +53,19 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			var kickerPath = $"{AssetLibraryPath}/Kickers/VPX";
 			switch (type) {
 				case KickerType.KickerCup:
-					return AssetDatabase.LoadAssetAtPath<GameObject>($"{kickerPath}/Kicker, Cup 1.prefab");
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{kickerPath}/Kicker - Cup 1 (VPX).prefab");
 				case KickerType.KickerCup2:
-					return AssetDatabase.LoadAssetAtPath<GameObject>($"{kickerPath}/Kicker, Cup 2.prefab");
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{kickerPath}/Kicker - Cup 2 (VPX).prefab");
 				case KickerType.KickerGottlieb:
-					return AssetDatabase.LoadAssetAtPath<GameObject>($"{kickerPath}/Kicker, Gottlieb.prefab");
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{kickerPath}/Kicker - Gottlieb (VPX).prefab");
 				case KickerType.KickerHole:
-					return AssetDatabase.LoadAssetAtPath<GameObject>($"{kickerPath}/Kicker, Hole Only.prefab");
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{kickerPath}/Kicker - Hole (VPX).prefab");
 				case KickerType.KickerHoleSimple:
-					return AssetDatabase.LoadAssetAtPath<GameObject>($"{kickerPath}/Kicker, Hole Only.prefab"); // todo make it "simple"
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{kickerPath}/Kicker - Hole, Simple (VPX).prefab");
 				case KickerType.KickerWilliams:
-					return AssetDatabase.LoadAssetAtPath<GameObject>($"{kickerPath}/Kicker, Williams.prefab");
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{kickerPath}/Kicker - Williams (VPX).prefab");
 				case KickerType.KickerInvisible:
-					return UnityEngine.Resources.Load<GameObject>("Prefabs/Kicker - Invisible");
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{kickerPath}/Kicker - Invisible.prefab");
 				default:
 					throw new ArgumentException(nameof(type), $"Unknown kicker type {type}.");
 			}
@@ -83,7 +83,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 		public GameObject CreateSpinner()
 		{
-			return AssetDatabase.LoadAssetAtPath<GameObject>($"{AssetLibraryPath}/Spinners/VPX/Spinner.prefab");
+			return AssetDatabase.LoadAssetAtPath<GameObject>($"{AssetLibraryPath}/Spinners/VPX/Spinner (VPX).prefab");
 		}
 
 		public GameObject CreateHitTarget(int type)
@@ -91,17 +91,17 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			var targetsPath = $"{AssetLibraryPath}/Targets/VPX";
 			switch (type) {
 				case TargetType.HitFatTargetRectangle:
-					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Hit Target - Rectangle Fat.prefab");
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Hit Target - Rectangle, Fat (VPX).prefab");
 				case TargetType.HitFatTargetSlim:
-					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Hit Target - Rectangle Fat Narrow.prefab");
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Hit Target - Narrow, Fat (VPX).prefab");
 				case TargetType.HitFatTargetSquare:
-					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Hit Target - Square Fat.prefab");
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Hit Target - Square, Fat (VPX).prefab");
 				case TargetType.HitTargetRectangle:
-					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Hit Target - Rectangle.prefab");
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Hit Target - Rectangle (VPX).prefab");
 				case TargetType.HitTargetRound:
-					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Hit Target - Round.prefab");
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Hit Target - Round (VPX).prefab");
 				case TargetType.HitTargetSlim:
-					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Hit Target - Narrow.prefab");
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Hit Target - Narrow (VPX).prefab");
 				default:
 					throw new ArgumentException(nameof(type), $"Unknown hit target type {type}.");
 			}
@@ -112,11 +112,11 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			var targetsPath = $"{AssetLibraryPath}/Targets/VPX";
 			switch (type) {
 				case TargetType.DropTargetBeveled:
-					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Drop Target - Beveled.prefab");
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Drop Target - Beveled (VPX).prefab");
 				case TargetType.DropTargetFlatSimple:
-					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Drop Target - Simple Flat.prefab");
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Drop Target - Simple, Flat (VPX).prefab");
 				case TargetType.DropTargetSimple:
-					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Drop Target - Simple.prefab");
+					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Drop Target - Simple (VPX).prefab");
 				default:
 					throw new ArgumentException(nameof(type), $"Unknown drop target type {type}.");
 			}
