@@ -114,5 +114,11 @@ namespace VisualPinball.Engine.Unity.Hdrp
 					throw new ArgumentException(nameof(type), $"Unknown drop target type {type}.");
 			}
 		}
+
+		public GameObject CreateFlipper() => UnityEngine.Resources.Load<GameObject>("Prefabs/Flipper");
+
+		public GameObject CreatePlunger() => UnityEngine.Resources.Load<GameObject>("Prefabs/Plunger");
+
+		public GameObject CreateTrough() => UnityEngine.Resources.Load<GameObject>("Prefabs/Trough");
 	}
 }
