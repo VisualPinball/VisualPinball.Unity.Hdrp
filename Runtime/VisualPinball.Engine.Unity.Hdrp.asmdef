@@ -3,10 +3,7 @@
 	"rootNamespace": "VisualPinball.Engine.Unity.Hdrp",
 	"references": [
 		"Unity.RenderPipelines.HighDefinition.Runtime",
-		"Unity.RenderPipelines.HighDefinition.Config.Runtime",
-		"VisualPinball.Engine",
-		"VisualPinball.Unity",
-		"VisualPinball.Unity.Patcher"
+		"Unity.RenderPipelines.HighDefinition.Config.Runtime"
 	],
 	"includePlatforms": [],
 	"excludePlatforms": [],

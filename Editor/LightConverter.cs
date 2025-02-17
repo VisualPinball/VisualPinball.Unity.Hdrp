@@ -39,13 +39,13 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			// color and position
 			hdLight.color = data.Color2.ToUnityColor();
 			if (!isInsert) {
-				hdLight.intensity = data.Intensity / 4f;
+				light.intensity = data.Intensity / 4f;
 				hdLight.range = data.Falloff * 0.001f;
 
 				// TODO: vpe specific data for height
 				light.transform.localPosition = new Vector3(0f, 0f, 25f);
 			} else {
-				hdLight.intensity = data.Intensity * 10f;
+				light.intensity = data.Intensity * 10f;
 			}
 
 
@@ -78,10 +78,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 		public void SetIntensity(Light light, float intensityLumen)
 		{
-			var hdLight = light.GetComponent<HDAdditionalLightData>();
-			if (hdLight != null) {
-				hdLight.SetIntensity(intensityLumen, LightUnit.Lumen);
-			}
+			light.intensity = intensityLumen;
+			light.lightUnit = UnityEngine.Rendering.LightUnit.Lumen;
 		}
 		public void SetTemperature(Light light, float temperature)
 		{
@@ -93,18 +91,16 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 		public void SpotLight(Light light, float outer, float innerPercent)
 		{
-			var hdLight = light.GetComponent<HDAdditionalLightData>();
-			if (hdLight != null) {
-				hdLight.type = HDLightType.Spot;
-				hdLight.SetSpotAngle(outer, innerPercent);
-			}
+			light.type = LightType.Spot;
+			light.spotAngle = outer;
+			light.innerSpotAngle = innerPercent;
 		}
 
 		public void PyramidAngle(Light light, float angle, float aspectRatio)
 		{
 			var hdLight = light.GetComponent<HDAdditionalLightData>();
 			if (hdLight != null) {
-				hdLight.spotLightShape = SpotLightShape.Pyramid;
+//				hdLight.spotLightShape = SpotLightShape.Pyramid;
 				hdLight.SetSpotAngle(angle);
 				hdLight.aspectRatio = aspectRatio;
 			}
