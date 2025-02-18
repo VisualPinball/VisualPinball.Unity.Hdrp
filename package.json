@@ -7,11 +7,11 @@
     "Unity",
     "HDRP"
   ],
-  "unity": "2021.2",
-  "unityRelease": "7f1",
+  "unity": "6000.0",
+  "unityRelease": "37f1",
   "dependencies": {
-    "com.unity.render-pipelines.high-definition": "12.1.2",
-    "com.unity.render-pipelines.high-definition-config": "12.1.2",
+    "com.unity.render-pipelines.high-definition": "17.0.3",
+    "com.unity.render-pipelines.high-definition-config": "17.0.3",
     "org.visualpinball.engine.unity": "0.0.1-preview.130",
     "org.visualpinball.unity.assetlibrary": "0.0.1-preview.59"
   },
@@ -25,7 +25,8 @@
     "Rowlan",
     "Kleis Auke Wolthuizen <info@kleisauke.nl>",
     "Eli Curtz <eli@nuprometheus.com>",
-    "Pandeli"
+    "Pandeli",
+    "Arthur Kehrwald"
   ],
   "documentationUrl": "https://docs.visualpinball.org/",
   "changelogUrl": "https://docs.visualpinball.org/CHANGELOG.html",

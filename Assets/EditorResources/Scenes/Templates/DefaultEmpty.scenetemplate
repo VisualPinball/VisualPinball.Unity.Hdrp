@@ -22,12 +22,12 @@ MonoBehaviour:
     instantiationMode: 1
   - dependency: {fileID: 2800000, guid: dd801084fa3a35646b55f2503bc1d775, type: 3}
     instantiationMode: 0
+  - dependency: {fileID: 8900000, guid: f4184fb865736e940b00650f4238111e, type: 3}
+    instantiationMode: 0
   - dependency: {fileID: 5286990735523766648, guid: f5dea8906abfd8d42a3cefb9cb2ff0d8, type: 3}
     instantiationMode: 1
   - dependency: {fileID: 11400000, guid: b040cde7d523a55419b24ea3362abf8f, type: 2}
     instantiationMode: 1
-  - dependency: {fileID: 8900000, guid: 2cf3ebd76b42bd54587486b13af8f569, type: 3}
-    instantiationMode: 0
   - dependency: {fileID: 2800000, guid: f20112bdeec2e8d4d9f80e8390e37263, type: 3}
     instantiationMode: 1
   - dependency: {fileID: 7872365585468035505, guid: a62dc6ecfacd7fa4da83d77d96bb113b, type: 3}
