@@ -25,7 +25,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 {
 	public static class BlueprintProjector
 	{
-		[MenuItem("GameObject/Visual Pinball/Blueprint Projector", false, 35)]
+		[MenuItem("GameObject/Pinball/Blueprint Projector", false, 35)]
 		private static void CreateBlueprintProjector()
 		{
 			// TODO: Move post-instantiation logic to BP authoring component. Extend to make it simpler to swap projections.
