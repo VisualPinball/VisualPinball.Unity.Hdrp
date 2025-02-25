@@ -21,19 +21,19 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 {
 	public static class PrefabCreator
 	{
-		[MenuItem("GameObject/Visual Pinball/Editor Camera", false, 32)]
+		[MenuItem("GameObject/Pinball/Editor Camera", false, 32)]
 		private static void CreateEditorCamera()
 		{
 			Create(AssetPath.CameraPrefab, "Editor Camera", "Create Editor Camera");
 		}
 
-		[MenuItem("GameObject/Visual Pinball/Editor Post Processing", false, 33)]
+		[MenuItem("GameObject/Pinball/Editor Post Processing", false, 33)]
 		private static void CreatePostProcessing()
 		{
 			Create(AssetPath.PostProcessPrefab, "Editor Post Processing", "Create Editor Post Processing");
 		}
 
-		[MenuItem("GameObject/Visual Pinball/Editor Lighting", false, 34)]
+		[MenuItem("GameObject/Pinball/Editor Lighting", false, 34)]
 		private static void CreateLighting()
 		{
 			Create(AssetPath.LightingPrefab, "Editor Lighting", "Create Editor Lighting");
