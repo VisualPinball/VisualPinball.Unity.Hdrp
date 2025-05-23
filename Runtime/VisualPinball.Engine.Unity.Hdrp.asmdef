@@ -2,6 +2,8 @@
 	"name": "VisualPinball.Engine.Unity.Hdrp",
 	"rootNamespace": "VisualPinball.Engine.Unity.Hdrp",
 	"references": [
+		"VisualPinball.Engine",
+		"VisualPinball.Unity",
 		"Unity.RenderPipelines.HighDefinition.Runtime",
 		"Unity.RenderPipelines.HighDefinition.Config.Runtime"
 	],
