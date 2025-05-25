@@ -5,8 +5,9 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 1
+  - enabled: 0
     path: Assets/Volley/Volley.unity
     guid: 8f08f28a108794cd1b78ba23409c7085
   m_configObjects:
     com.unity.input.settings: {fileID: 11400000, guid: 553f376fdad4bb042a4376df4355b058, type: 2}
+  m_UseUCBPForAssetBundles: 0

@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d7fd9488000d3734a9e00ee676215985, type: 3}
-  m_Name: VPESky
+  m_Name: Sky
   m_EditorClassIdentifier: 
   components:
   - {fileID: 6223759137281384640}
@@ -60,7 +60,7 @@ MonoBehaviour:
     m_Value: 0
   hdriSky:
     m_OverrideState: 1
-    m_Value: {fileID: 8900000, guid: 5b5e75caa0651524ea269b93706f95b6, type: 3}
+    m_Value: {fileID: 8900000, guid: 0567e6b7de221f243b57023da353eeb2, type: 3}
   distortionMode:
     m_OverrideState: 0
     m_Value: 0
