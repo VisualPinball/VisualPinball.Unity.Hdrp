@@ -39,7 +39,7 @@ namespace VisualPinball.Unity.Library
 		public int NumProcessed { get; private set; }
 
 
-		private List<AssetMaterialCombination> _assets;
+		private List<AssetMaterialCombination> _combinations;
 		private GameObject _currentGo;
 		private ThumbGeneratorComponent _currentTbc;
 		private AssetMaterialCombination _currentAmc;
@@ -50,7 +50,7 @@ namespace VisualPinball.Unity.Library
 		{
 			_camera = Camera.main;
 			
-			var bgParent = SceneManager.GetActiveScene().GetRootGameObjects().FirstOrDefault(go => go.name == "_BackgroundObjects");
+			var bgParent = DefaultEnvironment.transform.parent.gameObject;
 			_environmentObjects.Clear();
 			if (bgParent != null) {
 				foreach (var mr in bgParent.GetComponentsInChildren<MeshRenderer>(true)) {
@@ -73,21 +73,21 @@ namespace VisualPinball.Unity.Library
 					return;
 				}
 
-				_assets = new List<AssetMaterialCombination>(assets
-					.SelectMany(a => AssetMaterialCombination.GetCombinations(a.Asset))
+				_combinations = new List<AssetMaterialCombination>(assets
+					.SelectMany(a => AssetMaterialCombination.GetCombinations(a.Asset, true))
 				);
 
 				if (newOnly) {
-					_assets = _assets.Where(a => !a.HasThumbnail).ToList();
+					_combinations = _combinations.Where(a => !a.HasThumbnail).ToList();
 				}
 				if (selectedOnly) {
 					var selectedAssets = new HashSet<Asset>(EditorWindow.GetWindow<AssetBrowser>().SelectedAssets);
-					_assets = _assets.Where(a => selectedAssets.Contains(a.Asset)).ToList();
+					_combinations = _combinations.Where(a => selectedAssets.Contains(a.Asset)).ToList();
 				}
 
 				NumProcessed = 0;
-				TotalProcessing = _assets.Count;
-				if (_assets.Count > 0) {
+				TotalProcessing = _combinations.Count;
+				if (_combinations.Count > 0) {
 					IsProcessing = true;
 					Process(NextAsset());
 				} else {
@@ -101,7 +101,7 @@ namespace VisualPinball.Unity.Library
 
 		public void StopProcessing()
 		{
-			_assets?.Clear();
+			_combinations?.Clear();
 			IsProcessing = false;
 		}
 
@@ -167,11 +167,15 @@ namespace VisualPinball.Unity.Library
 
 		private AssetMaterialCombination NextAsset()
 		{
-			if (_assets.Count == 0) {
+			if (_combinations.Count == 0) {
 				return null;
 			}
-			var next = _assets.First();
-			_assets.RemoveAt(0);
+			var next = _combinations.First();
+			if (next.HasDuplicateVariations) {
+				_combinations.RemoveAt(0);
+				return NextAsset();
+			}
+			_combinations.RemoveAt(0);
 			NumProcessed++;
 			return next;
 		}
