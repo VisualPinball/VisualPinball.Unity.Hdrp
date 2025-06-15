@@ -48,10 +48,11 @@ namespace VisualPinball.Unity.Library
 			ModuleInitializer.Initialize();
 			Cache.MaxFiles = 0;
 			Cache.Max = 0;
-			TriggerRender();
+			EditorApplication.update += UpdateFrame;
+			// TriggerRender();
 		}
 
-		private void OnRenderObject()
+		private void UpdateFrame()
 		{
 			if (_frame == NumPreFrames) {
 				Screenshot();
