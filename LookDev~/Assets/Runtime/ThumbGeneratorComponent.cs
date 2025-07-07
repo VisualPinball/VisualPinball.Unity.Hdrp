@@ -36,7 +36,7 @@ namespace VisualPinball.Unity.Library
 		public string ThumbnailGuid;
 		public string ThumbnailRoot;
 
-		private const int NumPreFrames = 40;
+		private const int NumPreFrames = 120;
 		private const int NumPostFrames = 20;
 		private int _frame;
 
