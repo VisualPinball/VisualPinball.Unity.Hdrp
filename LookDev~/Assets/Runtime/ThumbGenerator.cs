@@ -74,7 +74,7 @@ namespace VisualPinball.Unity.Library
 				}
 
 				_combinations = new List<AssetMaterialCombination>(assets
-					.SelectMany(a => AssetMaterialCombination.GetCombinations(a.Asset, true))
+					.SelectMany(a => a.Asset.GetCombinations(true, true, false))
 				);
 
 				if (newOnly) {
@@ -171,7 +171,7 @@ namespace VisualPinball.Unity.Library
 				return null;
 			}
 			var next = _combinations.First();
-			if (next.HasDuplicateVariations) {
+			if (!next.IsValidCombination) {
 				_combinations.RemoveAt(0);
 				return NextAsset();
 			}
