@@ -91,16 +91,22 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			var targetsPath = $"{AssetLibraryPath}/Targets/VPX";
 			switch (type) {
 				case TargetType.HitFatTargetRectangle:
+					// -6.65565 mm
 					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Hit Target - Rectangle, Fat (VPX).prefab");
 				case TargetType.HitFatTargetSlim:
+					// -6.31809 mm
 					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Hit Target - Narrow, Fat (VPX).prefab");
 				case TargetType.HitFatTargetSquare:
+					// -6.67557 mm
 					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Hit Target - Square, Fat (VPX).prefab");
 				case TargetType.HitTargetRectangle:
+					// -4.96337 mm
 					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Hit Target - Rectangle (VPX).prefab");
 				case TargetType.HitTargetRound:
+					// -4.97161 mm
 					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Hit Target - Round (VPX).prefab");
 				case TargetType.HitTargetSlim:
+					// -7.94514 mm
 					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Hit Target - Narrow (VPX).prefab");
 				default:
 					throw new ArgumentException(nameof(type), $"Unknown hit target type {type}.");
@@ -112,10 +118,13 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			var targetsPath = $"{AssetLibraryPath}/Targets/VPX";
 			switch (type) {
 				case TargetType.DropTargetBeveled:
+					// -5.22032 mm
 					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Drop Target - Beveled (VPX).prefab");
 				case TargetType.DropTargetFlatSimple:
+					// -8.58968 mm
 					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Drop Target - Simple, Flat (VPX).prefab");
 				case TargetType.DropTargetSimple:
+					// -5.12326 mm
 					return AssetDatabase.LoadAssetAtPath<GameObject>($"{targetsPath}/Drop Target - Simple (VPX).prefab");
 				default:
 					throw new ArgumentException(nameof(type), $"Unknown drop target type {type}.");
