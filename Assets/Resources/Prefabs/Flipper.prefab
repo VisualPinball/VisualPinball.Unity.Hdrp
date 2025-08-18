@@ -45,6 +45,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8e6fc321830c03547890119a04997404, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _playfieldDimensions: {x: 0, y: 0}
   _instanceID: 51956
 --- !u!33 &4778019510121147183
 MeshFilter:
@@ -99,6 +100,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 89e3c1c147bb7a049b0510709f1ad9f2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  _playfieldDimensions: {x: 0, y: 0}
   _instanceID: 51936
 --- !u!33 &8383588224779965405
 MeshFilter:
@@ -156,14 +158,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 545ad741f74d2444faf5d2882fba6b69, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _isLocked: 0
   _editorLayer: 0
   _editorLayerName: 
   _editorLayerVisibility: 1
-  Position: {x: 0, y: 0}
-  _startAngle: 121
   EndAngle: 70
-  _surface: {fileID: 0}
   IsEnabled: 1
   IsDualWound: 0
   _height: 50
@@ -175,7 +173,6 @@ MonoBehaviour:
   _rubberHeight: 19
   _rubberWidth: 24
   InstantiateAsPrefab: 0
-  _originalRotateZ: 0
 --- !u!114 &8750544366699972018
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -192,6 +189,7 @@ MonoBehaviour:
   ShowColliderMesh: 1
   ShowColliderOctree: 0
   ShowAabbs: 0
+  _isKinematic: 0
   Mass: 1
   Strength: 2200
   Elasticity: 0.8
@@ -203,6 +201,7 @@ MonoBehaviour:
   TorqueDampingAngle: 6
   Scatter: 0
   FlipperCorrection: {fileID: 11400000, guid: f8799be363ab20a459dd185669ece8aa, type: 2}
+  TriggerItemId: 0
   useFlipperTricksPhysics: 0
   SOSRampUp: 2.5
   SOSEM: 0.85
@@ -232,9 +231,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b1b4677b6b0e8bc419afb6cd7a22cf3a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _soundAsset: {fileID: 11400000, guid: e410f0a19022a1a49b7a2dd9226ae7d1, type: 2}
-  _interrupt: 0
-  _volume: 1
-  _startWhen: 0
-  _stopWhen: 0
-  _coilName: main_coil
+  SoundAsset: {fileID: 0}
+  MultiPlayMode: 0
+  Volume: 1
+  Priority: 2
+  CalloutMaxQueueTime: -1
+  StartWhen: 0
+  StopWhen: 0
+  CoilName: main_coil

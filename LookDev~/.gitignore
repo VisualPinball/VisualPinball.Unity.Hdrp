@@ -66,9 +66,12 @@ crashlytics-build.properties
 # Packed Addressables
 /[Aa]ssets/[Aa]ddressable[Aa]ssets[Dd]ata/*/*.bin*
 
-# Temporary auto-generated Android Assets
+/UIElementsSchema/*
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
+/[Aa]ssets/Asset Cleaner/*
+/[Aa]ssets/TextMesh Pro/*
+/[Aa]ssets/Samples/*
 /[Aa]ssets/Tables/*
 /[Aa]ssets/Tables.meta
 Build~/**
