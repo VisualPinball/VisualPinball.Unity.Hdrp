@@ -20,7 +20,7 @@ using UnityEngine;
 using VisualPinball.Engine.VPT;
 using VisualPinball.Unity;
 
-namespace VisualPinball.Engine.Unity.Hdrp
+namespace VisualPinball.Engine.Unity.Hdrp.Editor
 {
 	public class PrefabProvider : IPrefabProvider
 	{
