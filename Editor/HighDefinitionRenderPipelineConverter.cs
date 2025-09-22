@@ -18,20 +18,18 @@
 // ReSharper disable CheckNamespace
 
 using VisualPinball.Unity;
+using VisualPinball.Unity.Editor;
 
-namespace VisualPinball.Engine.Unity.Hdrp
+namespace VisualPinball.Engine.Unity.Hdrp.Editor
 {
-	public class HighDefinitionRenderPipeline : IRenderPipeline
+	public class HighDefinitionRenderPipelineConverter : IRenderPipelineConverter
 	{
 		public const string PrefabPath = "Packages/org.visualpinball.engine.unity.hdrp/Prefabs";
 
-		public string Name { get; } = "High Definition Render Pipeline";
+		public string Name => "High Definition Render Pipeline";
 
-		public RenderPipelineType Type { get; } = RenderPipelineType.Hdrp;
-		public IMaterialConverter MaterialConverter { get; } = new MaterialConverter();
+		public RenderPipelineType Type => RenderPipelineType.Hdrp;
 		public IMaterialAdapter MaterialAdapter { get; } = new MaterialAdapter();
-		public ILightConverter LightConverter { get; } = new LightConverter();
-		public IBallConverter BallConverter { get; } = new BallConverter();
 		public IPrefabProvider PrefabProvider { get; } = new PrefabProvider();
 	}
 }

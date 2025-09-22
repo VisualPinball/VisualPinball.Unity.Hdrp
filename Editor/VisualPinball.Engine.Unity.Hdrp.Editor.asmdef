@@ -3,11 +3,13 @@
 	"rootNamespace": "VisualPinball.Engine.Unity.Hdrp.Editor",
 	"references": [
 		"VisualPinball.Engine",
+		"VisualPinball.Engine.Editor",
 		"VisualPinball.Unity",
 		"VisualPinball.Unity.Patcher",
 		"VisualPinball.Unity.AssetLibrary",
 		"Unity.RenderPipelines.HighDefinition.Runtime",
-		"Unity.RenderPipelines.HighDefinition.Config.Runtime"
+		"Unity.RenderPipelines.HighDefinition.Config.Runtime",
+		"VisualPinball.Unity.Editor"
 	],
 	"includePlatforms": [ "Editor" ],
 	"excludePlatforms": [],

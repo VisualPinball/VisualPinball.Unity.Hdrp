@@ -24,7 +24,6 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using NLog;
-using UnityEditor;
 using UnityEngine;
 using VisualPinball.Engine.VPT;
 using VisualPinball.Unity;
@@ -186,7 +185,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			};
 
 			// unity, why tf would you make DiffusionProfileSettings internal!?!
-			var diffusionProfile = AssetDatabase.LoadAssetAtPath<Object>(diffusionProfilePath);
+			var diffusionProfile = UnityEditor.AssetDatabase.LoadAssetAtPath<Object>(diffusionProfilePath);
 
 			if (diffusionProfile != null) {
 
@@ -194,7 +193,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				var profile = diffusionProfile.GetType().GetRuntimeFields().First(f => f.Name == "profile").GetValue(diffusionProfile);
 				var profileHash = (uint)profile.GetType().GetRuntimeFields().First(f => f.Name == "hash").GetValue(profile);
 
-				var guid = AssetDatabase.AssetPathToGUID(diffusionProfilePath);
+				var guid = UnityEditor.AssetDatabase.AssetPathToGUID(diffusionProfilePath);
 				var newGuid = ConvertGUIDToVector4(guid);
 				var hash = AsFloat(profileHash);
 
