@@ -21,8 +21,8 @@ using Logger = NLog.Logger;
 
 namespace VisualPinball.Engine.Unity.Hdrp.Editor
 {
-	// Utility for round-tripping arbitrary Unity textures (compressed, GPU-only, etc.) through a
-	// PNG blob. Goes via a temporary RenderTexture + ReadPixels so it works on assets without the
+	// Utility for round-tripping arbitrary Unity textures (compressed, GPU-only, etc.) into export
+	// payloads. Goes via a temporary RenderTexture + ReadPixels so it works on assets without the
 	// Read/Write flag.
 	internal static class HdrpMaterialV1TextureEncoder
 	{
@@ -31,6 +31,26 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		public static bool TryEncode(Texture2D source, bool linear, out byte[] pngData)
 		{
 			pngData = null;
+			if (!TryReadTexturePixels(source, linear, out var readableTexture)) {
+				return false;
+			}
+
+			try {
+				pngData = readableTexture.EncodeToPNG();
+				return pngData is { Length: > 0 };
+
+			} catch (Exception e) {
+				Logger.Warn(e, $"Unable to PNG-encode texture '{source.name}' for v1 material export.");
+				return false;
+
+			} finally {
+				DestroyTexture(readableTexture);
+			}
+		}
+
+		private static bool TryReadTexturePixels(Texture2D source, bool linear, out Texture2D readableTexture)
+		{
+			readableTexture = null;
 			if (!source) {
 				return false;
 			}
@@ -40,30 +60,36 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				source.width, source.height, 0, RenderTextureFormat.ARGB32, readWrite);
 
 			var previousRenderTexture = RenderTexture.active;
-			Texture2D readableTexture = null;
 			try {
 				Graphics.Blit(source, renderTexture);
 				RenderTexture.active = renderTexture;
 				readableTexture = new Texture2D(source.width, source.height, TextureFormat.RGBA32, false, linear);
 				readableTexture.ReadPixels(new Rect(0, 0, source.width, source.height), 0, 0);
 				readableTexture.Apply(updateMipmaps: false, makeNoLongerReadable: false);
-				pngData = readableTexture.EncodeToPNG();
-				return pngData is { Length: > 0 };
+				return true;
 
 			} catch (Exception e) {
-				Logger.Warn(e, $"Unable to encode texture '{source.name}' for v1 material export.");
+				Logger.Warn(e, $"Unable to read texture '{source.name}' for v1 material export.");
+				DestroyTexture(readableTexture);
+				readableTexture = null;
 				return false;
 
 			} finally {
-				if (readableTexture) {
-					if (Application.isPlaying) {
-						UnityEngine.Object.Destroy(readableTexture);
-					} else {
-						UnityEngine.Object.DestroyImmediate(readableTexture);
-					}
-				}
 				RenderTexture.active = previousRenderTexture;
 				RenderTexture.ReleaseTemporary(renderTexture);
+			}
+		}
+
+		private static void DestroyTexture(Texture2D texture)
+		{
+			if (!texture) {
+				return;
+			}
+
+			if (Application.isPlaying) {
+				UnityEngine.Object.Destroy(texture);
+			} else {
+				UnityEngine.Object.DestroyImmediate(texture);
 			}
 		}
 	}
