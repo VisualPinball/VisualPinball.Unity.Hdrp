@@ -47,11 +47,13 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		private readonly Material _litTranslucentPlanarTemplate;
 		private readonly Material _litTranslucentSphereTemplate;
 		private readonly Material _decalTemplate;
+		private static readonly int MainTextureProperty = Shader.PropertyToID("_MainTex");
+		private const string NormalRepackShaderResourcePath = "VpePackNormalForHdrp";
 
 		// Re-packed normal maps are shared across every material slot that samples the same source.
 		// gltFast-imported textures and side-channel textures both pass through here; the cache is
 		// keyed on the source Texture2D so identity alone determines reuse.
-		private readonly Dictionary<Texture2D, Texture2D> _repackedNormalCache = new();
+		private readonly Dictionary<Texture2D, Texture> _repackedNormalCache = new();
 		private static readonly HashSet<string> _loggedMissingBaseColorMap = new();
 		private static readonly HashSet<string> _loggedApronBaseAssignments = new();
 		private static readonly HashSet<string> _loggedApronImportedDump = new();
@@ -62,6 +64,10 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			typeof(DiffusionProfileSettings).GetField("profile", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 		private static readonly System.Reflection.FieldInfo _diffusionHashField =
 			_diffusionProfileField?.FieldType?.GetField("hash", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+		private static Material _normalRepackMaterial;
+		private static bool _normalRepackMaterialQueried;
+		private static bool _loggedMissingNormalRepackShader;
+		private static bool _loggedNormalRepackGpuFallback;
 		private readonly ResolverDiagnostics _diagnostics = new();
 
 		public HdrpMaterialResolver(
@@ -106,6 +112,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 		public void ResetDiagnostics()
 		{
+			PruneRepackedNormalCache();
 			_diagnostics.Reset();
 		}
 
@@ -987,27 +994,104 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			}
 		}
 
-		private static Texture2D RepackNormalMapForHdrp(Texture2D source, string packing)
+		private static Texture RepackNormalMapForHdrp(Texture2D source, string packing)
 		{
 			// Only need to re-pack plain-RGB normals. If the source was already dxt5nm/rg, leave it.
 			if (packing != VpeNormalPackings.Rgb || !source) {
 				return source;
 			}
 
+			var repackMaterial = GetOrCreateNormalRepackMaterial();
+			if (!repackMaterial) {
+				return RepackNormalMapForHdrpCpuFallback(source);
+			}
+
+			var repacked = new RenderTexture(source.width, source.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear) {
+				name = $"{source.name} (NormalRepack)",
+				wrapMode = source.wrapMode,
+				filterMode = source.filterMode,
+				anisoLevel = Mathf.Max(1, source.anisoLevel),
+				useMipMap = true,
+				autoGenerateMips = false,
+				hideFlags = HideFlags.HideAndDontSave,
+			};
+			repacked.Create();
+			try {
+				repackMaterial.SetTexture(MainTextureProperty, source);
+				Graphics.Blit(source, repacked, repackMaterial, 0);
+				repacked.GenerateMips();
+				return repacked;
+			} catch (Exception e) {
+				DestroyRuntimeObject(repacked);
+				if (!_loggedNormalRepackGpuFallback) {
+					_loggedNormalRepackGpuFallback = true;
+					Logger.Warn(e, "HdrpMaterialResolver: GPU normal repack failed. Falling back to CPU normal repack.");
+				}
+				return RepackNormalMapForHdrpCpuFallback(source);
+			}
+		}
+
+		private void PruneRepackedNormalCache()
+		{
+			if (_repackedNormalCache.Count == 0) {
+				return;
+			}
+
+			var staleKeys = new List<Texture2D>();
+			foreach (var pair in _repackedNormalCache) {
+				if (pair.Key) {
+					continue;
+				}
+
+				DestroyRuntimeObject(pair.Value);
+				staleKeys.Add(pair.Key);
+			}
+
+			for (var i = 0; i < staleKeys.Count; i++) {
+				_repackedNormalCache.Remove(staleKeys[i]);
+			}
+		}
+
+		private static Material GetOrCreateNormalRepackMaterial()
+		{
+			if (_normalRepackMaterial) {
+				return _normalRepackMaterial;
+			}
+			if (_normalRepackMaterialQueried) {
+				return null;
+			}
+
+			_normalRepackMaterialQueried = true;
+			var shader = UnityEngine.Resources.Load<Shader>(NormalRepackShaderResourcePath)
+				?? Shader.Find("Hidden/VPE/PackNormalForHdrp");
+			if (!shader) {
+				if (!_loggedMissingNormalRepackShader) {
+					_loggedMissingNormalRepackShader = true;
+					Logger.Warn($"HdrpMaterialResolver: failed to load Resources/{NormalRepackShaderResourcePath}. Falling back to CPU normal repack.");
+				}
+				return null;
+			}
+
+			_normalRepackMaterial = new Material(shader) {
+				name = "VPE HDRP Normal Repack",
+				hideFlags = HideFlags.HideAndDontSave,
+			};
+			return _normalRepackMaterial;
+		}
+
+		private static Texture2D RepackNormalMapForHdrpCpuFallback(Texture2D source)
+		{
 			var rt = RenderTexture.GetTemporary(source.width, source.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
 			var previous = RenderTexture.active;
-			Texture2D repacked = null;
 			try {
-				// Blit straight through. On a plain-RGB normal map, R=X, G=Y, B=Z. HDRP's sampler reads
-				// A as X when UnpackNormalmapRGorAG is active; copying R into A via Material swizzle
-				// is overkill when we can just write our own repacked copy here.
 				Graphics.Blit(source, rt);
 				RenderTexture.active = rt;
-				repacked = new Texture2D(source.width, source.height, TextureFormat.RGBA32, true, true) {
+				var repacked = new Texture2D(source.width, source.height, TextureFormat.RGBA32, true, true) {
 					name = $"{source.name} (NormalRepack)",
 					wrapMode = source.wrapMode,
 					filterMode = source.filterMode,
 					anisoLevel = Mathf.Max(1, source.anisoLevel),
+					hideFlags = HideFlags.HideAndDontSave,
 				};
 				var pixels = new Texture2D(source.width, source.height, TextureFormat.RGBA32, false, true);
 				pixels.ReadPixels(new Rect(0, 0, source.width, source.height), 0, 0);
@@ -1021,16 +1105,24 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				}
 				repacked.SetPixels32(raw);
 				repacked.Apply(true, true);
-				if (Application.isPlaying) {
-					UnityEngine.Object.Destroy(pixels);
-				} else {
-					UnityEngine.Object.DestroyImmediate(pixels);
-				}
+				DestroyRuntimeObject(pixels);
 				return repacked;
-
 			} finally {
 				RenderTexture.active = previous;
 				RenderTexture.ReleaseTemporary(rt);
+			}
+		}
+
+		private static void DestroyRuntimeObject(UnityEngine.Object obj)
+		{
+			if (!obj) {
+				return;
+			}
+
+			if (Application.isPlaying) {
+				UnityEngine.Object.Destroy(obj);
+			} else {
+				UnityEngine.Object.DestroyImmediate(obj);
 			}
 		}
 
