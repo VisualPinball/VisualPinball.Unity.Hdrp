@@ -27,7 +27,7 @@ Material:
   - TransparentBackface
   - MOTIONVECTORS
   - RayTracingPrepass
-  m_LockedProperties: 
+  m_LockedProperties: _EmissiveColorLDR _EmissiveColorMap
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
@@ -165,6 +165,7 @@ Material:
     - _DoubleSidedGIMode: 0
     - _DoubleSidedNormalMode: 2
     - _DstBlend: 0
+    - _DstBlend2: 0
     - _Emission_Intensity: 14.43
     - _EmissiveColorMode: 1
     - _EmissiveExposureWeight: 1
@@ -202,6 +203,7 @@ Material:
     - _PPDMinSamples: 5
     - _PPDPrimitiveLength: 1
     - _PPDPrimitiveWidth: 1
+    - _PerPixelSorting: 0
     - _RayTracing: 0
     - _ReceivesSSR: 1
     - _ReceivesSSRTransparent: 0
@@ -267,6 +269,7 @@ Material:
     - _UVMappingMask: {r: 1, g: 0, b: 0, a: 0}
     - _UVMappingMaskEmissive: {r: 1, g: 0, b: 0, a: 0}
   m_BuildTextureStacks: []
+  m_AllowLocking: 1
 --- !u!114 &2587545780360812095
 MonoBehaviour:
   m_ObjectHideFlags: 11
