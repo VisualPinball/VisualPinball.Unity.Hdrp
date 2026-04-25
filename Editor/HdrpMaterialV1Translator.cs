@@ -84,6 +84,11 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			return new VpeMaterialCaptureResult(payload, ctx.TextureBlobs);
 		}
 
+		public static IDisposable PrepareGltfExport(IEnumerable<Renderer> renderers)
+		{
+			return new GltfExportMaterialScope(renderers);
+		}
+
 		private static VpeRendererStateV1 CaptureRendererState(Renderer renderer, Transform tableRoot)
 		{
 			return new VpeRendererStateV1 {
@@ -116,11 +121,9 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 
 		private static VpeMaterialProfileV1 TranslateHdrpLit(Material material, CaptureContext ctx)
 		{
-			// For alpha-tested and transparent surfaces, the base color texture's alpha channel is
-			// load-bearing (alpha-test discards pixels below cutoff; transparent blends by alpha).
-			// gltFast's glTF round-trip does not preserve the alpha channel reliably for HDRP
-			// alphaMode=MASK materials, so we side-channel the full RGBA PNG for those. Plain opaque
-			// materials keep the leaner glb-only path where we only record tiling.
+			// Keep opaque lit materials on the standard glTF path to avoid duplicating the largest
+			// texture set in the package. For alpha-tested and transparent lit materials, the base
+			// color alpha is load-bearing and must round-trip losslessly for inserts/plastics.
 			var baseColorNeedsAlpha =
 				SafeGetFloat(material, "_SurfaceType", 0f) > 0.5f /* Transparent */
 				|| SafeGetFloat(material, "_AlphaCutoffEnable", 0f) > 0.5f /* AlphaTest */;
@@ -266,6 +269,74 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		{
 			// HDRP: 0 = Nits, 1 = EV100.
 			return value > 0.5f ? VpeEmissiveIntensityUnits.Ev100 : VpeEmissiveIntensityUnits.Nits;
+		}
+
+		private static Material CreateSanitizedGltfExportMaterial(Material source)
+		{
+			if (!source || !source.shader) {
+				return null;
+			}
+
+			var shaderName = source.shader.name;
+			var clone = shaderName switch {
+				HdrpLitShaderName => CreateSanitizedHdrpLitMaterial(source),
+				HdrpDecalShaderName => CreateSanitizedHdrpDecalMaterial(source),
+				_ => null,
+			};
+
+			if (clone) {
+				clone.name = source.name;
+			}
+			return clone;
+		}
+
+		private static Material CreateSanitizedHdrpLitMaterial(Material source)
+		{
+			var stripBaseColor =
+				SafeGetFloat(source, "_SurfaceType", 0f) > 0.5f
+				|| SafeGetFloat(source, "_AlphaCutoffEnable", 0f) > 0.5f;
+			var stripMaskMap = HasTexture(source, "_MaskMap");
+			var stripThicknessMap = HasTexture(source, "_ThicknessMap");
+			if (!stripBaseColor && !stripMaskMap && !stripThicknessMap) {
+				return null;
+			}
+
+			var clone = new Material(source);
+			if (stripBaseColor && clone.HasProperty("_BaseColorMap")) {
+				clone.SetTexture("_BaseColorMap", null);
+			}
+			if (stripMaskMap && clone.HasProperty("_MaskMap")) {
+				clone.SetTexture("_MaskMap", null);
+			}
+			if (stripThicknessMap && clone.HasProperty("_ThicknessMap")) {
+				clone.SetTexture("_ThicknessMap", null);
+			}
+			return clone;
+		}
+
+		private static Material CreateSanitizedHdrpDecalMaterial(Material source)
+		{
+			var stripBaseColor = HasTexture(source, "_BaseColorMap");
+			var stripMaskMap = HasTexture(source, "_MaskMap");
+			if (!stripBaseColor && !stripMaskMap) {
+				return null;
+			}
+
+			var clone = new Material(source);
+			if (stripBaseColor && clone.HasProperty("_BaseColorMap")) {
+				clone.SetTexture("_BaseColorMap", null);
+			}
+			if (stripMaskMap && clone.HasProperty("_MaskMap")) {
+				clone.SetTexture("_MaskMap", null);
+			}
+			return clone;
+		}
+
+		private static bool HasTexture(Material material, string property)
+		{
+			return material
+				&& material.HasProperty(property)
+				&& material.GetTexture(property);
 		}
 
 		// HDRP _RefractionModel float: 0=None, 1=Plane, 2=Sphere, 3=Thin. We also check keywords
@@ -480,6 +551,91 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				public readonly List<string> MaterialSamples = new();
 			}
 		}
+
+		private sealed class GltfExportMaterialScope : IDisposable
+		{
+			private readonly List<RendererMaterialState> _rendererStates = new();
+			private readonly List<Material> _clonedMaterials = new();
+
+			public GltfExportMaterialScope(IEnumerable<Renderer> renderers)
+			{
+				if (renderers == null) {
+					return;
+				}
+
+				var sanitizedBySource = new Dictionary<Material, Material>();
+				foreach (var renderer in renderers) {
+					if (!renderer) {
+						continue;
+					}
+
+					var originalMaterials = renderer.sharedMaterials;
+					if (originalMaterials == null || originalMaterials.Length == 0) {
+						continue;
+					}
+
+					Material[] sanitizedMaterials = null;
+					for (var index = 0; index < originalMaterials.Length; index++) {
+						var source = originalMaterials[index];
+						if (!source) {
+							continue;
+						}
+
+						if (!sanitizedBySource.TryGetValue(source, out var sanitized)) {
+							sanitized = CreateSanitizedGltfExportMaterial(source) ?? source;
+							sanitizedBySource[source] = sanitized;
+							if (sanitized != source) {
+								_clonedMaterials.Add(sanitized);
+							}
+						}
+
+						if (sanitized == source) {
+							continue;
+						}
+
+						sanitizedMaterials ??= (Material[])originalMaterials.Clone();
+						sanitizedMaterials[index] = sanitized;
+					}
+
+					if (sanitizedMaterials == null) {
+						continue;
+					}
+
+					_rendererStates.Add(new RendererMaterialState(renderer, originalMaterials));
+					renderer.sharedMaterials = sanitizedMaterials;
+				}
+			}
+
+			public void Dispose()
+			{
+				foreach (var state in _rendererStates) {
+					if (state.Renderer) {
+						state.Renderer.sharedMaterials = state.Materials;
+					}
+				}
+
+				foreach (var material in _clonedMaterials) {
+					if (material) {
+						UnityEngine.Object.DestroyImmediate(material);
+					}
+				}
+
+				_rendererStates.Clear();
+				_clonedMaterials.Clear();
+			}
+
+			private readonly struct RendererMaterialState
+			{
+				public readonly Renderer Renderer;
+				public readonly Material[] Materials;
+
+				public RendererMaterialState(Renderer renderer, Material[] materials)
+				{
+					Renderer = renderer;
+					Materials = materials;
+				}
+			}
+		}
 	}
 
 	[InitializeOnLoad]
@@ -490,11 +646,16 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			VpeMaterialV1Translator.Register(new Adapter());
 		}
 
-		private sealed class Adapter : IVpeMaterialV1Translator
+		private sealed class Adapter : IVpeMaterialV1Translator, IVpeMaterialGltfExportPreprocessor
 		{
 			public VpeMaterialCaptureResult Capture(Transform tableRoot, IEnumerable<Renderer> renderers)
 			{
 				return HdrpMaterialV1Translator.Capture(tableRoot, renderers);
+			}
+
+			public IDisposable PrepareGltfExport(IEnumerable<Renderer> renderers)
+			{
+				return HdrpMaterialV1Translator.PrepareGltfExport(renderers);
 			}
 		}
 	}

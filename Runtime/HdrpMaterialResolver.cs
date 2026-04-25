@@ -38,6 +38,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 	public sealed class HdrpMaterialResolver : IVpeMaterialResolver
 	{
 		private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+		private const bool VerboseResolverLogs = false;
 		private readonly Material _litOpaqueTemplate;
 		private readonly Material _litTransparentTemplate;
 		private readonly Material _litTranslucentThinTemplate;
@@ -237,7 +238,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 			var setAssetVector = SetDiffusionProfileHashOnly(material, profile);
 			var key = $"{profileName ?? "<unnamed>"}|{profile.name}";
-			if (_loggedDiffusionAssignments.Add(key)) {
+			if (VerboseResolverLogs && _loggedDiffusionAssignments.Add(key)) {
 				Debug.Log(
 					$"HdrpMaterialResolver: assigned diffusion profile '{profile.name}' to '{profileName}' " +
 					$"(v1 payload does not serialize diffusion profile binding; hash-only runtime assignment, " +
@@ -586,6 +587,10 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 		private static void LogFirstOfEach(string surfaceType, string refractionModel, string profileName, string templateName, Material material)
 		{
+			if (!VerboseResolverLogs) {
+				return;
+			}
+
 			var key = $"{surfaceType}|{refractionModel}|{templateName}";
 			if (!_loggedSurfaceTemplates.Add(key)) {
 				return;
@@ -632,9 +637,6 @@ namespace VisualPinball.Engine.Unity.Hdrp
 					return _litOpaqueTemplate;
 
 				case VpeSurfaceTypes.AlphaTest:
-					Debug.Log(
-						$"HdrpMaterialResolver: '{profileName}' requests alphaTest surface; using opaque template (no dedicated " +
-						"alpha-test template yet).");
 					return _litOpaqueTemplate;
 
 				default:
@@ -725,6 +727,10 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 		private static void LogApronBaseAssignment(string profileName, Material importedMaterial, Texture assignedTexture, bool fromImported)
 		{
+			if (!VerboseResolverLogs) {
+				return;
+			}
+
 			var importedName = importedMaterial ? importedMaterial.name : "<null>";
 			var textureName = assignedTexture ? assignedTexture.name : "<null>";
 			var key = $"{profileName}|{importedName}|{textureName}|{fromImported}";
@@ -757,6 +763,10 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 		private static void LogApronImportedMaterial(string profileName, Material imported)
 		{
+			if (!VerboseResolverLogs) {
+				return;
+			}
+
 			if (profileName == null || profileName.IndexOf("Apron", System.StringComparison.OrdinalIgnoreCase) < 0) {
 				return;
 			}
@@ -918,12 +928,25 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			// Last-resort safety net for unknown shader graphs: use mainTexture only. Avoid selecting
 			// arbitrary texture properties here (mask/ORM maps can make surfaces appear white).
 			if (vpeProperty == "_BaseColorMap") {
-				var main = imported.mainTexture;
+				var main = GetMainTextureSafe(imported);
 				if (main) {
 					return main;
 				}
 			}
 			return null;
+		}
+
+		private static Texture GetMainTextureSafe(Material material)
+		{
+			if (!material) {
+				return null;
+			}
+
+			try {
+				return material.mainTexture;
+			} catch {
+				return null;
+			}
 		}
 
 		private static Texture2D RepackNormalMapForHdrp(Texture2D source, string packing)
