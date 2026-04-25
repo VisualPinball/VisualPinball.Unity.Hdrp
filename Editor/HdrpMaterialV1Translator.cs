@@ -80,6 +80,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				Textures = ctx.BuildTextureAssets(),
 				RendererStates = rendererStates.ToArray(),
 			};
+			ctx.LogUnsupportedMaterialsSummary();
 			return new VpeMaterialCaptureResult(payload, ctx.TextureBlobs);
 		}
 
@@ -108,9 +109,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				case HdrpUnlitShaderName:
 					return TranslateHdrpUnlit(material, ctx);
 				default:
-					Logger.Warn(
-						$"Material '{material.name}' uses shader '{shaderName}' which has no v1 translation. " +
-						"It will fall back to the glTF-imported material at runtime.");
+					ctx.RegisterUnsupportedMaterial(shaderName, material.name);
 					return null;
 			}
 		}
@@ -308,6 +307,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		{
 			private readonly Dictionary<Texture2D, VpeTextureAssetV1> _assetsByTexture = new();
 			private readonly Dictionary<string, byte[]> _textureBlobs = new(StringComparer.Ordinal);
+			private readonly Dictionary<string, UnsupportedShaderUsage> _unsupportedShaders = new(StringComparer.Ordinal);
 			private int _nextIndex;
 
 			public IReadOnlyDictionary<string, byte[]> TextureBlobs => _textureBlobs;
@@ -320,6 +320,45 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					assets[i++] = asset;
 				}
 				return assets;
+			}
+
+			public void RegisterUnsupportedMaterial(string shaderName, string materialName)
+			{
+				if (string.IsNullOrWhiteSpace(shaderName)) {
+					shaderName = "<unknown>";
+				}
+
+				if (!_unsupportedShaders.TryGetValue(shaderName, out var usage)) {
+					usage = new UnsupportedShaderUsage();
+					_unsupportedShaders[shaderName] = usage;
+				}
+
+				usage.Count++;
+				if (!string.IsNullOrWhiteSpace(materialName) && usage.MaterialSamples.Count < 4) {
+					usage.MaterialSamples.Add(materialName);
+				}
+			}
+
+			public void LogUnsupportedMaterialsSummary()
+			{
+				if (_unsupportedShaders.Count == 0) {
+					return;
+				}
+
+				var totalMaterials = 0;
+				var shaderSummaries = new List<string>();
+				foreach (var entry in _unsupportedShaders.OrderByDescending(pair => pair.Value.Count).ThenBy(pair => pair.Key, StringComparer.Ordinal)) {
+					totalMaterials += entry.Value.Count;
+					var materialSamples = entry.Value.MaterialSamples.Count > 0
+						? $" [{string.Join(", ", entry.Value.MaterialSamples)}{(entry.Value.Count > entry.Value.MaterialSamples.Count ? ", ..." : string.Empty)}]"
+						: string.Empty;
+					shaderSummaries.Add($"{entry.Key} x{entry.Value.Count}{materialSamples}");
+				}
+
+				Logger.Info(
+					$"Skipped v1 material translation for {totalMaterials} material(s) across {_unsupportedShaders.Count} unsupported shader(s). " +
+					$"These materials will fall back to the glTF-imported material at runtime. " +
+					$"Shaders: {string.Join("; ", shaderSummaries)}");
 			}
 
 			// Captures a texture reference whose pixel data must be shipped in the side-channel
@@ -433,6 +472,12 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				var raw = string.IsNullOrWhiteSpace(texture.name) ? $"tex{_nextIndex}" : texture.name;
 				// Normalize so the id is stable across exports regardless of editor instance suffixes.
 				return VpeMaterialNameUtil.NormalizeTextureName(raw);
+			}
+
+			private sealed class UnsupportedShaderUsage
+			{
+				public int Count;
+				public readonly List<string> MaterialSamples = new();
 			}
 		}
 	}
