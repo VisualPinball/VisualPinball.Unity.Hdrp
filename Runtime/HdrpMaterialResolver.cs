@@ -16,6 +16,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Text;
 using NLog;
 using UnityEngine;
 using UnityEngine.Rendering.HighDefinition;
@@ -24,6 +25,7 @@ using VisualPinball.Unity;
 using UnityEditor;
 #endif
 using Logger = NLog.Logger;
+using Stopwatch = System.Diagnostics.Stopwatch;
 
 namespace VisualPinball.Engine.Unity.Hdrp
 {
@@ -35,7 +37,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 	//
 	// To support additional surface/material types later: add a template asset + a new case in
 	// CreateMaterial / Supports + apply method. No changes to the .vpe format required.
-	public sealed class HdrpMaterialResolver : IVpeMaterialResolver
+	public sealed class HdrpMaterialResolver : IVpeMaterialResolver, IVpeMaterialResolverDiagnostics
 	{
 		private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 		private const bool VerboseResolverLogs = false;
@@ -60,6 +62,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			typeof(DiffusionProfileSettings).GetField("profile", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 		private static readonly System.Reflection.FieldInfo _diffusionHashField =
 			_diffusionProfileField?.FieldType?.GetField("hash", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+		private readonly ResolverDiagnostics _diagnostics = new();
 
 		public HdrpMaterialResolver(
 			Material litOpaqueTemplate,
@@ -92,6 +95,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				return null;
 			}
 
+			_diagnostics.CreateCalls++;
+
 			return profile.Type switch {
 				VpeMaterialTypes.Lit => BuildLit(profile, textures, importedMaterial),
 				VpeMaterialTypes.Decal => BuildDecal(profile, textures, importedMaterial),
@@ -99,19 +104,36 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			};
 		}
 
+		public void ResetDiagnostics()
+		{
+			_diagnostics.Reset();
+		}
+
+		public string GetDiagnosticsSummary()
+		{
+			return _diagnostics.ToSummaryString();
+		}
+
 		private Material BuildDecal(VpeMaterialProfileV1 profile, IVpeTextureProvider textures, Material imported)
 		{
+			_diagnostics.DecalBuilds++;
 			var decal = profile.Decal;
 			if (decal == null || !_decalTemplate) {
 				return null;
 			}
 
+			var cloneStopwatch = Stopwatch.StartNew();
 			var material = new Material(_decalTemplate) { name = profile.Name };
+			cloneStopwatch.Stop();
+			_diagnostics.MaterialCloneMilliseconds += cloneStopwatch.ElapsedMilliseconds;
 
 			SetColor(material, "_BaseColor", decal.BaseColor.Color);
 			SetTexture(material, "_BaseColorMap", decal.BaseColor.Texture, textures, imported);
 
+			var normalStopwatch = Stopwatch.StartNew();
 			SetNormalMap(material, "_NormalMap", decal.NormalMap, textures, imported);
+			normalStopwatch.Stop();
+			_diagnostics.NormalMapMilliseconds += normalStopwatch.ElapsedMilliseconds;
 			if (decal.NormalMap != null) {
 				SetFloat(material, "_NormalScale", decal.NormalMap.Strength);
 			}
@@ -134,7 +156,10 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			ApplyDecalAffectKeyword(material, "_MATERIAL_AFFECTS_MASKMAP", decal.AffectMask);
 
 			material.enableInstancing = true;
+			var validateStopwatch = Stopwatch.StartNew();
 			HDMaterial.ValidateMaterial(material);
+			validateStopwatch.Stop();
+			_diagnostics.ValidateMilliseconds += validateStopwatch.ElapsedMilliseconds;
 			return material;
 		}
 
@@ -149,6 +174,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 		private Material BuildLit(VpeMaterialProfileV1 profile, IVpeTextureProvider textures, Material imported)
 		{
+			_diagnostics.LitBuilds++;
 			var lit = profile.Lit;
 			if (lit == null) {
 				return null;
@@ -159,7 +185,10 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				return null;
 			}
 
+			var cloneStopwatch = Stopwatch.StartNew();
 			var material = new Material(template) { name = profile.Name };
+			cloneStopwatch.Stop();
+			_diagnostics.MaterialCloneMilliseconds += cloneStopwatch.ElapsedMilliseconds;
 			LogApronImportedMaterial(profile.Name, imported);
 
 			SetColor(material, "_BaseColor", lit.BaseColor.Color);
@@ -178,7 +207,10 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 			// MaskMap always side-channel; never fall back to imported (channel packing differs).
 			SetTexture(material, "_MaskMap", lit.MaskMap, textures, importedMaterial: null);
+			var normalStopwatch = Stopwatch.StartNew();
 			SetNormalMap(material, "_NormalMap", lit.NormalMap, textures, imported);
+			normalStopwatch.Stop();
+			_diagnostics.NormalMapMilliseconds += normalStopwatch.ElapsedMilliseconds;
 			if (lit.NormalMap != null) {
 				SetFloat(material, "_NormalScale", lit.NormalMap.Strength);
 			}
@@ -205,8 +237,14 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			// Let HDRP reconcile derived render state (passes, stencil refs, blend state, etc.)
 			// from the final property/keyword set. Without this, alpha-test and transparent
 			// materials can inherit stale template pass-state in player builds.
+			var validateStopwatch = Stopwatch.StartNew();
 			HDMaterial.ValidateMaterial(material);
+			validateStopwatch.Stop();
+			_diagnostics.ValidateMilliseconds += validateStopwatch.ElapsedMilliseconds;
+			var diffusionStopwatch = Stopwatch.StartNew();
 			ApplyTransmissionDiffusionProfile(material, profile.Name, lit);
+			diffusionStopwatch.Stop();
+			_diagnostics.DiffusionMilliseconds += diffusionStopwatch.ElapsedMilliseconds;
 
 			LogFirstOfEach(lit.SurfaceType, lit.RefractionModel, profile.Name, template.name, material);
 
@@ -993,6 +1031,41 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			} finally {
 				RenderTexture.active = previous;
 				RenderTexture.ReleaseTemporary(rt);
+			}
+		}
+
+		private sealed class ResolverDiagnostics
+		{
+			public int CreateCalls;
+			public int LitBuilds;
+			public int DecalBuilds;
+			public long MaterialCloneMilliseconds;
+			public long ValidateMilliseconds;
+			public long NormalMapMilliseconds;
+			public long DiffusionMilliseconds;
+
+			public void Reset()
+			{
+				CreateCalls = 0;
+				LitBuilds = 0;
+				DecalBuilds = 0;
+				MaterialCloneMilliseconds = 0;
+				ValidateMilliseconds = 0;
+				NormalMapMilliseconds = 0;
+				DiffusionMilliseconds = 0;
+			}
+
+			public string ToSummaryString()
+			{
+				var builder = new StringBuilder(128);
+				builder.Append("createCalls=").Append(CreateCalls)
+					.Append(", lit=").Append(LitBuilds)
+					.Append(", decal=").Append(DecalBuilds)
+					.Append(", cloneMs=").Append(MaterialCloneMilliseconds)
+					.Append(", validateMs=").Append(ValidateMilliseconds)
+					.Append(", normalMs=").Append(NormalMapMilliseconds)
+					.Append(", diffusionMs=").Append(DiffusionMilliseconds);
+				return builder.ToString();
 			}
 		}
 	}
