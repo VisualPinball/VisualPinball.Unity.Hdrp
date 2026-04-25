@@ -225,6 +225,10 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 		public void SetEmissiveIntensity(Material material, MaterialPropertyBlock propBlock, float intensity)
 		{
+			if (!material || !material.HasProperty(EmissiveColorLDR) || !material.HasProperty(EmissiveColorHDR)) {
+				return;
+			}
+
 			var ldr = material.GetColor(EmissiveColorLDR);
 			var hdr = ldr * intensity;
 			// https://issuetracker.unity3d.com/issues/hdrp-setting-emission-property-emissivecolor-via-material-and-via-material-property-block-leads-to-different-results
@@ -233,7 +237,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 		public float GetEmissiveIntensity(Material material)
 		{
-			if (!material) {
+			if (!material || !material.HasProperty(EmissiveColorHDR) || !material.HasProperty(EmissiveColorLDR)) {
 				return 0;
 			}
 			var hdr = material.GetColor(EmissiveColorHDR);
