@@ -199,6 +199,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			LogApronImportedMaterial(profile.Name, imported);
 
 			SetColor(material, "_BaseColor", lit.BaseColor.Color);
+			SetColor(material, "_Color", lit.BaseColor.Color);
 			SetTexture(material, "_BaseColorMap", lit.BaseColor.Texture, textures, imported);
 
 			SetFloat(material, "_Metallic", lit.Metallic);
@@ -211,6 +212,13 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			SetFloat(material, "_AORemapMax", lit.AoRemap.y);
 			SetFloat(material, "_AlphaRemapMin", lit.AlphaRemap.x);
 			SetFloat(material, "_AlphaRemapMax", lit.AlphaRemap.y);
+			SetFloat(material, "_UVBase", lit.UvBase);
+			SetFloat(material, "_TexWorldScale", lit.TexWorldScale);
+			SetFloat(material, "_InvTilingScale", lit.InvTilingScale);
+			if (lit.RayTracing >= 0) {
+				SetFloat(material, "_RayTracing", lit.RayTracing);
+			}
+			ApplyMaterialFeatureState(material, lit);
 
 			// MaskMap always side-channel; never fall back to imported (channel packing differs).
 			SetTexture(material, "_MaskMap", lit.MaskMap, textures, importedMaterial: null);
@@ -223,8 +231,13 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			}
 
 			SetColor(material, "_EmissiveColor", lit.Emissive.Color);
-			SetColor(material, "_EmissiveColorLDR", lit.Emissive.Color);
+			var emissiveLdrColor = lit.Emissive.HasLdrColor
+				? (Color)lit.Emissive.LdrColor
+				: ResolveLegacyEmissiveLdrColor(lit.Emissive);
+			SetColor(material, "_EmissiveColorLDR", emissiveLdrColor);
+			SetColor(material, "_EmissionColor", emissiveLdrColor);
 			SetTexture(material, "_EmissiveColorMap", lit.Emissive.Texture, textures, imported);
+			SetFloat(material, "_UseEmissiveIntensity", lit.Emissive.UseIntensity ? 1f : 0f);
 			SetFloat(material, "_EmissiveIntensity", lit.Emissive.Intensity);
 			SetFloat(material, "_EmissiveIntensityUnit", lit.Emissive.IntensityUnit == VpeEmissiveIntensityUnits.Ev100 ? 1f : 0f);
 			SetFloat(material, "_EmissiveExposureWeight", lit.Emissive.ExposureWeight);
@@ -248,6 +261,13 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			HDMaterial.ValidateMaterial(material);
 			validateStopwatch.Stop();
 			_diagnostics.ValidateMilliseconds += validateStopwatch.ElapsedMilliseconds;
+			if (lit.RenderQueueOverride >= 0) {
+				material.renderQueue = lit.RenderQueueOverride;
+			}
+			if (lit.RayTracing >= 0) {
+				SetFloat(material, "_RayTracing", lit.RayTracing);
+			}
+			ApplyMaterialFeatureState(material, lit);
 			var diffusionStopwatch = Stopwatch.StartNew();
 			ApplyTransmissionDiffusionProfile(material, profile.Name, lit);
 			diffusionStopwatch.Stop();
@@ -261,6 +281,12 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		private static void ApplyTransmissionDiffusionProfile(Material material, string profileName, VpeLitProfileV1 lit)
 		{
 			if (material == null || lit == null || !lit.HasTransmission) {
+				return;
+			}
+
+			if (Mathf.Abs(lit.DiffusionProfileHash) > 0.000001f) {
+				SetFloat(material, "_DiffusionProfileHash", lit.DiffusionProfileHash);
+				SetVector(material, "_DiffusionProfileAsset", lit.DiffusionProfileAsset);
 				return;
 			}
 
@@ -459,6 +485,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 					SetFloat(material, "_SurfaceType", 1f);
 					SetFloat(material, "_BlendMode", lit.TransparentBlendMode);
+					SetFloat(material, "_TransparentSortPriority", lit.TransparentSortPriority);
 					SetFloat(material, "_SrcBlend", 1f);        // One
 					SetFloat(material, "_DstBlend", 10f);       // OneMinusSrcAlpha
 					SetFloat(material, "_AlphaSrcBlend", 1f);
@@ -468,6 +495,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 					SetFloat(material, "_TransparentDepthPrepassEnable", transparentDepthPrepass ? 1f : 0f);
 					SetFloat(material, "_TransparentDepthPostpassEnable", transparentDepthPostpass ? 1f : 0f);
 					SetFloat(material, "_TransparentWritingMotionVec", transparentWritesMotionVectors ? 1f : 0f);
+					SetFloat(material, "_TransparentBackfaceEnable", lit.TransparentBackface ? 1f : 0f);
 					SetFloat(material, "_EnableFogOnTransparent", lit.EnableFogOnTransparent ? 1f : 0f);
 					SetFloat(material, "_AlphaCutoffEnable", 0f);
 					material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
@@ -516,6 +544,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 					SetFloat(material, "_TransparentDepthPrepassEnable", 0f);
 					SetFloat(material, "_TransparentDepthPostpassEnable", 0f);
 					SetFloat(material, "_TransparentWritingMotionVec", 0f);
+					SetFloat(material, "_TransparentBackfaceEnable", 0f);
+					SetFloat(material, "_TransparentSortPriority", 0f);
 					break;
 			}
 		}
@@ -528,6 +558,25 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				material.SetShaderPassEnabled(passName, enabled);
 			} catch {
 				// Intentionally ignore; pass name not available in this shader version.
+			}
+		}
+
+		private static void ApplyMaterialFeatureState(Material material, VpeLitProfileV1 lit)
+		{
+			if (lit.MaterialId >= 0) {
+				SetFloat(material, "_MaterialID", lit.MaterialId);
+			}
+			if (lit.TransmissionEnable >= 0f) {
+				SetFloat(material, "_TransmissionEnable", lit.TransmissionEnable);
+			}
+			if (lit.TransmissionMask >= 0f) {
+				SetFloat(material, "_TransmissionMask", lit.TransmissionMask);
+			}
+
+			if (lit.HasTransmission) {
+				material.EnableKeyword("_MATERIAL_FEATURE_TRANSMISSION");
+			} else {
+				material.DisableKeyword("_MATERIAL_FEATURE_TRANSMISSION");
 			}
 		}
 
@@ -546,14 +595,26 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		{
 			if (lit.DoubleSided) {
 				SetFloat(material, "_DoubleSidedEnable", 1f);
-				SetFloat(material, "_CullMode", 0f);           // CullMode.Off
-				SetFloat(material, "_CullModeForward", 0f);
-				SetFloat(material, "_OpaqueCullMode", 0f);
-				SetFloat(material, "_TransparentCullMode", 0f);
+				SetFloat(material, "_CullMode", lit.CullMode >= 0 ? lit.CullMode : 0f);
+				SetFloat(material, "_CullModeForward", lit.CullModeForward >= 0 ? lit.CullModeForward : 0f);
+				SetFloat(material, "_OpaqueCullMode", lit.OpaqueCullMode >= 0 ? lit.OpaqueCullMode : 0f);
+				SetFloat(material, "_TransparentCullMode", lit.TransparentCullMode >= 0 ? lit.TransparentCullMode : 0f);
 				material.EnableKeyword("_DOUBLESIDED_ON");
 				material.doubleSidedGI = true;
 			} else {
 				SetFloat(material, "_DoubleSidedEnable", 0f);
+				if (lit.CullMode >= 0) {
+					SetFloat(material, "_CullMode", lit.CullMode);
+				}
+				if (lit.CullModeForward >= 0) {
+					SetFloat(material, "_CullModeForward", lit.CullModeForward);
+				}
+				if (lit.OpaqueCullMode >= 0) {
+					SetFloat(material, "_OpaqueCullMode", lit.OpaqueCullMode);
+				}
+				if (lit.TransparentCullMode >= 0) {
+					SetFloat(material, "_TransparentCullMode", lit.TransparentCullMode);
+				}
 				material.DisableKeyword("_DOUBLESIDED_ON");
 			}
 		}
@@ -591,7 +652,10 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			}
 
 			SetFloat(material, "_Thickness", lit.Thickness);
+			SetVector(material, "_ThicknessRemap", new Vector4(lit.ThicknessRemap.x, lit.ThicknessRemap.y, 0f, 0f));
+			SetFloat(material, "_ATDistance", lit.AbsorptionDistance);
 			SetFloat(material, "_Ior", Mathf.Max(1f, lit.Ior));
+			SetColor(material, "_TransmittanceColor", lit.TransmittanceColor);
 
 			// Refraction keyword — exactly one must win. The template already pre-compiled one
 			// variant; we flip keywords here to match the profile's intent, trusting that the
@@ -719,6 +783,35 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		{
 			if (material.HasProperty(property)) {
 				material.SetColor(property, value);
+			}
+		}
+
+		private static Color ResolveLegacyEmissiveLdrColor(VpeEmissiveV1 emissive)
+		{
+			if (emissive == null) {
+				return Color.black;
+			}
+
+			var hdr = (Color)emissive.Color;
+			if (emissive.Intensity > 0.000001f && !Approximately(hdr, Color.black)) {
+				return hdr / emissive.Intensity;
+			}
+
+			return hdr;
+		}
+
+		private static bool Approximately(Color a, Color b)
+		{
+			return Mathf.Approximately(a.r, b.r)
+				&& Mathf.Approximately(a.g, b.g)
+				&& Mathf.Approximately(a.b, b.b)
+				&& Mathf.Approximately(a.a, b.a);
+		}
+
+		private static void SetVector(Material material, string property, Vector4 value)
+		{
+			if (material.HasProperty(property)) {
+				material.SetVector(property, value);
 			}
 		}
 
@@ -1000,6 +1093,10 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			if (packing != VpeNormalPackings.Rgb || !source) {
 				return source;
 			}
+
+			// Temporary safety valve while we verify that the GPU repack path preserves
+			// the same relief response as Unity's CPU-side runtime repack.
+			return RepackNormalMapForHdrpCpuFallback(source);
 
 			var repackMaterial = GetOrCreateNormalRepackMaterial();
 			if (!repackMaterial) {
