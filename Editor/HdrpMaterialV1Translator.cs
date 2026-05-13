@@ -39,9 +39,22 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		private const string HdrpLitShaderName = "HDRP/Lit";
 		private const string HdrpDecalShaderName = "HDRP/Decal";
 		private const string HdrpUnlitShaderName = "HDRP/Unlit";
-		private const string VpeMetalShaderGraphPathSuffix = "/Assets/Art/Graphs/Metal.shadergraph";
-		private const string VpeRubberShaderGraphPathSuffix = "/Assets/Art/Graphs/Rubber.shadergraph";
+		private const string VpeMetalShaderGraphPathSuffix = "/Assets/Resources/Graphs/Metal.shadergraph";
+		private const string VpeRubberShaderGraphPathSuffix = "/Assets/Resources/Graphs/Rubber.shadergraph";
 		private const string VpeDmdShaderGraphPathSuffix = "/Assets/Shaders/Srp/Display/DotMatrixDisplayGraph.shadergraph";
+
+		private const string VpeBaseColorMap = "_VpeBaseColorMap";
+		private const string VpeColor = "_VpeColor";
+		private const string VpeColorTint = "_VpeColorTint";
+		private const string VpeMaskMap = "_VpeMaskMap";
+		private const string VpeMetallicIntensity = "_VpeMetallicIntensity";
+		private const string VpeNormalMap = "_VpeNormalMap";
+		private const string VpeNormalIntensity = "_VpeNormalIntensity";
+		private const string VpeOcclusionIntensity = "_VpeOcclusionIntensity";
+		private const string VpeOffset = "_VpeOffset";
+		private const string VpeSmoothnessRemapMax = "_VpeSmoothnessRemapMax";
+		private const string VpeSmoothnessRemapMin = "_VpeSmoothnessRemapMin";
+		private const string VpeTiling = "_VpeTiling";
 
 		public static VpeMaterialCaptureResult Capture(Transform tableRoot, IEnumerable<Renderer> renderers)
 		{
@@ -251,18 +264,18 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		private static VpeMaterialProfileV1 TranslateVpeMetalShaderGraph(Material material, CaptureContext ctx)
 		{
 			var source = ResolveSourceMaterialAsset(material);
-			var maskMap = CaptureShaderGraphTextureRef(ctx, material, source, "Texture2D_1E4703A", VpeColorSpaces.Linear)
+			var maskMap = CaptureShaderGraphTextureRef(ctx, material, source, VpeMaskMap, VpeColorSpaces.Linear)
 				?? ctx.CaptureTextureAssetRef("Packages/org.visualpinball.unity.assets/Assets/Library/_Generic/Tileable Textures/tx_wear_scratches_heavy_mask_MADR.png", VpeColorSpaces.Linear);
 			if (maskMap != null) {
-				maskMap.Scale = SafeGetVector2(material, "Vector2_3344450D", SafeGetVector2(source, "Vector2_3344450D", maskMap.Scale));
-				maskMap.Offset = SafeGetVector2(material, "Vector2_7CFC7CEF", SafeGetVector2(source, "Vector2_7CFC7CEF", maskMap.Offset));
+				maskMap.Scale = SafeGetVector2(material, VpeTiling, SafeGetVector2(source, VpeTiling, maskMap.Scale));
+				maskMap.Offset = SafeGetVector2(material, VpeOffset, SafeGetVector2(source, VpeOffset, maskMap.Offset));
 			}
 
-			var metallicIntensity = SafeGetFloat(material, "Vector1_BD53BAF8", SafeGetFloat(source, "Vector1_BD53BAF8", 1f));
-			var occlusionIntensity = Mathf.Clamp01(SafeGetFloat(material, "Vector1_7EB7D62C", SafeGetFloat(source, "Vector1_7EB7D62C", 1f)));
+			var metallicIntensity = SafeGetFloat(material, VpeMetallicIntensity, SafeGetFloat(source, VpeMetallicIntensity, 1f));
+			var occlusionIntensity = Mathf.Clamp01(SafeGetFloat(material, VpeOcclusionIntensity, SafeGetFloat(source, VpeOcclusionIntensity, 1f)));
 			var lit = new VpeLitProfileV1 {
 				BaseColor = {
-					Color = SafeGetColor(material, "Color_AD8F67CE", SafeGetColor(source, "Color_AD8F67CE", ResolveHdrpBaseColor(material))),
+					Color = SafeGetColor(material, VpeColor, SafeGetColor(source, VpeColor, ResolveHdrpBaseColor(material))),
 				},
 				Metallic = metallicIntensity,
 				Smoothness = SafeGetFloat(material, "_Smoothness", SafeGetFloat(source, "_Smoothness", 0.5f)),
@@ -271,8 +284,8 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				MaskPacking = VpeMaskPackings.HdrpMaskMap,
 				MetallicRemap = new Vector2(0f, metallicIntensity),
 				SmoothnessRemap = new Vector2(
-					SafeGetFloat(material, "Vector1_E8712278", SafeGetFloat(source, "Vector1_E8712278", 0f)),
-					SafeGetFloat(material, "Vector1_2E810D38", SafeGetFloat(source, "Vector1_2E810D38", 1f))),
+					SafeGetFloat(material, VpeSmoothnessRemapMin, SafeGetFloat(source, VpeSmoothnessRemapMin, 0f)),
+					SafeGetFloat(material, VpeSmoothnessRemapMax, SafeGetFloat(source, VpeSmoothnessRemapMax, 1f))),
 				AoRemap = new Vector2(1f - occlusionIntensity, 1f),
 				AlphaRemap = new Vector2(
 					SafeGetFloat(material, "_AlphaRemapMin", SafeGetFloat(source, "_AlphaRemapMin", 0f)),
@@ -341,21 +354,21 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		private static VpeMaterialProfileV1 TranslateVpeRubberShaderGraph(Material material, CaptureContext ctx)
 		{
 			var source = ResolveSourceMaterialAsset(material);
-			var baseColorMap = CaptureShaderGraphTextureRef(ctx, material, source, "Texture2D_B9CEC4F9", VpeColorSpaces.SRgb);
-			var normalMap = CaptureShaderGraphNormalMapRef(ctx, material, source, "Texture2D_524261BE",
-				SafeGetFloat(material, "Vector1_29D01071", SafeGetFloat(source, "Vector1_29D01071", 1f)));
-			var maskMap = CaptureShaderGraphTextureRef(ctx, material, source, "Texture2D_1E4703A", VpeColorSpaces.Linear);
+			var baseColorMap = CaptureShaderGraphTextureRef(ctx, material, source, VpeBaseColorMap, VpeColorSpaces.SRgb);
+			var normalMap = CaptureShaderGraphNormalMapRef(ctx, material, source, VpeNormalMap,
+				SafeGetFloat(material, VpeNormalIntensity, SafeGetFloat(source, VpeNormalIntensity, 1f)));
+			var maskMap = CaptureShaderGraphTextureRef(ctx, material, source, VpeMaskMap, VpeColorSpaces.Linear);
 
-			var scale = SafeGetVector2(material, "Vector2_3344450D", SafeGetVector2(source, "Vector2_3344450D", Vector2.one));
-			var offset = SafeGetVector2(material, "Vector2_7CFC7CEF", SafeGetVector2(source, "Vector2_7CFC7CEF", Vector2.zero));
+			var scale = SafeGetVector2(material, VpeTiling, SafeGetVector2(source, VpeTiling, Vector2.one));
+			var offset = SafeGetVector2(material, VpeOffset, SafeGetVector2(source, VpeOffset, Vector2.zero));
 			ApplyTextureTransform(baseColorMap, scale, offset);
 			ApplyTextureTransform(normalMap, scale, offset);
 			ApplyTextureTransform(maskMap, scale, offset);
 
-			var occlusionIntensity = Mathf.Clamp01(SafeGetFloat(material, "Vector1_7EB7D62C", SafeGetFloat(source, "Vector1_7EB7D62C", 1f)));
+			var occlusionIntensity = Mathf.Clamp01(SafeGetFloat(material, VpeOcclusionIntensity, SafeGetFloat(source, VpeOcclusionIntensity, 1f)));
 			var lit = new VpeLitProfileV1 {
 				BaseColor = {
-					Color = SafeGetColor(material, "Color_9A170B2D", SafeGetColor(source, "Color_9A170B2D", ResolveHdrpBaseColor(material))),
+					Color = SafeGetColor(material, VpeColorTint, SafeGetColor(source, VpeColorTint, ResolveHdrpBaseColor(material))),
 					Texture = baseColorMap,
 				},
 				Metallic = SafeGetFloat(material, "_Metallic", SafeGetFloat(source, "_Metallic", 0f)),
@@ -365,8 +378,8 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				MaskPacking = VpeMaskPackings.HdrpMaskMap,
 				MetallicRemap = new Vector2(0f, SafeGetFloat(material, "_Metallic", SafeGetFloat(source, "_Metallic", 0f))),
 				SmoothnessRemap = new Vector2(
-					SafeGetFloat(material, "Vector1_E8712278", SafeGetFloat(source, "Vector1_E8712278", 0f)),
-					SafeGetFloat(material, "Vector1_2E810D38", SafeGetFloat(source, "Vector1_2E810D38", 1f))),
+					SafeGetFloat(material, VpeSmoothnessRemapMin, SafeGetFloat(source, VpeSmoothnessRemapMin, 0f)),
+					SafeGetFloat(material, VpeSmoothnessRemapMax, SafeGetFloat(source, VpeSmoothnessRemapMax, 1f))),
 				AoRemap = new Vector2(1f - occlusionIntensity, 1f),
 				AlphaRemap = new Vector2(
 					SafeGetFloat(material, "_AlphaRemapMin", SafeGetFloat(source, "_AlphaRemapMin", 0f)),
