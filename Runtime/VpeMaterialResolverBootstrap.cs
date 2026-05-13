@@ -15,6 +15,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 using UnityEngine;
+using System.Collections.Generic;
 using VisualPinball.Unity;
 
 namespace VisualPinball.Engine.Unity.Hdrp
@@ -31,6 +32,9 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		private const string LitTranslucentPlanarTemplatePath = "Materials/VpeLitTranslucentPlanarTemplate";
 		private const string LitTranslucentSphereTemplatePath = "Materials/VpeLitTranslucentSphereTemplate";
 		private const string DecalTemplatePath = "Materials/VpeDecalTemplate";
+		private const string MetalScratchedOverridePath = "Materials/VpeMeasured/MetalScratched";
+		private const string RubberDirtWhiteOverridePath = "Materials/VpeMeasured/RubberDirt White";
+		private const string DotMatrixDisplayOverridePath = "Materials/VpeMeasured/Dot Matrix Display (SRP)";
 
 		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
 		private static void Register()
@@ -43,6 +47,10 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			var litTranslucentPlanar = UnityEngine.Resources.Load<Material>(LitTranslucentPlanarTemplatePath);
 			var litTranslucentSphere = UnityEngine.Resources.Load<Material>(LitTranslucentSphereTemplatePath);
 			var decalTemplate = UnityEngine.Resources.Load<Material>(DecalTemplatePath);
+			var materialOverrides = new Dictionary<string, Material>(System.StringComparer.Ordinal);
+			RegisterMaterialOverride(materialOverrides, "MetalScratched", MetalScratchedOverridePath);
+			RegisterMaterialOverride(materialOverrides, "RubberDirt White", RubberDirtWhiteOverridePath);
+			RegisterMaterialOverride(materialOverrides, "Dot Matrix Display (SRP)", DotMatrixDisplayOverridePath);
 			if (!litOpaque) {
 				Debug.LogError(
 					$"VpeMaterialResolverBootstrap: could not load '{LitOpaqueTemplatePath}' from Resources. " +
@@ -88,8 +96,17 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				litTranslucentThin,
 				litTranslucentPlanar,
 				litTranslucentSphere,
-				decalTemplate
+				decalTemplate,
+				materialOverrides
 			));
+		}
+
+		private static void RegisterMaterialOverride(Dictionary<string, Material> overrides, string profileName, string resourcePath)
+		{
+			var material = UnityEngine.Resources.Load<Material>(resourcePath);
+			if (material) {
+				overrides[profileName] = material;
+			}
 		}
 	}
 }

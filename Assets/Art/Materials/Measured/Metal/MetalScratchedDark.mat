@@ -47,7 +47,7 @@ Material:
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
-    - Texture2D_1E4703A:
+    - _VpeMaskMap:
         m_Texture: {fileID: 2800000, guid: 39fd45b8f0f48af46b14f937f96a58ee, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
@@ -149,15 +149,15 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - Boolean_77E75FAA: 0
-    - Boolean_F2394607: 0
-    - Vector1_20B60D22: 0.1
-    - Vector1_2E810D38: 0.799
-    - Vector1_7EB7D62C: 0.407
-    - Vector1_BB4DD4C5: 0.043
-    - Vector1_BD53BAF8: 1
-    - Vector1_BDDC6585: 1
-    - Vector1_E8712278: 0.211
+    - _VpeMakeTriplanarWorldSpace: 0
+    - _VpeMakeTriplanar: 0
+    - _VpeSpecularAAScreenSpaceVariance: 0.1
+    - _VpeSmoothnessRemapMax: 0.799
+    - _VpeOcclusionIntensity: 0.407
+    - _VpeSpecularAAThreshold: 0.043
+    - _VpeMetallicIntensity: 1
+    - _VpeTriplanarBlend: 1
+    - _VpeSmoothnessRemapMin: 0.211
     - _AORemapMax: 1
     - _AORemapMin: 0
     - _ATDistance: 1
@@ -289,9 +289,9 @@ Material:
     - _ZTestTransparent: 4
     - _ZWrite: 1
     m_Colors:
-    - Color_AD8F67CE: {r: 0.27450982, g: 0.27450982, b: 0.27450982, a: 0}
-    - Vector2_3344450D: {r: 10, g: 10, b: 0, a: 0}
-    - Vector2_7CFC7CEF: {r: 0, g: 0, b: 0, a: 0}
+    - _VpeColor: {r: 0.27450982, g: 0.27450982, b: 0.27450982, a: 0}
+    - _VpeTiling: {r: 10, g: 10, b: 0, a: 0}
+    - _VpeOffset: {r: 0, g: 0, b: 0, a: 0}
     - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
     - _BaseColorMap_MipInfo: {r: 0, g: 0, b: 0, a: 0}
     - _Color: {r: 1, g: 1, b: 1, a: 1}

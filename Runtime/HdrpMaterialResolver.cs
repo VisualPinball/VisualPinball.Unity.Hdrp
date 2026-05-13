@@ -47,6 +47,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		private readonly Material _litTranslucentPlanarTemplate;
 		private readonly Material _litTranslucentSphereTemplate;
 		private readonly Material _decalTemplate;
+		private readonly Dictionary<string, Material> _materialOverrides;
 		private static readonly int MainTextureProperty = Shader.PropertyToID("_MainTex");
 		private const string NormalRepackShaderResourcePath = "VpePackNormalForHdrp";
 
@@ -76,7 +77,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			Material litTranslucentThinTemplate = null,
 			Material litTranslucentPlanarTemplate = null,
 			Material litTranslucentSphereTemplate = null,
-			Material decalTemplate = null)
+			Material decalTemplate = null,
+			Dictionary<string, Material> materialOverrides = null)
 		{
 			_litOpaqueTemplate = litOpaqueTemplate;
 			_litTransparentTemplate = litTransparentTemplate;
@@ -84,6 +86,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			_litTranslucentPlanarTemplate = litTranslucentPlanarTemplate;
 			_litTranslucentSphereTemplate = litTranslucentSphereTemplate;
 			_decalTemplate = decalTemplate;
+			_materialOverrides = materialOverrides ?? new Dictionary<string, Material>(StringComparer.Ordinal);
 		}
 
 		public bool Supports(string materialType)
@@ -91,6 +94,9 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			return materialType switch {
 				VpeMaterialTypes.Lit => _litOpaqueTemplate,
 				VpeMaterialTypes.Decal => _decalTemplate,
+				VpeMaterialTypes.Metal => true,
+				VpeMaterialTypes.Rubber => true,
+				VpeMaterialTypes.Dmd => true,
 				_ => false,
 			};
 		}
@@ -106,8 +112,32 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			return profile.Type switch {
 				VpeMaterialTypes.Lit => BuildLit(profile, textures, importedMaterial),
 				VpeMaterialTypes.Decal => BuildDecal(profile, textures, importedMaterial),
+				VpeMaterialTypes.Metal => BuildShaderGraphMaterial(profile, profile.Metal) ?? BuildLit(profile, textures, importedMaterial),
+				VpeMaterialTypes.Rubber => BuildShaderGraphMaterial(profile, profile.Rubber) ?? BuildLit(profile, textures, importedMaterial),
+				VpeMaterialTypes.Dmd => BuildShaderGraphMaterial(profile, profile.Dmd),
 				_ => null,
 			};
+		}
+
+		private Material BuildShaderGraphMaterial(VpeMaterialProfileV1 profile, VpeShaderGraphProfileV1 shaderGraph)
+		{
+			var templateName = shaderGraph?.TemplateName;
+			if (string.IsNullOrWhiteSpace(templateName)) {
+				templateName = profile.Name;
+			}
+
+			if (string.IsNullOrWhiteSpace(templateName)
+				|| !_materialOverrides.TryGetValue(templateName, out var template)
+				|| !template) {
+				return null;
+			}
+
+			var cloneStopwatch = Stopwatch.StartNew();
+			var material = new Material(template) { name = profile.Name };
+			cloneStopwatch.Stop();
+			_diagnostics.MaterialCloneMilliseconds += cloneStopwatch.ElapsedMilliseconds;
+			material.enableInstancing = true;
+			return material;
 		}
 
 		public void ResetDiagnostics()
@@ -187,6 +217,10 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				return null;
 			}
 
+			if (_materialOverrides.TryGetValue(profile.Name, out var overrideTemplate) && overrideTemplate) {
+				return new Material(overrideTemplate) { name = profile.Name };
+			}
+
 			var template = PickLitTemplate(lit, profile.Name);
 			if (!template) {
 				return null;
@@ -204,6 +238,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 			SetFloat(material, "_Metallic", lit.Metallic);
 			SetFloat(material, "_Smoothness", lit.Smoothness);
+			SetFloat(material, "_IridescenceMask", lit.IridescenceMask);
+			SetFloat(material, "_IridescenceThickness", lit.IridescenceThickness);
 			SetFloat(material, "_MetallicRemapMin", lit.MetallicRemap.x);
 			SetFloat(material, "_MetallicRemapMax", lit.MetallicRemap.y);
 			SetFloat(material, "_SmoothnessRemapMin", lit.SmoothnessRemap.x);
@@ -215,6 +251,20 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			SetFloat(material, "_UVBase", lit.UvBase);
 			SetFloat(material, "_TexWorldScale", lit.TexWorldScale);
 			SetFloat(material, "_InvTilingScale", lit.InvTilingScale);
+			SetFloat(material, "_EnableGeometricSpecularAA", lit.GeometricSpecularAa ? 1f : 0f);
+			SetFloat(material, "_SpecularAAScreenSpaceVariance", lit.SpecularAaScreenSpaceVariance);
+			SetFloat(material, "_SpecularAAThreshold", lit.SpecularAaThreshold);
+			if (lit.GeometricSpecularAa) {
+				material.EnableKeyword("_ENABLE_GEOMETRIC_SPECULAR_AA");
+			} else {
+				material.DisableKeyword("_ENABLE_GEOMETRIC_SPECULAR_AA");
+			}
+			SetFloat(material, "_SupportDecals", lit.SupportDecals ? 1f : 0f);
+			if (lit.SupportDecals) {
+				material.DisableKeyword("_DISABLE_DECALS");
+			} else {
+				material.EnableKeyword("_DISABLE_DECALS");
+			}
 			if (lit.RayTracing >= 0) {
 				SetFloat(material, "_RayTracing", lit.RayTracing);
 			}
@@ -468,21 +518,6 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		{
 			switch (lit.SurfaceType) {
 				case VpeSurfaceTypes.Transparent:
-					// Older exports (before transparent-depth/motion fields existed) deserialize those
-					// flags as false. Sphere/thin refraction is the case that visibly smears while the
-					// camera moves, so apply a conservative fallback for those legacy payloads.
-					var likelyLegacyMissingTransparentFlags =
-						lit.TransparentBlendMode == 0
-						&& !lit.TransparentDepthPrepass
-						&& !lit.TransparentDepthPostpass
-						&& !lit.TransparentWritesMotionVectors;
-					var needsLegacyRefractionFallback =
-						likelyLegacyMissingTransparentFlags
-						&& (lit.HasTransmission || lit.RefractionModel != VpeRefractionModels.None);
-					var transparentDepthPrepass = lit.TransparentDepthPrepass || needsLegacyRefractionFallback;
-					var transparentDepthPostpass = lit.TransparentDepthPostpass || needsLegacyRefractionFallback;
-					var transparentWritesMotionVectors = lit.TransparentWritesMotionVectors || needsLegacyRefractionFallback;
-
 					SetFloat(material, "_SurfaceType", 1f);
 					SetFloat(material, "_BlendMode", lit.TransparentBlendMode);
 					SetFloat(material, "_TransparentSortPriority", lit.TransparentSortPriority);
@@ -492,9 +527,9 @@ namespace VisualPinball.Engine.Unity.Hdrp
 					SetFloat(material, "_AlphaDstBlend", 10f);
 					SetFloat(material, "_ZWrite", 0f);
 					SetFloat(material, "_TransparentZWrite", 0f);
-					SetFloat(material, "_TransparentDepthPrepassEnable", transparentDepthPrepass ? 1f : 0f);
-					SetFloat(material, "_TransparentDepthPostpassEnable", transparentDepthPostpass ? 1f : 0f);
-					SetFloat(material, "_TransparentWritingMotionVec", transparentWritesMotionVectors ? 1f : 0f);
+					SetFloat(material, "_TransparentDepthPrepassEnable", lit.TransparentDepthPrepass ? 1f : 0f);
+					SetFloat(material, "_TransparentDepthPostpassEnable", lit.TransparentDepthPostpass ? 1f : 0f);
+					SetFloat(material, "_TransparentWritingMotionVec", lit.TransparentWritesMotionVectors ? 1f : 0f);
 					SetFloat(material, "_TransparentBackfaceEnable", lit.TransparentBackface ? 1f : 0f);
 					SetFloat(material, "_EnableFogOnTransparent", lit.EnableFogOnTransparent ? 1f : 0f);
 					SetFloat(material, "_AlphaCutoffEnable", 0f);
@@ -504,17 +539,16 @@ namespace VisualPinball.Engine.Unity.Hdrp
 					} else {
 						material.DisableKeyword("_ENABLE_FOG_ON_TRANSPARENT");
 					}
-					if (transparentWritesMotionVectors) {
+					if (lit.TransparentWritesMotionVectors) {
 						material.EnableKeyword("_TRANSPARENT_WRITES_MOTION_VEC");
 					} else {
 						material.DisableKeyword("_TRANSPARENT_WRITES_MOTION_VEC");
 					}
 					material.DisableKeyword("_ALPHATEST_ON");
-					// Pass toggles matter for HDRP history reprojection stability under refraction.
-					SetShaderPassEnabledSafe(material, "MOTIONVECTORS", transparentWritesMotionVectors);
-					SetShaderPassEnabledSafe(material, "MotionVectors", transparentWritesMotionVectors);
-					SetShaderPassEnabledSafe(material, "TransparentDepthPrepass", transparentDepthPrepass);
-					SetShaderPassEnabledSafe(material, "TransparentDepthPostpass", transparentDepthPostpass);
+					SetShaderPassEnabledSafe(material, "MOTIONVECTORS", lit.TransparentWritesMotionVectors);
+					SetShaderPassEnabledSafe(material, "MotionVectors", lit.TransparentWritesMotionVectors);
+					SetShaderPassEnabledSafe(material, "TransparentDepthPrepass", lit.TransparentDepthPrepass);
+					SetShaderPassEnabledSafe(material, "TransparentDepthPostpass", lit.TransparentDepthPostpass);
 					if (material.renderQueue < 3000) {
 						material.renderQueue = 3000;
 					}
@@ -942,11 +976,13 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			}
 
 			Texture texture = null;
+			var fromImportedMaterial = false;
 			if (!string.IsNullOrWhiteSpace(textureRef.TextureId)) {
 				texture = textures?.Get(textureRef.TextureId);
 			}
 			if (!texture && importedMaterial) {
 				texture = GetImportedTexture(importedMaterial, property);
+				fromImportedMaterial = texture;
 			}
 			if (!texture) {
 				return;
@@ -963,7 +999,9 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			} else if (_repackedNormalCache.TryGetValue(src, out var cached)) {
 				repacked = cached;
 			} else {
-				cached = RepackNormalMapForHdrp(src, textureRef.Packing);
+				cached = fromImportedMaterial
+					? RepackNormalMapForHdrpCpuFallback(src, flipGreen: true)
+					: RepackNormalMapForHdrp(src, textureRef.Packing);
 				_repackedNormalCache[src] = cached;
 				repacked = cached;
 			}
@@ -1176,7 +1214,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			return _normalRepackMaterial;
 		}
 
-		private static Texture2D RepackNormalMapForHdrpCpuFallback(Texture2D source)
+		private static Texture2D RepackNormalMapForHdrpCpuFallback(Texture2D source, bool flipRed = false, bool flipGreen = false)
 		{
 			var rt = RenderTexture.GetTemporary(source.width, source.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
 			var previous = RenderTexture.active;
@@ -1196,11 +1234,19 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				var raw = pixels.GetPixels32();
 				for (var i = 0; i < raw.Length; i++) {
 					var p = raw[i];
+					var x = flipRed ? (byte)(255 - p.r) : p.r;
+					var y = flipGreen ? (byte)(255 - p.g) : p.g;
 					// DXT5nm-style payload for Unity/HDRP unpack: X lives in A, Y in G, and R must be 1
 					// so UnpackNormalmapRGorAG's "packednormal.x *= packednormal.w" reconstructs X.
-					raw[i] = new Color32(255, p.g, 255, p.r);
+					raw[i] = new Color32(255, y, 255, x);
 				}
 				repacked.SetPixels32(raw);
+				repacked.Apply(true, false);
+				try {
+					repacked.Compress(highQuality: true);
+				} catch (Exception e) {
+					Logger.Warn(e, $"HdrpMaterialResolver: failed compressing normal map '{repacked.name}'. Keeping uncompressed texture.");
+				}
 				repacked.Apply(true, true);
 				DestroyRuntimeObject(pixels);
 				return repacked;
