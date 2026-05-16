@@ -17,7 +17,6 @@
 using System;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.Rendering.HighDefinition;
 using VisualPinball.Unity.Editor;
 
 namespace VisualPinball.Engine.Unity.Hdrp.Editor
@@ -32,80 +31,21 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 
 		private sealed class Provider : IPackageScreenshotEnvironmentProvider
 		{
-			public IDisposable CreateEnvironmentScope(Transform tableRoot, Cubemap hdriCubemap)
+			public IDisposable CreateEnvironmentScope(Transform tableRoot, Cubemap hdriCubemap, float hdriExposure)
 			{
-				return new TemporaryHdrpEnvironmentScope(tableRoot, hdriCubemap);
+				return TemporaryHdrpEnvironmentScope.Instance;
 			}
 		}
 	}
 
 	internal sealed class TemporaryHdrpEnvironmentScope : IDisposable
 	{
-		private readonly GameObject _directionalLightObject;
+		public static readonly TemporaryHdrpEnvironmentScope Instance = new();
 
-		public TemporaryHdrpEnvironmentScope(Transform tableRoot, Cubemap hdriCubemap)
-		{
-			_directionalLightObject = CloneSceneDirectionalLight(tableRoot);
-		}
+		private TemporaryHdrpEnvironmentScope() { }
 
 		public void Dispose()
 		{
-			if (_directionalLightObject) {
-				UnityEngine.Object.DestroyImmediate(_directionalLightObject);
-			}
 		}
-
-		private static GameObject CloneSceneDirectionalLight(Transform tableRoot)
-		{
-			var sourceLight = FindSceneDirectionalLight(tableRoot);
-			if (!sourceLight) {
-				return null;
-			}
-
-			var lightObject = new GameObject("Package Screenshot Directional Light") {
-				hideFlags = HideFlags.HideAndDontSave,
-			};
-			lightObject.transform.SetPositionAndRotation(Vector3.zero, sourceLight.transform.rotation);
-
-			var clonedLight = lightObject.AddComponent<Light>();
-			EditorUtility.CopySerialized(sourceLight, clonedLight);
-			clonedLight.enabled = true;
-
-			var sourceHdLight = sourceLight.GetComponent<HDAdditionalLightData>();
-			if (sourceHdLight) {
-				var clonedHdLight = lightObject.AddComponent<HDAdditionalLightData>();
-				EditorUtility.CopySerialized(sourceHdLight, clonedHdLight);
-			}
-
-			return lightObject;
-		}
-
-		private static Light FindSceneDirectionalLight(Transform tableRoot)
-		{
-			var lights = UnityEngine.Object.FindObjectsOfType<Light>(true);
-			Light bestMatch = null;
-			var bestIntensity = float.NegativeInfinity;
-
-			foreach (var light in lights) {
-				if (!light || light.type != LightType.Directional || !light.enabled || !light.gameObject.activeInHierarchy) {
-					continue;
-				}
-				if (tableRoot && light.transform.IsChildOf(tableRoot)) {
-					continue;
-				}
-
-				if (RenderSettings.sun == light) {
-					return light;
-				}
-
-				if (light.intensity > bestIntensity) {
-					bestIntensity = light.intensity;
-					bestMatch = light;
-				}
-			}
-
-			return bestMatch;
-		}
-
 	}
 }
