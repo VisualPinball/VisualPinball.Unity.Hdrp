@@ -663,10 +663,12 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			}
 
 			// Start from a known non-translucent baseline so template defaults don't leak into
-			// profiles that don't request transmission/refraction.
-			SetFloat(material, "_MaterialID", 1f);
-			SetFloat(material, "_TransmissionEnable", 0f);
-			SetFloat(material, "_TransmissionMask", 0f);
+			// profiles that don't request transmission/refraction. Keep explicit material feature
+			// scalars from the source material; transparent refraction is valid on Standard Lit
+			// plastics and must not be promoted to Translucent unless transmission was requested.
+			SetFloat(material, "_MaterialID", lit.MaterialId >= 0 ? lit.MaterialId : 1f);
+			SetFloat(material, "_TransmissionEnable", lit.TransmissionEnable >= 0f ? lit.TransmissionEnable : 0f);
+			SetFloat(material, "_TransmissionMask", lit.TransmissionMask >= 0f ? lit.TransmissionMask : 0f);
 			material.DisableKeyword("_MATERIAL_FEATURE_TRANSMISSION");
 			material.DisableKeyword("_THICKNESSMAP");
 			material.DisableKeyword("_REFRACTION_PLANE");
@@ -678,7 +680,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				return;
 			}
 
-			SetFloat(material, "_MaterialID", 5f);
+			SetFloat(material, "_MaterialID", lit.HasTransmission && lit.MaterialId < 0 ? 5f : lit.MaterialId >= 0 ? lit.MaterialId : 1f);
 			if (lit.HasTransmission) {
 				SetFloat(material, "_TransmissionEnable", 1f);
 				SetFloat(material, "_TransmissionMask", 1f);
@@ -764,13 +766,13 @@ namespace VisualPinball.Engine.Unity.Hdrp
 					// Translucent archetype (pinball inserts, plastic ramps): needs refraction +
 					// transmission. Falls back through thin → planar → plain transparent so a
 					// missing template never turns the material opaque-magenta.
-					if (lit.HasTransmission || lit.RefractionModel != VpeRefractionModels.None) {
+					if (lit.HasTransmission) {
 						var translucent = PickTranslucentTemplate(lit.RefractionModel);
 						if (translucent) {
 							return translucent;
 						}
 						Debug.LogWarning(
-							$"HdrpMaterialResolver: '{profileName}' requests translucent/refraction ({lit.RefractionModel}) " +
+							$"HdrpMaterialResolver: '{profileName}' requests transmission/refraction ({lit.RefractionModel}) " +
 							"but no translucent template is configured. Falling back to simple transparent.");
 					}
 					if (_litTransparentTemplate) {
@@ -1000,8 +1002,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				repacked = cached;
 			} else {
 				cached = fromImportedMaterial
-					? RepackNormalMapForHdrpCpuFallback(src, flipGreen: true)
-					: RepackNormalMapForHdrp(src, textureRef.Packing);
+					? RepackNormalMapForHdrpCpuFallback(src, runtimeCompress: textureRef.RuntimeCompress)
+					: RepackNormalMapForHdrp(src, textureRef.Packing, textureRef.RuntimeCompress);
 				_repackedNormalCache[src] = cached;
 				repacked = cached;
 			}
@@ -1125,7 +1127,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			}
 		}
 
-		private static Texture RepackNormalMapForHdrp(Texture2D source, string packing)
+		private static Texture RepackNormalMapForHdrp(Texture2D source, string packing, bool runtimeCompress)
 		{
 			// Only need to re-pack plain-RGB normals. If the source was already dxt5nm/rg, leave it.
 			if (packing != VpeNormalPackings.Rgb || !source) {
@@ -1134,11 +1136,11 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 			// Temporary safety valve while we verify that the GPU repack path preserves
 			// the same relief response as Unity's CPU-side runtime repack.
-			return RepackNormalMapForHdrpCpuFallback(source);
+			return RepackNormalMapForHdrpCpuFallback(source, runtimeCompress: runtimeCompress);
 
 			var repackMaterial = GetOrCreateNormalRepackMaterial();
 			if (!repackMaterial) {
-				return RepackNormalMapForHdrpCpuFallback(source);
+				return RepackNormalMapForHdrpCpuFallback(source, runtimeCompress: runtimeCompress);
 			}
 
 			var repacked = new RenderTexture(source.width, source.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear) {
@@ -1162,7 +1164,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 					_loggedNormalRepackGpuFallback = true;
 					Logger.Warn(e, "HdrpMaterialResolver: GPU normal repack failed. Falling back to CPU normal repack.");
 				}
-				return RepackNormalMapForHdrpCpuFallback(source);
+				return RepackNormalMapForHdrpCpuFallback(source, runtimeCompress: runtimeCompress);
 			}
 		}
 
@@ -1214,7 +1216,11 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			return _normalRepackMaterial;
 		}
 
-		private static Texture2D RepackNormalMapForHdrpCpuFallback(Texture2D source, bool flipRed = false, bool flipGreen = false)
+		private static Texture2D RepackNormalMapForHdrpCpuFallback(
+			Texture2D source,
+			bool flipRed = false,
+			bool flipGreen = false,
+			bool runtimeCompress = true)
 		{
 			var rt = RenderTexture.GetTemporary(source.width, source.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
 			var previous = RenderTexture.active;
@@ -1242,10 +1248,12 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				}
 				repacked.SetPixels32(raw);
 				repacked.Apply(true, false);
-				try {
-					repacked.Compress(highQuality: true);
-				} catch (Exception e) {
-					Logger.Warn(e, $"HdrpMaterialResolver: failed compressing normal map '{repacked.name}'. Keeping uncompressed texture.");
+				if (runtimeCompress) {
+					try {
+						repacked.Compress(highQuality: true);
+					} catch (Exception e) {
+						Logger.Warn(e, $"HdrpMaterialResolver: failed compressing normal map '{repacked.name}'. Keeping uncompressed texture.");
+					}
 				}
 				repacked.Apply(true, true);
 				DestroyRuntimeObject(pixels);

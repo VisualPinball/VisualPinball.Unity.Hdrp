@@ -7,6 +7,7 @@
 		"VisualPinball.Unity",
 		"VisualPinball.Unity.Patcher",
 		"VisualPinball.Unity.AssetLibrary",
+		"Unity.RenderPipelines.Core.Runtime",
 		"Unity.RenderPipelines.HighDefinition.Runtime",
 		"Unity.RenderPipelines.HighDefinition.Config.Runtime",
 		"VisualPinball.Unity.Editor"
