@@ -16,7 +16,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using UnityEditor;
 using UnityEngine;
 using VisualPinball.Unity.Editor;
@@ -42,25 +41,23 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 
 	internal sealed class TemporaryHdrpEnvironmentScope : IDisposable
 	{
-		private const float ScreenshotAngularDiameter = 4.04f;
-		private const float ScreenshotColorTemperature = 4900f;
-		private const float ScreenshotIntensity = 613.6931f;
-		private const float ScreenshotFlareSize = 2f;
-		private const float ScreenshotFlareFalloff = 4f;
-		private const float ScreenshotFlareMultiplier = 1f;
-		private const int ScreenshotShadowResolution = 256;
+		private const string DirectionalLightPrefabPath =
+			"Packages/org.visualpinball.engine.unity.hdrp/Assets/EditorResources/Prefabs/Screenshot/DirectionalLight.prefab";
 
-		private readonly Light _temporaryDirectionalLight;
+		private readonly GameObject _temporaryDirectionalLight;
 		private readonly Light _originalSun;
 		private readonly List<DisabledLightState> _disabledLights = new();
 
 		public TemporaryHdrpEnvironmentScope(Transform tableRoot)
 		{
 			_originalSun = RenderSettings.sun;
-			var sourceDirectionalLight = FindDirectionalLight();
-			_temporaryDirectionalLight = CreateTemporaryDirectionalLight(sourceDirectionalLight);
+
+			_temporaryDirectionalLight = InstantiateDirectionalLight();
 			if (_temporaryDirectionalLight) {
-				RenderSettings.sun = _temporaryDirectionalLight;
+				var light = _temporaryDirectionalLight.GetComponentInChildren<Light>(true);
+				if (light) {
+					RenderSettings.sun = light;
+				}
 			}
 
 			DisableNonTableLights(tableRoot);
@@ -78,15 +75,36 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			RenderSettings.sun = _originalSun;
 
 			if (_temporaryDirectionalLight) {
-				UnityEngine.Object.DestroyImmediate(_temporaryDirectionalLight.gameObject);
+				UnityEngine.Object.DestroyImmediate(_temporaryDirectionalLight);
 			}
+		}
+
+		// The screenshot directional light is a fully authored prefab (HDRP light
+		// data, intensity, colour temperature, flares, shadow resolution, …). Using
+		// it directly keeps screenshot lighting coherent across tables and avoids
+		// re-deriving HDRP light settings in code.
+		private static GameObject InstantiateDirectionalLight()
+		{
+			var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(DirectionalLightPrefabPath);
+			if (!prefab) {
+				Debug.LogError($"Could not find screenshot directional light prefab at path: {DirectionalLightPrefabPath}");
+				return null;
+			}
+
+			var instance = UnityEngine.Object.Instantiate(prefab);
+			instance.name = "Package Screenshot Directional Light";
+			instance.hideFlags = HideFlags.HideAndDontSave;
+			return instance;
 		}
 
 		private void DisableNonTableLights(Transform tableRoot)
 		{
 			var lights = UnityEngine.Object.FindObjectsOfType<Light>(true);
 			foreach (var light in lights) {
-				if (!light || light == _temporaryDirectionalLight) {
+				if (!light) {
+					continue;
+				}
+				if (_temporaryDirectionalLight && light.transform.IsChildOf(_temporaryDirectionalLight.transform)) {
 					continue;
 				}
 				if (!light.gameObject.scene.IsValid() || light.hideFlags != HideFlags.None) {
@@ -99,191 +117,6 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				_disabledLights.Add(new DisabledLightState(light, light.enabled));
 				light.enabled = false;
 			}
-		}
-
-		private static Light FindDirectionalLight()
-		{
-			if (RenderSettings.sun && RenderSettings.sun.type == LightType.Directional) {
-				return RenderSettings.sun;
-			}
-
-			var lights = UnityEngine.Object.FindObjectsOfType<Light>(true);
-			foreach (var light in lights) {
-				if (!light || light.type != LightType.Directional) {
-					continue;
-				}
-				if (!light.gameObject.scene.IsValid() || light.hideFlags != HideFlags.None) {
-					continue;
-				}
-				return light;
-			}
-
-			return null;
-		}
-
-		private static Light CreateTemporaryDirectionalLight(Light sourceDirectionalLight)
-		{
-			var go = new GameObject("Package Screenshot Directional Light") {
-				hideFlags = HideFlags.HideAndDontSave
-			};
-
-			var light = go.AddComponent<Light>();
-			if (sourceDirectionalLight) {
-				go.transform.SetPositionAndRotation(sourceDirectionalLight.transform.position, sourceDirectionalLight.transform.rotation);
-			}
-
-			ConfigureBasicDirectionalLight(light, sourceDirectionalLight);
-			ConfigureHdDirectionalLight(sourceDirectionalLight, go);
-			ApplyShadowResolutionOverride(go, light);
-			return light;
-		}
-
-		private static void ConfigureBasicDirectionalLight(Light light, Light sourceDirectionalLight)
-		{
-			light.type = LightType.Directional;
-			light.enabled = true;
-			light.lightmapBakeType = LightmapBakeType.Realtime;
-			light.shadows = LightShadows.Soft;
-			light.useColorTemperature = true;
-			light.colorTemperature = ScreenshotColorTemperature;
-			light.intensity = ScreenshotIntensity;
-			light.bounceIntensity = 1f;
-			light.cookie = null;
-
-			if (!sourceDirectionalLight) {
-				return;
-			}
-
-			light.color = sourceDirectionalLight.color;
-			light.shadowStrength = sourceDirectionalLight.shadowStrength;
-			light.shadowBias = sourceDirectionalLight.shadowBias;
-			light.shadowNormalBias = sourceDirectionalLight.shadowNormalBias;
-			light.shadowNearPlane = sourceDirectionalLight.shadowNearPlane;
-			light.cullingMask = sourceDirectionalLight.cullingMask;
-			light.renderingLayerMask = sourceDirectionalLight.renderingLayerMask;
-		}
-
-		private static void ConfigureHdDirectionalLight(Light sourceDirectionalLight, GameObject destination)
-		{
-			var hdLightType = Type.GetType("UnityEngine.Rendering.HighDefinition.HDAdditionalLightData, Unity.RenderPipelines.HighDefinition.Runtime");
-			if (hdLightType == null) {
-				return;
-			}
-
-			var destinationHdLight = destination.GetComponent(hdLightType) ?? destination.AddComponent(hdLightType);
-			InitializeHdAdditionalLightData(destinationHdLight, hdLightType);
-
-			// InitDefaultHDAdditionalLightData resets the directional intensity to
-			// HDRP's default (100000 lux), overwriting what ConfigureBasicDirectionalLight
-			// set on the Light. Re-apply it through the HD data so it actually sticks.
-			SetHdLightProperty(destinationHdLight, "intensity", ScreenshotIntensity);
-
-			if (!sourceDirectionalLight) {
-				return;
-			}
-
-			var sourceHdLight = sourceDirectionalLight.gameObject.GetComponent(hdLightType);
-			SetHdLightProperty(destinationHdLight, "angularDiameter", ScreenshotAngularDiameter);
-			SetHdLightProperty(destinationHdLight, "interactsWithSky", true);
-			SetHdLightProperty(destinationHdLight, "lightDimmer", 1f);
-			SetHdLightProperty(destinationHdLight, "volumetricDimmer", 1f);
-			SetHdLightProperty(destinationHdLight, "shadowDimmer", 1f);
-			SetHdLightProperty(destinationHdLight, "volumetricShadowDimmer", 1f);
-			SetHdLightProperty(destinationHdLight, "affectDiffuse", true);
-			SetHdLightProperty(destinationHdLight, "affectSpecular", true);
-			SetHdLightProperty(destinationHdLight, "useRayTracedShadows", false);
-			SetHdLightProperty(destinationHdLight, "flareSize", ScreenshotFlareSize);
-			SetHdLightProperty(destinationHdLight, "flareFalloff", ScreenshotFlareFalloff);
-			SetHdLightProperty(destinationHdLight, "flareMultiplier", ScreenshotFlareMultiplier);
-
-			if (sourceHdLight) {
-				CopyHdLightProperty(sourceHdLight, destinationHdLight, "flareTint");
-				CopyHdLightProperty(sourceHdLight, destinationHdLight, "surfaceTexture");
-				CopyHdLightProperty(sourceHdLight, destinationHdLight, "surfaceTint");
-			}
-		}
-
-		private static void InitializeHdAdditionalLightData(Component hdAdditionalLightData, Type hdLightType)
-		{
-			var initMethod = hdLightType.GetMethod(
-				"InitDefaultHDAdditionalLightData",
-				BindingFlags.Public | BindingFlags.Static,
-				null,
-				new[] { hdLightType },
-				null
-			);
-			initMethod?.Invoke(null, new object[] { hdAdditionalLightData });
-		}
-
-		private static void ApplyShadowResolutionOverride(GameObject lightGameObject, Light fallbackLight)
-		{
-			var hdLightType = Type.GetType("UnityEngine.Rendering.HighDefinition.HDAdditionalLightData, Unity.RenderPipelines.HighDefinition.Runtime");
-			var hdAdditionalLightData = hdLightType == null ? null : lightGameObject.GetComponent(hdLightType);
-			if (hdAdditionalLightData != null && TryApplyHdrpShadowResolutionOverride(hdAdditionalLightData)) {
-				return;
-			}
-
-			if (fallbackLight) {
-				fallbackLight.shadows = LightShadows.Soft;
-			}
-		}
-
-		private static bool TryApplyHdrpShadowResolutionOverride(Component hdAdditionalLightData)
-		{
-			var hdLightType = hdAdditionalLightData.GetType();
-			var setShadowResolutionOverrideMethod = hdLightType.GetMethod("SetShadowResolutionOverride", BindingFlags.Public | BindingFlags.Instance);
-			var setShadowResolutionMethod = hdLightType.GetMethod("SetShadowResolution", BindingFlags.Public | BindingFlags.Instance);
-			if (setShadowResolutionOverrideMethod != null && setShadowResolutionMethod != null) {
-				setShadowResolutionOverrideMethod.Invoke(hdAdditionalLightData, new object[] { true });
-				setShadowResolutionMethod.Invoke(hdAdditionalLightData, new object[] { ScreenshotShadowResolution });
-				return true;
-			}
-
-			if (!TryGetShadowResolutionOverride(hdAdditionalLightData, out var shadowResolutionValue, out var useOverrideProperty, out var overrideProperty)) {
-				return false;
-			}
-
-			useOverrideProperty.SetValue(shadowResolutionValue, true);
-			overrideProperty.SetValue(shadowResolutionValue, ScreenshotShadowResolution);
-			return true;
-		}
-
-		private static void CopyHdLightProperty(Component sourceHdLight, Component destinationHdLight, string propertyName)
-		{
-			var property = sourceHdLight.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
-			if (property == null || !property.CanRead || !property.CanWrite) {
-				return;
-			}
-
-			property.SetValue(destinationHdLight, property.GetValue(sourceHdLight));
-		}
-
-		private static void SetHdLightProperty(Component destinationHdLight, string propertyName, object value)
-		{
-			var property = destinationHdLight.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
-			if (property == null || !property.CanWrite) {
-				return;
-			}
-
-			property.SetValue(destinationHdLight, value);
-		}
-
-		private static bool TryGetShadowResolutionOverride(Component hdAdditionalLightData, out object shadowResolutionValue, out PropertyInfo useOverrideProperty, out PropertyInfo overrideProperty)
-		{
-			shadowResolutionValue = null;
-			useOverrideProperty = null;
-			overrideProperty = null;
-
-			var shadowResolutionProperty = hdAdditionalLightData.GetType().GetProperty("shadowResolution");
-			shadowResolutionValue = shadowResolutionProperty?.GetValue(hdAdditionalLightData);
-			if (shadowResolutionValue == null) {
-				return false;
-			}
-
-			var scalableValueType = shadowResolutionValue.GetType();
-			useOverrideProperty = scalableValueType.GetProperty("useOverride");
-			overrideProperty = scalableValueType.GetProperty("override");
-			return useOverrideProperty != null && overrideProperty != null;
 		}
 
 		private readonly struct DisabledLightState
