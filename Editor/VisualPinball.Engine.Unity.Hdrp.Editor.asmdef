@@ -10,7 +10,8 @@
 		"Unity.RenderPipelines.Core.Runtime",
 		"Unity.RenderPipelines.HighDefinition.Runtime",
 		"Unity.RenderPipelines.HighDefinition.Config.Runtime",
-		"VisualPinball.Unity.Editor"
+		"VisualPinball.Unity.Editor",
+		"VisualPinball.Engine.Unity.Hdrp"
 	],
 	"includePlatforms": [ "Editor" ],
 	"excludePlatforms": [],

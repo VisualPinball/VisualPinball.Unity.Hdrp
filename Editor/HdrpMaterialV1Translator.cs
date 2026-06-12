@@ -802,15 +802,9 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		public static string NormalizeMaterialName(string materialName)
 			=> VpeMaterialNameUtil.NormalizeMaterialName(materialName);
 
-		private enum TextureCookKind
-		{
-			Color,
-			Normal,
-		}
-
 		private sealed class CaptureContext
 		{
-			private readonly Dictionary<(Texture2D, TextureCookKind), VpeTextureAssetV1> _assetsByTexture = new();
+			private readonly Dictionary<Texture2D, VpeTextureAssetV1> _assetsByTexture = new();
 			private readonly Dictionary<string, byte[]> _textureBlobs = new(StringComparer.Ordinal);
 			private readonly Dictionary<string, UnsupportedShaderUsage> _unsupportedShaders = new(StringComparer.Ordinal);
 			private int _nextIndex;
@@ -1022,7 +1016,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					return null;
 				}
 
-				var asset = GetOrCaptureAsset(texture, VpeColorSpaces.Linear, TextureCookKind.Normal);
+				var asset = GetOrCaptureAsset(texture, VpeColorSpaces.Linear);
 				if (asset == null) {
 					return null;
 				}
@@ -1032,10 +1026,10 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					Offset = material.GetTextureOffset(property),
 					Scale = material.GetTextureScale(property),
 					Strength = strength,
-					// Cooked payloads are already in HDRP's AG layout, so runtime must not repack.
-					// The PNG fallback ships plain RGB and keeps the runtime repack path.
-					Packing = IsCooked(asset) ? VpeNormalPackings.Dxt5nm : VpeNormalPackings.Rgb,
-					RuntimeCompress = !IsCooked(asset),
+					// The package carries plain-RGB source normals. The runtime cook re-packs them
+					// into HDRP's AG layout for its local cache; the uncached fallback path keeps
+					// the runtime repack behavior.
+					Packing = VpeNormalPackings.Rgb,
 				};
 			}
 
@@ -1062,9 +1056,9 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				};
 			}
 
-			private VpeTextureAssetV1 GetOrCaptureAsset(Texture2D texture, string colorSpace, TextureCookKind kind = TextureCookKind.Color)
+			private VpeTextureAssetV1 GetOrCaptureAsset(Texture2D texture, string colorSpace)
 			{
-				if (_assetsByTexture.TryGetValue((texture, kind), out var existing)) {
+				if (_assetsByTexture.TryGetValue(texture, out var existing)) {
 					return existing;
 				}
 
@@ -1082,6 +1076,8 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					AnisoLevel = Mathf.Max(1, texture.anisoLevel),
 					GenerateMipMaps = true,
 					SourceName = texture.name,
+					// Imported dimensions, i.e. the authored intent after any importer max-size
+					// clamp. The runtime cook downsizes larger source files to fit these.
 					Width = texture.width,
 					Height = texture.height,
 				};
@@ -1098,36 +1094,39 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					asset.FilterMode = (int)importer.filterMode;
 				}
 
-				// Cook into a GPU-ready payload (block-compressed, mips baked) so the runtime uploads
-				// raw bytes instead of decoding PNGs and re-compressing. Falls back to the legacy PNG
-				// side-channel if cooking fails.
-				byte[] blobData;
-				var cookSucceeded = kind == TextureCookKind.Normal
-					? HdrpMaterialV1TextureEncoder.TryEncodeCookedNormal(texture, asset.GenerateMipMaps, out var cooked)
-					: HdrpMaterialV1TextureEncoder.TryEncodeCooked(texture, linear, asset.GenerateMipMaps, out cooked);
-				if (cookSucceeded && cooked.IsValid) {
-					blobData = cooked.Data;
-					asset.PixelFormat = cooked.PixelFormat;
-					asset.MipCount = cooked.MipCount;
-					asset.Width = cooked.Width;
-					asset.Height = cooked.Height;
-					asset.MimeType = "application/x-vpe-raw";
-					asset.RuntimeCompress = false;
-					asset.FileName = $"tex_{_nextIndex++:D4}.tex";
-				} else {
+				// The package carries the lossless source layer: the original asset file bytes,
+				// untouched, whenever the source is a format the runtime cook can decode. Anything
+				// else (no source file, runtime-generated, exotic formats) falls back to a lossless
+				// PNG of the imported pixels. GPU-ready payloads are never written into the package;
+				// the player cooks and caches them locally.
+				byte[] blobData = null;
+				string extension = null;
+				if (!string.IsNullOrEmpty(assetPath) && File.Exists(assetPath)) {
+					var sourceExtension = Path.GetExtension(assetPath);
+					if (string.Equals(sourceExtension, ".png", StringComparison.OrdinalIgnoreCase)) {
+						blobData = File.ReadAllBytes(assetPath);
+						asset.MimeType = "image/png";
+						extension = ".png";
+					} else if (string.Equals(sourceExtension, ".jpg", StringComparison.OrdinalIgnoreCase)
+						|| string.Equals(sourceExtension, ".jpeg", StringComparison.OrdinalIgnoreCase)) {
+						blobData = File.ReadAllBytes(assetPath);
+						asset.MimeType = "image/jpeg";
+						extension = ".jpg";
+					}
+				}
+				if (blobData == null) {
 					if (!HdrpMaterialV1TextureEncoder.TryEncode(texture, linear, out blobData)) {
 						return null;
 					}
-					asset.FileName = $"tex_{_nextIndex++:D4}.png";
+					asset.MimeType = "image/png";
+					extension = ".png";
 				}
+				asset.FileName = $"tex_{_nextIndex++:D4}{extension}";
 
-				_assetsByTexture[(texture, kind)] = asset;
+				_assetsByTexture[texture] = asset;
 				_textureBlobs[asset.FileName] = blobData;
 				return asset;
 			}
-
-			// True when the asset was cooked into a raw GPU payload (as opposed to a PNG fallback).
-			private static bool IsCooked(VpeTextureAssetV1 asset) => !string.IsNullOrEmpty(asset?.PixelFormat);
 
 			private string BuildId(Texture2D texture)
 			{
