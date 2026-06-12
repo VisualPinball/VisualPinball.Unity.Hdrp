@@ -27,12 +27,13 @@ using Logger = NLog.Logger;
 
 namespace VisualPinball.Engine.Unity.Hdrp.Editor
 {
-	// Editor-only. Translates Unity Materials on a scene's renderers into a portable
-	// VpeMaterialsPayloadV1 plus a set of PNG texture blobs keyed by stable ids.
+	// Editor-only. Translates Unity Materials on a scene's renderers into the portable material
+	// payload (schema v2) plus a set of source texture blobs keyed by file name. Portable intent
+	// goes to the top of each profile; everything HDRP-specific lands in the profile's Hdrp block.
 	//
 	// Only HDRP-aware mappings are implemented here; if VPE adopts additional pipelines the
 	// translator fans out on shader name.
-	internal static class HdrpMaterialV1Translator
+	internal static class HdrpMaterialTranslator
 	{
 		private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
@@ -56,10 +57,10 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		private const string VpeSmoothnessRemapMin = "_VpeSmoothnessRemapMin";
 		private const string VpeTiling = "_VpeTiling";
 
-		public static VpeMaterialCaptureResult Capture(Transform tableRoot, IEnumerable<Renderer> renderers)
+		public static VpeMaterialCaptureResult Capture(Transform tableRoot, IEnumerable<Renderer> renderers, Func<Transform, string> nodeId)
 		{
-			var profiles = new Dictionary<string, VpeMaterialProfileV1>(StringComparer.Ordinal);
-			var rendererStates = new List<VpeRendererStateV1>();
+			var profiles = new Dictionary<string, VpeMaterialProfile>(StringComparer.Ordinal);
+			var rendererStates = new List<VpeRendererState>();
 			var ctx = new CaptureContext();
 
 			if (renderers != null) {
@@ -69,7 +70,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					}
 
 					if (tableRoot) {
-						rendererStates.Add(CaptureRendererState(renderer, tableRoot));
+						rendererStates.Add(CaptureRendererState(renderer, tableRoot, nodeId));
 					}
 
 					foreach (var material in renderer.sharedMaterials) {
@@ -90,9 +91,9 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				}
 			}
 
-			var payload = new VpeMaterialsPayloadV1 {
-				FormatVersion = 1,
-				WrittenBy = "HdrpMaterialV1Translator",
+			var payload = new VpeMaterialsPayload {
+				FormatVersion = VpeMaterialSchema.Version,
+				WrittenBy = "HdrpMaterialTranslator",
 				Profiles = profiles.Values.ToArray(),
 				Textures = ctx.BuildTextureAssets(),
 				RendererStates = rendererStates.ToArray(),
@@ -106,18 +107,21 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			return new GltfExportMaterialScope(renderers);
 		}
 
-		private static VpeRendererStateV1 CaptureRendererState(Renderer renderer, Transform tableRoot)
+		private static VpeRendererState CaptureRendererState(Renderer renderer, Transform tableRoot, Func<Transform, string> nodeId)
 		{
-			return new VpeRendererStateV1 {
-				Path = renderer.transform.GetPath(tableRoot),
-				ShadowCastingMode = (int)renderer.shadowCastingMode,
+			var id = nodeId?.Invoke(renderer.transform);
+			return new VpeRendererState {
+				NodeId = id,
+				CastShadows = VpeMaterialEnums.ToShadowCastingMode(renderer.shadowCastingMode),
 				ReceiveShadows = renderer.receiveShadows,
 				RenderingLayerMask = renderer.renderingLayerMask,
-				RayTracingMode = (int)renderer.rayTracingMode,
+				Hdrp = new VpeHdrpRendererHints {
+					RayTracingMode = (int)renderer.rayTracingMode,
+				},
 			};
 		}
 
-		private static VpeMaterialProfileV1 TranslateMaterial(Material material, CaptureContext ctx)
+		private static VpeMaterialProfile TranslateMaterial(Material material, CaptureContext ctx)
 		{
 			if (!material || !material.shader) {
 				return null;
@@ -147,15 +151,15 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			return null;
 		}
 
-		private static VpeMaterialProfileV1 TranslateHdrpLit(Material material, CaptureContext ctx)
+		private static VpeMaterialProfile TranslateHdrpLit(Material material, CaptureContext ctx)
 		{
-			// Every texture is cooked into the side-channel as a GPU-ready payload; the glb carries
-			// no image data for captured materials. This is what makes runtime import fast: no PNG
-			// decode, no runtime compression, no normal repack.
+			// Every texture is shipped in the source layer; the glb carries no image data for
+			// captured materials. This is what makes runtime import fast: no PNG decode in the glb
+			// path, the player cooks the sources once and caches GPU-ready payloads.
 			var baseColorTexture = ctx.CaptureSideChannelTextureRef(material, "_BaseColorMap", VpeColorSpaces.SRgb);
 			var baseColor = ResolveHdrpBaseColor(material);
 
-			var lit = new VpeLitProfileV1 {
+			var lit = new VpeLitProfile {
 				BaseColor = {
 					Color = baseColor,
 					Texture = baseColorTexture,
@@ -166,7 +170,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				IridescenceMask = SafeGetFloat(material, "_IridescenceMask", 1f),
 				IridescenceThickness = SafeGetFloat(material, "_IridescenceThickness", 1f),
 				// MaskMap packs HDRP-specific channels (R=metal, G=AO, B=detail, A=smooth). glTF
-				// has no lossless equivalent, so this is the one texture that gets side-channeled.
+				// has no lossless equivalent, so the packing is declared via MaskPacking.
 				MaskMap = ctx.CaptureSideChannelTextureRef(material, "_MaskMap", VpeColorSpaces.Linear),
 				MaskPacking = VpeMaskPackings.HdrpMaskMap,
 				MetallicRemap = new Vector2(
@@ -182,16 +186,9 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					SafeGetFloat(material, "_AlphaRemapMin", 0f),
 					SafeGetFloat(material, "_AlphaRemapMax", 1f)),
 				UvBase = Mathf.RoundToInt(SafeGetFloat(material, "_UVBase", 0f)),
-				TexWorldScale = SafeGetFloat(material, "_TexWorldScale", 1f),
-				InvTilingScale = SafeGetFloat(material, "_InvTilingScale", 1f),
-				GeometricSpecularAa = SafeGetFloat(material, "_EnableGeometricSpecularAA", 0f) > 0.5f,
-				SpecularAaScreenSpaceVariance = SafeGetFloat(material, "_SpecularAAScreenSpaceVariance", 0f),
-				SpecularAaThreshold = SafeGetFloat(material, "_SpecularAAThreshold", 0f),
-				SupportDecals = SafeGetFloat(material, "_SupportDecals", 1f) > 0.5f
-					&& !material.IsKeywordEnabled("_DISABLE_DECALS"),
 				NormalMap = ctx.CaptureSideChannelNormalMapRef(material, "_NormalMap",
 					strength: SafeGetFloat(material, "_NormalScale", 1f)),
-				Emissive = new VpeEmissiveV1 {
+				Emissive = new VpeEmissive {
 					Color = SafeGetColor(material, "_EmissiveColor", Color.black),
 					HasLdrColor = HasAnyProperty(material, "_EmissiveColorLDR", "_EmissionColor"),
 					LdrColor = ResolveHdrpEmissiveLdrColor(material),
@@ -200,7 +197,6 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					Intensity = SafeGetFloat(material, "_EmissiveIntensity", 0f),
 					IntensityUnit = HdrpEmissiveIntensityUnitToString(
 						SafeGetFloat(material, "_EmissiveIntensityUnit", 0f)),
-					ExposureWeight = SafeGetFloat(material, "_EmissiveExposureWeight", 1f),
 				},
 				SurfaceType = HdrpSurfaceTypeToString(
 					SafeGetFloat(material, "_SurfaceType", 0f),
@@ -208,27 +204,8 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				AlphaCutoff = SafeGetFloat(material, "_AlphaCutoff", 0.5f),
 				DoubleSided = SafeGetFloat(material, "_DoubleSidedEnable", 0f) > 0.5f,
 				DoubleSidedGi = material.doubleSidedGI,
-				CullMode = Mathf.RoundToInt(SafeGetFloat(material, "_CullMode", -1f)),
-				CullModeForward = Mathf.RoundToInt(SafeGetFloat(material, "_CullModeForward", -1f)),
-				OpaqueCullMode = Mathf.RoundToInt(SafeGetFloat(material, "_OpaqueCullMode", -1f)),
-				TransparentCullMode = Mathf.RoundToInt(SafeGetFloat(material, "_TransparentCullMode", -1f)),
-				TransparentBlendMode = Mathf.RoundToInt(SafeGetFloat(material, "_BlendMode", 0f)),
-				TransparentSortPriority = Mathf.RoundToInt(SafeGetFloat(material, "_TransparentSortPriority", 0f)),
-				EnableFogOnTransparent = SafeGetFloat(material, "_EnableFogOnTransparent", 1f) > 0.5f
-					|| material.IsKeywordEnabled("_ENABLE_FOG_ON_TRANSPARENT"),
-				TransparentDepthPrepass = SafeGetFloat(material, "_TransparentDepthPrepassEnable", 0f) > 0.5f,
-				TransparentDepthPostpass = SafeGetFloat(material, "_TransparentDepthPostpassEnable", 0f) > 0.5f,
-				TransparentWritesMotionVectors = (SafeGetFloat(material, "_TransparentWritingMotionVec", 0f) > 0.5f
-						|| material.IsKeywordEnabled("_TRANSPARENT_WRITES_MOTION_VEC"))
-					&& (material.GetShaderPassEnabled("MOTIONVECTORS") || material.GetShaderPassEnabled("MotionVectors")),
-				TransparentBackface = SafeGetFloat(material, "_TransparentBackfaceEnable", 0f) > 0.5f,
-				DisableSsrTransparent = material.IsKeywordEnabled("_DISABLE_SSR_TRANSPARENT")
-					|| SafeGetFloat(material, "_ReceivesSSRTransparent", 0f) < 0.5f,
-				DisableSsr = material.IsKeywordEnabled("_DISABLE_SSR")
-					|| SafeGetFloat(material, "_ReceivesSSR", 1f) < 0.5f,
-				RayTracing = Mathf.RoundToInt(SafeGetFloat(material, "_RayTracing", -1f)),
-				MaterialId = Mathf.RoundToInt(SafeGetFloat(material, "_MaterialID", -1f)),
-				RenderQueueOverride = material.renderQueue,
+				BlendMode = VpeMaterialEnums.ToBlendMode(Mathf.RoundToInt(SafeGetFloat(material, "_BlendMode", 0f))),
+				SortPriority = Mathf.RoundToInt(SafeGetFloat(material, "_TransparentSortPriority", 0f)),
 
 				RefractionModel = HdrpRefractionModelToString(
 					SafeGetFloat(material, "_RefractionModel", 0f),
@@ -239,24 +216,54 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				// HDRP keeps that float at 1 on many non-translucent materials.
 				HasTransmission = material.IsKeywordEnabled("_MATERIAL_FEATURE_TRANSMISSION")
 					|| Mathf.Approximately(SafeGetFloat(material, "_MaterialID", 1f), 5f),
-				TransmissionEnable = SafeGetFloat(material, "_TransmissionEnable", -1f),
-				TransmissionMask = SafeGetFloat(material, "_TransmissionMask", -1f),
-				DiffusionProfileHash = SafeGetFloat(material, "_DiffusionProfileHash", 0f),
-				DiffusionProfileAsset = SafeGetVector(material, "_DiffusionProfileAsset", Vector4.zero),
 				Thickness = SafeGetFloat(material, "_Thickness", 1f),
 				ThicknessRemap = SafeGetVector2(material, "_ThicknessRemap", new Vector2(0f, 1f)),
 				AbsorptionDistance = SafeGetFloat(material, "_ATDistance", 1f),
 				TransmittanceColor = SafeGetColor(material, "_TransmittanceColor", Color.white),
 				ThicknessMap = ctx.CaptureSideChannelTextureRef(material, "_ThicknessMap", VpeColorSpaces.Linear),
+
+				Hdrp = new VpeHdrpLitHints {
+					TexWorldScale = SafeGetFloat(material, "_TexWorldScale", 1f),
+					InvTilingScale = SafeGetFloat(material, "_InvTilingScale", 1f),
+					GeometricSpecularAa = SafeGetFloat(material, "_EnableGeometricSpecularAA", 0f) > 0.5f,
+					SpecularAaScreenSpaceVariance = SafeGetFloat(material, "_SpecularAAScreenSpaceVariance", 0f),
+					SpecularAaThreshold = SafeGetFloat(material, "_SpecularAAThreshold", 0f),
+					SupportDecals = SafeGetFloat(material, "_SupportDecals", 1f) > 0.5f
+						&& !material.IsKeywordEnabled("_DISABLE_DECALS"),
+					CullMode = Mathf.RoundToInt(SafeGetFloat(material, "_CullMode", -1f)),
+					CullModeForward = Mathf.RoundToInt(SafeGetFloat(material, "_CullModeForward", -1f)),
+					OpaqueCullMode = Mathf.RoundToInt(SafeGetFloat(material, "_OpaqueCullMode", -1f)),
+					TransparentCullMode = Mathf.RoundToInt(SafeGetFloat(material, "_TransparentCullMode", -1f)),
+					EnableFogOnTransparent = SafeGetFloat(material, "_EnableFogOnTransparent", 1f) > 0.5f
+						|| material.IsKeywordEnabled("_ENABLE_FOG_ON_TRANSPARENT"),
+					TransparentDepthPrepass = SafeGetFloat(material, "_TransparentDepthPrepassEnable", 0f) > 0.5f,
+					TransparentDepthPostpass = SafeGetFloat(material, "_TransparentDepthPostpassEnable", 0f) > 0.5f,
+					TransparentWritesMotionVectors = (SafeGetFloat(material, "_TransparentWritingMotionVec", 0f) > 0.5f
+							|| material.IsKeywordEnabled("_TRANSPARENT_WRITES_MOTION_VEC"))
+						&& (material.GetShaderPassEnabled("MOTIONVECTORS") || material.GetShaderPassEnabled("MotionVectors")),
+					TransparentBackface = SafeGetFloat(material, "_TransparentBackfaceEnable", 0f) > 0.5f,
+					DisableSsrTransparent = material.IsKeywordEnabled("_DISABLE_SSR_TRANSPARENT")
+						|| SafeGetFloat(material, "_ReceivesSSRTransparent", 0f) < 0.5f,
+					DisableSsr = material.IsKeywordEnabled("_DISABLE_SSR")
+						|| SafeGetFloat(material, "_ReceivesSSR", 1f) < 0.5f,
+					RayTracing = Mathf.RoundToInt(SafeGetFloat(material, "_RayTracing", -1f)),
+					MaterialId = Mathf.RoundToInt(SafeGetFloat(material, "_MaterialID", -1f)),
+					RenderQueueOverride = material.renderQueue,
+					TransmissionEnable = SafeGetFloat(material, "_TransmissionEnable", -1f),
+					TransmissionMask = SafeGetFloat(material, "_TransmissionMask", -1f),
+					DiffusionProfileHash = SafeGetFloat(material, "_DiffusionProfileHash", 0f),
+					DiffusionProfileAsset = SafeGetVector(material, "_DiffusionProfileAsset", Vector4.zero),
+					EmissiveExposureWeight = SafeGetFloat(material, "_EmissiveExposureWeight", 1f),
+				},
 			};
 
-			return new VpeMaterialProfileV1 {
+			return new VpeMaterialProfile {
 				Type = VpeMaterialTypes.Lit,
 				Lit = lit,
 			};
 		}
 
-		private static VpeMaterialProfileV1 TranslateVpeMetalShaderGraph(Material material, CaptureContext ctx)
+		private static VpeMaterialProfile TranslateVpeMetalShaderGraph(Material material, CaptureContext ctx)
 		{
 			var source = ResolveSourceMaterialAsset(material);
 			var maskMap = CaptureShaderGraphTextureRef(ctx, material, source, VpeMaskMap, VpeColorSpaces.Linear)
@@ -268,7 +275,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 
 			var metallicIntensity = SafeGetFloat(material, VpeMetallicIntensity, SafeGetFloat(source, VpeMetallicIntensity, 1f));
 			var occlusionIntensity = Mathf.Clamp01(SafeGetFloat(material, VpeOcclusionIntensity, SafeGetFloat(source, VpeOcclusionIntensity, 1f)));
-			var lit = new VpeLitProfileV1 {
+			var lit = new VpeLitProfile {
 				BaseColor = {
 					Color = SafeGetColor(material, VpeColor, SafeGetColor(source, VpeColor, ResolveHdrpBaseColor(material))),
 				},
@@ -286,12 +293,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					SafeGetFloat(material, "_AlphaRemapMin", SafeGetFloat(source, "_AlphaRemapMin", 0f)),
 					SafeGetFloat(material, "_AlphaRemapMax", SafeGetFloat(source, "_AlphaRemapMax", 1f))),
 				UvBase = 0,
-				TexWorldScale = SafeGetFloat(material, "_TexWorldScale", SafeGetFloat(source, "_TexWorldScale", 1f)),
-				InvTilingScale = SafeGetFloat(material, "_InvTilingScale", SafeGetFloat(source, "_InvTilingScale", 1f)),
-				GeometricSpecularAa = SafeGetFloat(material, "_EnableGeometricSpecularAA", SafeGetFloat(source, "_EnableGeometricSpecularAA", 0f)) > 0.5f,
-				SpecularAaScreenSpaceVariance = SafeGetFloat(material, "_SpecularAAScreenSpaceVariance", SafeGetFloat(source, "_SpecularAAScreenSpaceVariance", 0f)),
-				SpecularAaThreshold = SafeGetFloat(material, "_SpecularAAThreshold", SafeGetFloat(source, "_SpecularAAThreshold", 0f)),
-				Emissive = new VpeEmissiveV1 {
+				Emissive = new VpeEmissive {
 					Color = SafeGetColor(material, "_EmissiveColor", Color.black),
 					HasLdrColor = HasAnyProperty(material, "_EmissiveColorLDR", "_EmissionColor"),
 					LdrColor = ResolveHdrpEmissiveLdrColor(material),
@@ -300,7 +302,6 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					Intensity = SafeGetFloat(material, "_EmissiveIntensity", 0f),
 					IntensityUnit = HdrpEmissiveIntensityUnitToString(
 						SafeGetFloat(material, "_EmissiveIntensityUnit", 0f)),
-					ExposureWeight = SafeGetFloat(material, "_EmissiveExposureWeight", 1f),
 				},
 				SurfaceType = HdrpSurfaceTypeToString(
 					SafeGetFloat(material, "_SurfaceType", 0f),
@@ -308,45 +309,53 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				AlphaCutoff = SafeGetFloat(material, "_AlphaCutoff", 0.5f),
 				DoubleSided = SafeGetFloat(material, "_DoubleSidedEnable", 0f) > 0.5f,
 				DoubleSidedGi = material.doubleSidedGI,
-				CullMode = Mathf.RoundToInt(SafeGetFloat(material, "_CullMode", -1f)),
-				CullModeForward = Mathf.RoundToInt(SafeGetFloat(material, "_CullModeForward", -1f)),
-				OpaqueCullMode = Mathf.RoundToInt(SafeGetFloat(material, "_OpaqueCullMode", -1f)),
-				TransparentCullMode = Mathf.RoundToInt(SafeGetFloat(material, "_TransparentCullMode", -1f)),
-				DisableSsr = material.IsKeywordEnabled("_DISABLE_SSR")
-					|| SafeGetFloat(material, "_ReceivesSSR", 1f) < 0.5f,
-				RayTracing = Mathf.RoundToInt(SafeGetFloat(material, "_RayTracing", -1f)),
-				MaterialId = Mathf.RoundToInt(SafeGetFloat(material, "_MaterialID", -1f)),
 				HasTransmission = material.IsKeywordEnabled("_MATERIAL_FEATURE_TRANSMISSION")
 					|| Mathf.Approximately(SafeGetFloat(material, "_MaterialID", 1f), 5f),
-				TransmissionEnable = SafeGetFloat(material, "_TransmissionEnable", -1f),
-				TransmissionMask = SafeGetFloat(material, "_TransmissionMask", -1f),
-				RenderQueueOverride = material.renderQueue,
+
+				Hdrp = new VpeHdrpLitHints {
+					TexWorldScale = SafeGetFloat(material, "_TexWorldScale", SafeGetFloat(source, "_TexWorldScale", 1f)),
+					InvTilingScale = SafeGetFloat(material, "_InvTilingScale", SafeGetFloat(source, "_InvTilingScale", 1f)),
+					GeometricSpecularAa = SafeGetFloat(material, "_EnableGeometricSpecularAA", SafeGetFloat(source, "_EnableGeometricSpecularAA", 0f)) > 0.5f,
+					SpecularAaScreenSpaceVariance = SafeGetFloat(material, "_SpecularAAScreenSpaceVariance", SafeGetFloat(source, "_SpecularAAScreenSpaceVariance", 0f)),
+					SpecularAaThreshold = SafeGetFloat(material, "_SpecularAAThreshold", SafeGetFloat(source, "_SpecularAAThreshold", 0f)),
+					CullMode = Mathf.RoundToInt(SafeGetFloat(material, "_CullMode", -1f)),
+					CullModeForward = Mathf.RoundToInt(SafeGetFloat(material, "_CullModeForward", -1f)),
+					OpaqueCullMode = Mathf.RoundToInt(SafeGetFloat(material, "_OpaqueCullMode", -1f)),
+					TransparentCullMode = Mathf.RoundToInt(SafeGetFloat(material, "_TransparentCullMode", -1f)),
+					DisableSsr = material.IsKeywordEnabled("_DISABLE_SSR")
+						|| SafeGetFloat(material, "_ReceivesSSR", 1f) < 0.5f,
+					RayTracing = Mathf.RoundToInt(SafeGetFloat(material, "_RayTracing", -1f)),
+					MaterialId = Mathf.RoundToInt(SafeGetFloat(material, "_MaterialID", -1f)),
+					RenderQueueOverride = material.renderQueue,
+					TransmissionEnable = SafeGetFloat(material, "_TransmissionEnable", -1f),
+					TransmissionMask = SafeGetFloat(material, "_TransmissionMask", -1f),
+				},
 			};
 
-			return new VpeMaterialProfileV1 {
+			return new VpeMaterialProfile {
 				Type = VpeMaterialTypes.Metal,
 				Metal = CreateShaderGraphProfile(material),
 				Lit = lit,
 			};
 		}
 
-		private static VpeMaterialProfileV1 TranslateVpeDmdShaderGraph(Material material)
+		private static VpeMaterialProfile TranslateVpeDmdShaderGraph(Material material)
 		{
-			return new VpeMaterialProfileV1 {
+			return new VpeMaterialProfile {
 				Type = VpeMaterialTypes.Dmd,
 				Dmd = CreateShaderGraphProfile(material),
 			};
 		}
 
-		private static VpeShaderGraphProfileV1 CreateShaderGraphProfile(Material material)
+		private static VpeShaderGraphProfile CreateShaderGraphProfile(Material material)
 		{
 			var source = ResolveSourceMaterialAsset(material);
-			return new VpeShaderGraphProfileV1 {
+			return new VpeShaderGraphProfile {
 				TemplateName = source ? source.name : material.name,
 			};
 		}
 
-		private static VpeMaterialProfileV1 TranslateVpeRubberShaderGraph(Material material, CaptureContext ctx)
+		private static VpeMaterialProfile TranslateVpeRubberShaderGraph(Material material, CaptureContext ctx)
 		{
 			var source = ResolveSourceMaterialAsset(material);
 			var baseColorMap = CaptureShaderGraphTextureRef(ctx, material, source, VpeBaseColorMap, VpeColorSpaces.SRgb);
@@ -361,7 +370,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			ApplyTextureTransform(maskMap, scale, offset);
 
 			var occlusionIntensity = Mathf.Clamp01(SafeGetFloat(material, VpeOcclusionIntensity, SafeGetFloat(source, VpeOcclusionIntensity, 1f)));
-			var lit = new VpeLitProfileV1 {
+			var lit = new VpeLitProfile {
 				BaseColor = {
 					Color = SafeGetColor(material, VpeColorTint, SafeGetColor(source, VpeColorTint, ResolveHdrpBaseColor(material))),
 					Texture = baseColorMap,
@@ -380,13 +389,8 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					SafeGetFloat(material, "_AlphaRemapMin", SafeGetFloat(source, "_AlphaRemapMin", 0f)),
 					SafeGetFloat(material, "_AlphaRemapMax", SafeGetFloat(source, "_AlphaRemapMax", 1f))),
 				UvBase = 0,
-				TexWorldScale = SafeGetFloat(material, "_TexWorldScale", SafeGetFloat(source, "_TexWorldScale", 1f)),
-				InvTilingScale = SafeGetFloat(material, "_InvTilingScale", SafeGetFloat(source, "_InvTilingScale", 1f)),
-				GeometricSpecularAa = SafeGetFloat(material, "_EnableGeometricSpecularAA", SafeGetFloat(source, "_EnableGeometricSpecularAA", 0f)) > 0.5f,
-				SpecularAaScreenSpaceVariance = SafeGetFloat(material, "_SpecularAAScreenSpaceVariance", SafeGetFloat(source, "_SpecularAAScreenSpaceVariance", 0f)),
-				SpecularAaThreshold = SafeGetFloat(material, "_SpecularAAThreshold", SafeGetFloat(source, "_SpecularAAThreshold", 0f)),
 				NormalMap = normalMap,
-				Emissive = new VpeEmissiveV1 {
+				Emissive = new VpeEmissive {
 					Color = SafeGetColor(material, "_EmissiveColor", Color.black),
 					HasLdrColor = HasAnyProperty(material, "_EmissiveColorLDR", "_EmissionColor"),
 					LdrColor = ResolveHdrpEmissiveLdrColor(material),
@@ -395,7 +399,6 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					Intensity = SafeGetFloat(material, "_EmissiveIntensity", 0f),
 					IntensityUnit = HdrpEmissiveIntensityUnitToString(
 						SafeGetFloat(material, "_EmissiveIntensityUnit", 0f)),
-					ExposureWeight = SafeGetFloat(material, "_EmissiveExposureWeight", 1f),
 				},
 				SurfaceType = HdrpSurfaceTypeToString(
 					SafeGetFloat(material, "_SurfaceType", 0f),
@@ -403,27 +406,35 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				AlphaCutoff = SafeGetFloat(material, "_AlphaCutoff", 0.5f),
 				DoubleSided = SafeGetFloat(material, "_DoubleSidedEnable", 0f) > 0.5f,
 				DoubleSidedGi = material.doubleSidedGI,
-				CullMode = Mathf.RoundToInt(SafeGetFloat(material, "_CullMode", -1f)),
-				CullModeForward = Mathf.RoundToInt(SafeGetFloat(material, "_CullModeForward", -1f)),
-				OpaqueCullMode = Mathf.RoundToInt(SafeGetFloat(material, "_OpaqueCullMode", -1f)),
-				TransparentCullMode = Mathf.RoundToInt(SafeGetFloat(material, "_TransparentCullMode", -1f)),
-				DisableSsr = material.IsKeywordEnabled("_DISABLE_SSR")
-					|| SafeGetFloat(material, "_ReceivesSSR", 1f) < 0.5f,
-				RayTracing = Mathf.RoundToInt(SafeGetFloat(material, "_RayTracing", -1f)),
-				MaterialId = Mathf.RoundToInt(SafeGetFloat(material, "_MaterialID", -1f)),
-				RenderQueueOverride = material.renderQueue,
+
+				Hdrp = new VpeHdrpLitHints {
+					TexWorldScale = SafeGetFloat(material, "_TexWorldScale", SafeGetFloat(source, "_TexWorldScale", 1f)),
+					InvTilingScale = SafeGetFloat(material, "_InvTilingScale", SafeGetFloat(source, "_InvTilingScale", 1f)),
+					GeometricSpecularAa = SafeGetFloat(material, "_EnableGeometricSpecularAA", SafeGetFloat(source, "_EnableGeometricSpecularAA", 0f)) > 0.5f,
+					SpecularAaScreenSpaceVariance = SafeGetFloat(material, "_SpecularAAScreenSpaceVariance", SafeGetFloat(source, "_SpecularAAScreenSpaceVariance", 0f)),
+					SpecularAaThreshold = SafeGetFloat(material, "_SpecularAAThreshold", SafeGetFloat(source, "_SpecularAAThreshold", 0f)),
+					CullMode = Mathf.RoundToInt(SafeGetFloat(material, "_CullMode", -1f)),
+					CullModeForward = Mathf.RoundToInt(SafeGetFloat(material, "_CullModeForward", -1f)),
+					OpaqueCullMode = Mathf.RoundToInt(SafeGetFloat(material, "_OpaqueCullMode", -1f)),
+					TransparentCullMode = Mathf.RoundToInt(SafeGetFloat(material, "_TransparentCullMode", -1f)),
+					DisableSsr = material.IsKeywordEnabled("_DISABLE_SSR")
+						|| SafeGetFloat(material, "_ReceivesSSR", 1f) < 0.5f,
+					RayTracing = Mathf.RoundToInt(SafeGetFloat(material, "_RayTracing", -1f)),
+					MaterialId = Mathf.RoundToInt(SafeGetFloat(material, "_MaterialID", -1f)),
+					RenderQueueOverride = material.renderQueue,
+				},
 			};
 
-			return new VpeMaterialProfileV1 {
+			return new VpeMaterialProfile {
 				Type = VpeMaterialTypes.Rubber,
 				Rubber = CreateShaderGraphProfile(material),
 				Lit = lit,
 			};
 		}
 
-		private static VpeMaterialProfileV1 TranslateHdrpDecal(Material material, CaptureContext ctx)
+		private static VpeMaterialProfile TranslateHdrpDecal(Material material, CaptureContext ctx)
 		{
-			var decal = new VpeDecalProfileV1 {
+			var decal = new VpeDecalProfile {
 				BaseColor = {
 					Color = SafeGetColor(material, "_BaseColor", Color.white),
 					// Decal albedo alpha is load-bearing (where the decal applies). Exporting through
@@ -448,15 +459,15 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				AmbientOcclusion = SafeGetFloat(material, "_DecalAO", 1f),
 			};
 
-			return new VpeMaterialProfileV1 {
+			return new VpeMaterialProfile {
 				Type = VpeMaterialTypes.Decal,
 				Decal = decal,
 			};
 		}
 
-		private static VpeMaterialProfileV1 TranslateHdrpUnlit(Material material, CaptureContext ctx)
+		private static VpeMaterialProfile TranslateHdrpUnlit(Material material, CaptureContext ctx)
 		{
-			var unlit = new VpeUnlitProfileV1 {
+			var unlit = new VpeUnlitProfile {
 				BaseColor = {
 					Color = SafeGetColor(material, "_UnlitColor", SafeGetColor(material, "_BaseColor", Color.white)),
 					Texture = ctx.CaptureImportedTextureRef(material, "_UnlitColorMap")
@@ -468,7 +479,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				AlphaCutoff = SafeGetFloat(material, "_AlphaCutoff", 0.5f),
 				DoubleSided = SafeGetFloat(material, "_DoubleSidedEnable", 0f) > 0.5f,
 			};
-			return new VpeMaterialProfileV1 {
+			return new VpeMaterialProfile {
 				Type = VpeMaterialTypes.Unlit,
 				Unlit = unlit,
 			};
@@ -494,9 +505,9 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				return null;
 			}
 
-			// Captured material types carry all their texture data in the cooked side-channel, so
-			// the glTF export must not duplicate any of it. Stripping every texture also stops
-			// glTFast from encoding hundreds of megabytes of PNGs into table.glb, which used to
+			// Captured material types carry all their texture data in the package's source layer,
+			// so the glTF export must not duplicate any of it. Stripping every texture also stops
+			// glTFast from encoding hundreds of megabytes of images into table.glb, which used to
 			// dominate both package size and load time. Unsupported shaders keep their textures so
 			// the glTF fallback material still looks right.
 			var shaderName = source.shader.name;
@@ -757,7 +768,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			return null;
 		}
 
-		private static VpeTextureRefV1 CaptureShaderGraphTextureRef(
+		private static VpeTextureRef CaptureShaderGraphTextureRef(
 			CaptureContext ctx,
 			Material material,
 			Material source,
@@ -768,7 +779,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				?? ctx.CaptureSideChannelTextureRef(source, property, colorSpace);
 		}
 
-		private static VpeNormalMapRefV1 CaptureShaderGraphNormalMapRef(
+		private static VpeNormalMapRef CaptureShaderGraphNormalMapRef(
 			CaptureContext ctx,
 			Material material,
 			Material source,
@@ -779,7 +790,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				?? ctx.CaptureSideChannelNormalMapRef(source, property, strength);
 		}
 
-		private static void ApplyTextureTransform(VpeTextureRefV1 texture, Vector2 scale, Vector2 offset)
+		private static void ApplyTextureTransform(VpeTextureRef texture, Vector2 scale, Vector2 offset)
 		{
 			if (texture == null) {
 				return;
@@ -789,7 +800,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			texture.Offset = offset;
 		}
 
-		private static void ApplyTextureTransform(VpeNormalMapRefV1 texture, Vector2 scale, Vector2 offset)
+		private static void ApplyTextureTransform(VpeNormalMapRef texture, Vector2 scale, Vector2 offset)
 		{
 			if (texture == null) {
 				return;
@@ -804,16 +815,16 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 
 		private sealed class CaptureContext
 		{
-			private readonly Dictionary<Texture2D, VpeTextureAssetV1> _assetsByTexture = new();
+			private readonly Dictionary<Texture2D, VpeTexture> _assetsByTexture = new();
+			private readonly HashSet<string> _usedIds = new(StringComparer.Ordinal);
 			private readonly Dictionary<string, byte[]> _textureBlobs = new(StringComparer.Ordinal);
 			private readonly Dictionary<string, UnsupportedShaderUsage> _unsupportedShaders = new(StringComparer.Ordinal);
-			private int _nextIndex;
 
 			public IReadOnlyDictionary<string, byte[]> TextureBlobs => _textureBlobs;
 
-			public VpeTextureAssetV1[] BuildTextureAssets()
+			public VpeTexture[] BuildTextureAssets()
 			{
-				var assets = new VpeTextureAssetV1[_assetsByTexture.Count];
+				var assets = new VpeTexture[_assetsByTexture.Count];
 				var i = 0;
 				foreach (var asset in _assetsByTexture.Values) {
 					assets[i++] = asset;
@@ -855,15 +866,15 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				}
 
 				Logger.Info(
-					$"Skipped v1 material translation for {totalMaterials} material(s) across {_unsupportedShaders.Count} unsupported shader(s). " +
+					$"Skipped material translation for {totalMaterials} material(s) across {_unsupportedShaders.Count} unsupported shader(s). " +
 					$"These materials will fall back to the glTF-imported material at runtime. " +
 					$"Shaders: {string.Join("; ", shaderSummaries)}");
 			}
 
-			// Captures a texture reference whose pixel data must be shipped in the side-channel
+			// Captures a texture reference whose pixel data must be shipped in the source layer
 			// (i.e. is not losslessly reproduced by the glb). Use for HDRP-specific packings like
 			// MaskMap where channel semantics differ from glTF's PBR textures.
-			public VpeTextureRefV1 CaptureSideChannelTextureRef(Material material, string property, string colorSpace, VpeTextureRefV1 fallback = null)
+			public VpeTextureRef CaptureSideChannelTextureRef(Material material, string property, string colorSpace, VpeTextureRef fallback = null)
 			{
 				if (!material) {
 					return fallback;
@@ -878,14 +889,14 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					return fallback;
 				}
 
-				return new VpeTextureRefV1 {
+				return new VpeTextureRef {
 					TextureId = asset.Id,
 					Offset = material.GetTextureOffset(property),
 					Scale = material.GetTextureScale(property),
 				};
 			}
 
-			private VpeTextureRefV1 CaptureSerializedSideChannelTextureRef(Material material, string property, string colorSpace, VpeTextureRefV1 fallback)
+			private VpeTextureRef CaptureSerializedSideChannelTextureRef(Material material, string property, string colorSpace, VpeTextureRef fallback)
 			{
 				var texEnvs = new SerializedObject(material).FindProperty("m_SavedProperties.m_TexEnvs");
 				if (texEnvs == null || !texEnvs.isArray) {
@@ -910,7 +921,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 						return fallback;
 					}
 
-					return new VpeTextureRefV1 {
+					return new VpeTextureRef {
 						TextureId = asset.Id,
 						Offset = value.FindPropertyRelative("m_Offset")?.vector2Value ?? Vector2.zero,
 						Scale = value.FindPropertyRelative("m_Scale")?.vector2Value ?? Vector2.one,
@@ -920,7 +931,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				return CaptureYamlSideChannelTextureRef(material, property, colorSpace, fallback);
 			}
 
-			private VpeTextureRefV1 CaptureYamlSideChannelTextureRef(Material material, string property, string colorSpace, VpeTextureRefV1 fallback)
+			private VpeTextureRef CaptureYamlSideChannelTextureRef(Material material, string property, string colorSpace, VpeTextureRef fallback)
 			{
 				var assetPath = AssetDatabase.GetAssetPath(material);
 				if (string.IsNullOrWhiteSpace(assetPath)) {
@@ -952,7 +963,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					return fallback;
 				}
 
-				return new VpeTextureRefV1 {
+				return new VpeTextureRef {
 					TextureId = asset.Id,
 					Offset = Vector2.zero,
 					Scale = Vector2.one,
@@ -988,9 +999,9 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				return null;
 			}
 
-			// Captures tiling only — no TextureId, no side-channel bytes. Pixel data is read at
+			// Captures tiling only — no TextureId, no source bytes. Pixel data is read at
 			// runtime from the gltFast-imported material by matching property-name aliases.
-			public VpeTextureRefV1 CaptureImportedTextureRef(Material material, string property)
+			public VpeTextureRef CaptureImportedTextureRef(Material material, string property)
 			{
 				if (!material.HasProperty(property)) {
 					return null;
@@ -999,14 +1010,14 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				if (!texture) {
 					return null;
 				}
-				return new VpeTextureRefV1 {
+				return new VpeTextureRef {
 					TextureId = null,
 					Offset = material.GetTextureOffset(property),
 					Scale = material.GetTextureScale(property),
 				};
 			}
 
-			public VpeNormalMapRefV1 CaptureSideChannelNormalMapRef(Material material, string property, float strength)
+			public VpeNormalMapRef CaptureSideChannelNormalMapRef(Material material, string property, float strength)
 			{
 				if (!material || !material.HasProperty(property)) {
 					return null;
@@ -1021,7 +1032,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					return null;
 				}
 
-				return new VpeNormalMapRefV1 {
+				return new VpeNormalMapRef {
 					TextureId = asset.Id,
 					Offset = material.GetTextureOffset(property),
 					Scale = material.GetTextureScale(property),
@@ -1033,7 +1044,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				};
 			}
 
-			public VpeTextureRefV1 CaptureTextureAssetRef(string assetPath, string colorSpace)
+			public VpeTextureRef CaptureTextureAssetRef(string assetPath, string colorSpace)
 			{
 				if (string.IsNullOrWhiteSpace(assetPath)) {
 					return null;
@@ -1049,14 +1060,14 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					return null;
 				}
 
-				return new VpeTextureRefV1 {
+				return new VpeTextureRef {
 					TextureId = asset.Id,
 					Offset = Vector2.zero,
 					Scale = Vector2.one,
 				};
 			}
 
-			private VpeTextureAssetV1 GetOrCaptureAsset(Texture2D texture, string colorSpace)
+			private VpeTexture GetOrCaptureAsset(Texture2D texture, string colorSpace)
 			{
 				if (_assetsByTexture.TryGetValue(texture, out var existing)) {
 					return existing;
@@ -1068,11 +1079,11 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				var linear = requestedColorSpace == VpeColorSpaces.Linear;
 
 				var id = BuildId(texture);
-				var asset = new VpeTextureAssetV1 {
+				var asset = new VpeTexture {
 					Id = id,
 					ColorSpace = requestedColorSpace,
-					WrapMode = (int)texture.wrapMode,
-					FilterMode = (int)texture.filterMode,
+					WrapMode = VpeMaterialEnums.ToWrapMode(texture.wrapMode),
+					FilterMode = VpeMaterialEnums.ToFilterMode(texture.filterMode),
 					AnisoLevel = Mathf.Max(1, texture.anisoLevel),
 					GenerateMipMaps = true,
 					SourceName = texture.name,
@@ -1090,8 +1101,8 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				if (!string.IsNullOrEmpty(assetPath) && AssetImporter.GetAtPath(assetPath) is TextureImporter importer) {
 					asset.GenerateMipMaps = importer.mipmapEnabled;
 					asset.AnisoLevel = Mathf.Max(asset.AnisoLevel, importer.anisoLevel);
-					asset.WrapMode = (int)importer.wrapMode;
-					asset.FilterMode = (int)importer.filterMode;
+					asset.WrapMode = VpeMaterialEnums.ToWrapMode(importer.wrapMode);
+					asset.FilterMode = VpeMaterialEnums.ToFilterMode(importer.filterMode);
 				}
 
 				// The package carries the lossless source layer: the original asset file bytes,
@@ -1115,24 +1126,58 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					}
 				}
 				if (blobData == null) {
-					if (!HdrpMaterialV1TextureEncoder.TryEncode(texture, linear, out blobData)) {
+					if (!HdrpMaterialTextureEncoder.TryEncode(texture, linear, out blobData)) {
 						return null;
 					}
 					asset.MimeType = "image/png";
 					extension = ".png";
 				}
-				asset.FileName = $"tex_{_nextIndex++:D4}{extension}";
+				asset.FileName = BuildFileName(id, extension);
 
 				_assetsByTexture[texture] = asset;
 				_textureBlobs[asset.FileName] = blobData;
 				return asset;
 			}
 
+			// Texture names are not unique across a table; two distinct textures sharing a name
+			// must still get distinct ids (and file names), otherwise one would shadow the other
+			// in the payload's texture table.
 			private string BuildId(Texture2D texture)
 			{
-				var raw = string.IsNullOrWhiteSpace(texture.name) ? $"tex{_nextIndex}" : texture.name;
+				var raw = string.IsNullOrWhiteSpace(texture.name) ? "tex" : texture.name;
 				// Normalize so the id is stable across exports regardless of editor instance suffixes.
-				return VpeMaterialNameUtil.NormalizeTextureName(raw);
+				var id = VpeMaterialNameUtil.NormalizeTextureName(raw);
+				if (string.IsNullOrWhiteSpace(id)) {
+					id = "tex";
+				}
+				if (_usedIds.Add(id)) {
+					return id;
+				}
+				var n = 2;
+				string candidate;
+				do {
+					candidate = $"{id}-{n++}";
+				} while (!_usedIds.Add(candidate));
+				return candidate;
+			}
+
+			private string BuildFileName(string id, string extension)
+			{
+				var invalid = Path.GetInvalidFileNameChars();
+				var chars = id.ToCharArray();
+				for (var i = 0; i < chars.Length; i++) {
+					if (Array.IndexOf(invalid, chars[i]) >= 0 || chars[i] == '/' || chars[i] == '\\') {
+						chars[i] = '_';
+					}
+				}
+				var stem = new string(chars);
+				var fileName = $"{stem}{extension}";
+				// Sanitization can collapse two distinct ids onto the same file name.
+				var n = 2;
+				while (_textureBlobs.ContainsKey(fileName)) {
+					fileName = $"{stem}-{n++}{extension}";
+				}
+				return fileName;
 			}
 
 			private sealed class UnsupportedShaderUsage
@@ -1229,23 +1274,23 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 	}
 
 	[InitializeOnLoad]
-	internal static class HdrpMaterialV1TranslatorRegistration
+	internal static class HdrpMaterialTranslatorRegistration
 	{
-		static HdrpMaterialV1TranslatorRegistration()
+		static HdrpMaterialTranslatorRegistration()
 		{
-			VpeMaterialV1Translator.Register(new Adapter());
+			VpeMaterialTranslator.Register(new Adapter());
 		}
 
-		private sealed class Adapter : IVpeMaterialV1Translator, IVpeMaterialGltfExportPreprocessor
+		private sealed class Adapter : IVpeMaterialTranslator, IVpeMaterialGltfExportPreprocessor
 		{
-			public VpeMaterialCaptureResult Capture(Transform tableRoot, IEnumerable<Renderer> renderers)
+			public VpeMaterialCaptureResult Capture(Transform tableRoot, IEnumerable<Renderer> renderers, Func<Transform, string> nodeId)
 			{
-				return HdrpMaterialV1Translator.Capture(tableRoot, renderers);
+				return HdrpMaterialTranslator.Capture(tableRoot, renderers, nodeId);
 			}
 
 			public IDisposable PrepareGltfExport(IEnumerable<Renderer> renderers)
 			{
-				return HdrpMaterialV1Translator.PrepareGltfExport(renderers);
+				return HdrpMaterialTranslator.PrepareGltfExport(renderers);
 			}
 		}
 	}

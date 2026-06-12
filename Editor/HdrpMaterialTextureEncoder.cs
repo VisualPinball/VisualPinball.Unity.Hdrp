@@ -25,7 +25,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 	// payloads. Goes via a temporary RenderTexture + ReadPixels so it works on assets without the
 	// Read/Write flag. Only used as a fallback when a texture has no original source file to pack;
 	// GPU-ready payloads are cooked by the player at load time, never at export.
-	internal static class HdrpMaterialV1TextureEncoder
+	internal static class HdrpMaterialTextureEncoder
 	{
 		private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
