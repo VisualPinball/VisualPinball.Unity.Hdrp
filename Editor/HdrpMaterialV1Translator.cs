@@ -149,15 +149,10 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 
 		private static VpeMaterialProfileV1 TranslateHdrpLit(Material material, CaptureContext ctx)
 		{
-			// Keep opaque lit materials on the standard glTF path to avoid duplicating the largest
-			// texture set in the package. For alpha-tested and transparent lit materials, the base
-			// color alpha is load-bearing and must round-trip losslessly for inserts/plastics.
-			var baseColorNeedsAlpha =
-				SafeGetFloat(material, "_SurfaceType", 0f) > 0.5f /* Transparent */
-				|| SafeGetFloat(material, "_AlphaCutoffEnable", 0f) > 0.5f /* AlphaTest */;
-			var baseColorTexture = baseColorNeedsAlpha
-				? ctx.CaptureSideChannelTextureRef(material, "_BaseColorMap", VpeColorSpaces.SRgb)
-				: ctx.CaptureImportedTextureRef(material, "_BaseColorMap");
+			// Every texture is cooked into the side-channel as a GPU-ready payload; the glb carries
+			// no image data for captured materials. This is what makes runtime import fast: no PNG
+			// decode, no runtime compression, no normal repack.
+			var baseColorTexture = ctx.CaptureSideChannelTextureRef(material, "_BaseColorMap", VpeColorSpaces.SRgb);
 			var baseColor = ResolveHdrpBaseColor(material);
 
 			var lit = new VpeLitProfileV1 {
@@ -194,13 +189,13 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				SpecularAaThreshold = SafeGetFloat(material, "_SpecularAAThreshold", 0f),
 				SupportDecals = SafeGetFloat(material, "_SupportDecals", 1f) > 0.5f
 					&& !material.IsKeywordEnabled("_DISABLE_DECALS"),
-				NormalMap = ctx.CaptureImportedNormalMapRef(material, "_NormalMap",
+				NormalMap = ctx.CaptureSideChannelNormalMapRef(material, "_NormalMap",
 					strength: SafeGetFloat(material, "_NormalScale", 1f)),
 				Emissive = new VpeEmissiveV1 {
 					Color = SafeGetColor(material, "_EmissiveColor", Color.black),
 					HasLdrColor = HasAnyProperty(material, "_EmissiveColorLDR", "_EmissionColor"),
 					LdrColor = ResolveHdrpEmissiveLdrColor(material),
-					Texture = ctx.CaptureImportedTextureRef(material, "_EmissiveColorMap"),
+					Texture = ctx.CaptureSideChannelTextureRef(material, "_EmissiveColorMap", VpeColorSpaces.SRgb),
 					UseIntensity = SafeGetFloat(material, "_UseEmissiveIntensity", 0f) > 0.5f,
 					Intensity = SafeGetFloat(material, "_EmissiveIntensity", 0f),
 					IntensityUnit = HdrpEmissiveIntensityUnitToString(
@@ -300,7 +295,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					Color = SafeGetColor(material, "_EmissiveColor", Color.black),
 					HasLdrColor = HasAnyProperty(material, "_EmissiveColorLDR", "_EmissionColor"),
 					LdrColor = ResolveHdrpEmissiveLdrColor(material),
-					Texture = ctx.CaptureImportedTextureRef(material, "_EmissiveColorMap"),
+					Texture = ctx.CaptureSideChannelTextureRef(material, "_EmissiveColorMap", VpeColorSpaces.SRgb),
 					UseIntensity = SafeGetFloat(material, "_UseEmissiveIntensity", 0f) > 0.5f,
 					Intensity = SafeGetFloat(material, "_EmissiveIntensity", 0f),
 					IntensityUnit = HdrpEmissiveIntensityUnitToString(
@@ -395,7 +390,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					Color = SafeGetColor(material, "_EmissiveColor", Color.black),
 					HasLdrColor = HasAnyProperty(material, "_EmissiveColorLDR", "_EmissionColor"),
 					LdrColor = ResolveHdrpEmissiveLdrColor(material),
-					Texture = ctx.CaptureImportedTextureRef(material, "_EmissiveColorMap"),
+					Texture = ctx.CaptureSideChannelTextureRef(material, "_EmissiveColorMap", VpeColorSpaces.SRgb),
 					UseIntensity = SafeGetFloat(material, "_UseEmissiveIntensity", 0f) > 0.5f,
 					Intensity = SafeGetFloat(material, "_EmissiveIntensity", 0f),
 					IntensityUnit = HdrpEmissiveIntensityUnitToString(
@@ -435,7 +430,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					// glTF can convert this map to JPEG and drop alpha, so always side-channel it.
 					Texture = ctx.CaptureSideChannelTextureRef(material, "_BaseColorMap", VpeColorSpaces.SRgb),
 				},
-				NormalMap = ctx.CaptureImportedNormalMapRef(material, "_NormalMap",
+				NormalMap = ctx.CaptureSideChannelNormalMapRef(material, "_NormalMap",
 					strength: SafeGetFloat(material, "_NormalScale", 1f)),
 				MaskMap = ctx.CaptureSideChannelTextureRef(material, "_MaskMap", VpeColorSpaces.Linear),
 				MaskPacking = VpeMaskPackings.HdrpMaskMap,
@@ -499,11 +494,18 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				return null;
 			}
 
+			// Captured material types carry all their texture data in the cooked side-channel, so
+			// the glTF export must not duplicate any of it. Stripping every texture also stops
+			// glTFast from encoding hundreds of megabytes of PNGs into table.glb, which used to
+			// dominate both package size and load time. Unsupported shaders keep their textures so
+			// the glTF fallback material still looks right.
 			var shaderName = source.shader.name;
 			var clone = shaderName switch {
-				HdrpLitShaderName => CreateSanitizedHdrpLitMaterial(source),
-				HdrpDecalShaderName => CreateSanitizedHdrpDecalMaterial(source),
-				_ => null,
+				HdrpLitShaderName => CreateTextureFreeClone(source),
+				HdrpDecalShaderName => CreateTextureFreeClone(source),
+				_ => IsVpeRubberMaterial(source) || IsVpeMetalMaterial(source) || IsVpeDmdMaterial(source)
+					? CreateTextureFreeClone(source)
+					: null,
 			};
 
 			if (clone) {
@@ -512,53 +514,27 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			return clone;
 		}
 
-		private static Material CreateSanitizedHdrpLitMaterial(Material source)
+		private static Material CreateTextureFreeClone(Material source)
 		{
-			var stripBaseColor =
-				SafeGetFloat(source, "_SurfaceType", 0f) > 0.5f
-				|| SafeGetFloat(source, "_AlphaCutoffEnable", 0f) > 0.5f;
-			var stripMaskMap = HasTexture(source, "_MaskMap");
-			var stripThicknessMap = HasTexture(source, "_ThicknessMap");
-			if (!stripBaseColor && !stripMaskMap && !stripThicknessMap) {
+			var hasAnyTexture = false;
+			var propertyNames = source.GetTexturePropertyNames();
+			foreach (var propertyName in propertyNames) {
+				if (!string.IsNullOrWhiteSpace(propertyName) && source.GetTexture(propertyName)) {
+					hasAnyTexture = true;
+					break;
+				}
+			}
+			if (!hasAnyTexture) {
 				return null;
 			}
 
 			var clone = new Material(source);
-			if (stripBaseColor && clone.HasProperty("_BaseColorMap")) {
-				clone.SetTexture("_BaseColorMap", null);
-			}
-			if (stripMaskMap && clone.HasProperty("_MaskMap")) {
-				clone.SetTexture("_MaskMap", null);
-			}
-			if (stripThicknessMap && clone.HasProperty("_ThicknessMap")) {
-				clone.SetTexture("_ThicknessMap", null);
+			foreach (var propertyName in propertyNames) {
+				if (!string.IsNullOrWhiteSpace(propertyName) && clone.GetTexture(propertyName)) {
+					clone.SetTexture(propertyName, null);
+				}
 			}
 			return clone;
-		}
-
-		private static Material CreateSanitizedHdrpDecalMaterial(Material source)
-		{
-			var stripBaseColor = HasTexture(source, "_BaseColorMap");
-			var stripMaskMap = HasTexture(source, "_MaskMap");
-			if (!stripBaseColor && !stripMaskMap) {
-				return null;
-			}
-
-			var clone = new Material(source);
-			if (stripBaseColor && clone.HasProperty("_BaseColorMap")) {
-				clone.SetTexture("_BaseColorMap", null);
-			}
-			if (stripMaskMap && clone.HasProperty("_MaskMap")) {
-				clone.SetTexture("_MaskMap", null);
-			}
-			return clone;
-		}
-
-		private static bool HasTexture(Material material, string property)
-		{
-			return material
-				&& material.HasProperty(property)
-				&& material.GetTexture(property);
 		}
 
 		private static bool IsVpeMetalShaderGraph(Shader shader)
@@ -826,9 +802,15 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		public static string NormalizeMaterialName(string materialName)
 			=> VpeMaterialNameUtil.NormalizeMaterialName(materialName);
 
+		private enum TextureCookKind
+		{
+			Color,
+			Normal,
+		}
+
 		private sealed class CaptureContext
 		{
-			private readonly Dictionary<Texture2D, VpeTextureAssetV1> _assetsByTexture = new();
+			private readonly Dictionary<(Texture2D, TextureCookKind), VpeTextureAssetV1> _assetsByTexture = new();
 			private readonly Dictionary<string, byte[]> _textureBlobs = new(StringComparer.Ordinal);
 			private readonly Dictionary<string, UnsupportedShaderUsage> _unsupportedShaders = new(StringComparer.Ordinal);
 			private int _nextIndex;
@@ -1040,7 +1022,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					return null;
 				}
 
-				var asset = GetOrCaptureAsset(texture, VpeColorSpaces.Linear);
+				var asset = GetOrCaptureAsset(texture, VpeColorSpaces.Linear, TextureCookKind.Normal);
 				if (asset == null) {
 					return null;
 				}
@@ -1050,7 +1032,10 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					Offset = material.GetTextureOffset(property),
 					Scale = material.GetTextureScale(property),
 					Strength = strength,
-					Packing = VpeNormalPackings.Rgb,
+					// Cooked payloads are already in HDRP's AG layout, so runtime must not repack.
+					// The PNG fallback ships plain RGB and keeps the runtime repack path.
+					Packing = IsCooked(asset) ? VpeNormalPackings.Dxt5nm : VpeNormalPackings.Rgb,
+					RuntimeCompress = !IsCooked(asset),
 				};
 			}
 
@@ -1077,29 +1062,9 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				};
 			}
 
-			public VpeNormalMapRefV1 CaptureImportedNormalMapRef(Material material, string property, float strength)
+			private VpeTextureAssetV1 GetOrCaptureAsset(Texture2D texture, string colorSpace, TextureCookKind kind = TextureCookKind.Color)
 			{
-				if (!material.HasProperty(property)) {
-					return null;
-				}
-				var texture = material.GetTexture(property);
-				if (!texture) {
-					return null;
-				}
-				return new VpeNormalMapRefV1 {
-					TextureId = null,
-					Offset = material.GetTextureOffset(property),
-					Scale = material.GetTextureScale(property),
-					Strength = strength,
-					// Runtime imports may arrive as plain RGB (glTFast doesn't carry Unity's normal
-					// map import flag). The resolver re-packs as needed.
-					Packing = VpeNormalPackings.Rgb,
-				};
-			}
-
-			private VpeTextureAssetV1 GetOrCaptureAsset(Texture2D texture, string colorSpace)
-			{
-				if (_assetsByTexture.TryGetValue(texture, out var existing)) {
+				if (_assetsByTexture.TryGetValue((texture, kind), out var existing)) {
 					return existing;
 				}
 
@@ -1107,15 +1072,10 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					? VpeColorSpaces.Linear
 					: VpeColorSpaces.SRgb;
 				var linear = requestedColorSpace == VpeColorSpaces.Linear;
-				if (!HdrpMaterialV1TextureEncoder.TryEncode(texture, linear, out var pngData)) {
-					return null;
-				}
 
 				var id = BuildId(texture);
-				var fileName = $"tex_{_nextIndex++:D4}.png";
 				var asset = new VpeTextureAssetV1 {
 					Id = id,
-					FileName = fileName,
 					ColorSpace = requestedColorSpace,
 					WrapMode = (int)texture.wrapMode,
 					FilterMode = (int)texture.filterMode,
@@ -1138,10 +1098,36 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					asset.FilterMode = (int)importer.filterMode;
 				}
 
-				_assetsByTexture[texture] = asset;
-				_textureBlobs[fileName] = pngData;
+				// Cook into a GPU-ready payload (block-compressed, mips baked) so the runtime uploads
+				// raw bytes instead of decoding PNGs and re-compressing. Falls back to the legacy PNG
+				// side-channel if cooking fails.
+				byte[] blobData;
+				var cookSucceeded = kind == TextureCookKind.Normal
+					? HdrpMaterialV1TextureEncoder.TryEncodeCookedNormal(texture, asset.GenerateMipMaps, out var cooked)
+					: HdrpMaterialV1TextureEncoder.TryEncodeCooked(texture, linear, asset.GenerateMipMaps, out cooked);
+				if (cookSucceeded && cooked.IsValid) {
+					blobData = cooked.Data;
+					asset.PixelFormat = cooked.PixelFormat;
+					asset.MipCount = cooked.MipCount;
+					asset.Width = cooked.Width;
+					asset.Height = cooked.Height;
+					asset.MimeType = "application/x-vpe-raw";
+					asset.RuntimeCompress = false;
+					asset.FileName = $"tex_{_nextIndex++:D4}.tex";
+				} else {
+					if (!HdrpMaterialV1TextureEncoder.TryEncode(texture, linear, out blobData)) {
+						return null;
+					}
+					asset.FileName = $"tex_{_nextIndex++:D4}.png";
+				}
+
+				_assetsByTexture[(texture, kind)] = asset;
+				_textureBlobs[asset.FileName] = blobData;
 				return asset;
 			}
+
+			// True when the asset was cooked into a raw GPU payload (as opposed to a PNG fallback).
+			private static bool IsCooked(VpeTextureAssetV1 asset) => !string.IsNullOrEmpty(asset?.PixelFormat);
 
 			private string BuildId(Texture2D texture)
 			{

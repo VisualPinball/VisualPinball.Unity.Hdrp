@@ -16,7 +16,9 @@
 
 using System;
 using NLog;
+using UnityEditor;
 using UnityEngine;
+using VisualPinball.Unity;
 using Logger = NLog.Logger;
 
 namespace VisualPinball.Engine.Unity.Hdrp.Editor
@@ -27,6 +29,28 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 	internal static class HdrpMaterialV1TextureEncoder
 	{
 		private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
+		// Result of cooking a texture into a GPU-ready payload: raw bytes (all mips, in
+		// GetRawTextureData layout) plus the format/mip metadata the runtime needs to upload them.
+		internal readonly struct CookedTexture
+		{
+			public readonly byte[] Data;
+			public readonly string PixelFormat;
+			public readonly int MipCount;
+			public readonly int Width;
+			public readonly int Height;
+
+			public CookedTexture(byte[] data, string pixelFormat, int mipCount, int width, int height)
+			{
+				Data = data;
+				PixelFormat = pixelFormat;
+				MipCount = mipCount;
+				Width = width;
+				Height = height;
+			}
+
+			public bool IsValid => Data is { Length: > 0 } && !string.IsNullOrEmpty(PixelFormat);
+		}
 
 		public static bool TryEncode(Texture2D source, bool linear, out byte[] pngData)
 		{
@@ -44,6 +68,83 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				return false;
 
 			} finally {
+				DestroyTexture(readableTexture);
+			}
+		}
+
+		// Cooks a color/mask texture into a BC7 payload (RGBA32 when dimensions don't allow block
+		// compression) with mips baked at export time. Mip generation runs on the same RGBA32 data
+		// the legacy PNG path produced, so cooked output matches what runtime used to compute.
+		public static bool TryEncodeCooked(Texture2D source, bool linear, bool generateMipMaps, out CookedTexture cooked)
+		{
+			return TryCook(source, linear, generateMipMaps, repackNormal: false, out cooked);
+		}
+
+		// Cooks a tangent-space normal map: decodes the platform packing (plain RGB, DXT5nm or BC5
+		// all read back correctly via x = r * a), re-packs into HDRP's expected AG layout
+		// (1, y, 1, x) — the same transform the runtime CPU repack used to apply — and compresses
+		// to DXT5, which is exactly what runtime Texture2D.Compress produced before.
+		public static bool TryEncodeCookedNormal(Texture2D source, bool generateMipMaps, out CookedTexture cooked)
+		{
+			return TryCook(source, linear: true, generateMipMaps, repackNormal: true, out cooked);
+		}
+
+		private static bool TryCook(Texture2D source, bool linear, bool generateMipMaps, bool repackNormal, out CookedTexture cooked)
+		{
+			cooked = default;
+			if (!TryReadTexturePixels(source, linear, out var readableTexture)) {
+				return false;
+			}
+
+			Texture2D cookTexture = null;
+			try {
+				var width = readableTexture.width;
+				var height = readableTexture.height;
+				var pixels = readableTexture.GetPixels32();
+				if (repackNormal) {
+					for (var i = 0; i < pixels.Length; i++) {
+						var p = pixels[i];
+						// x = r * a covers every source packing: plain RGB (a=1 → x=r), DXT5nm
+						// (r=1 → x=a) and BC5 (a=1 → x=r). Z is reconstructed in the shader.
+						var x = (byte)((p.r * p.a + 127) / 255);
+						pixels[i] = new Color32(255, p.g, 255, x);
+					}
+				}
+
+				cookTexture = new Texture2D(width, height, TextureFormat.RGBA32, generateMipMaps, linear) {
+					name = $"{source.name} (Cooked)",
+				};
+				cookTexture.SetPixels32(pixels);
+				cookTexture.Apply(updateMipmaps: generateMipMaps, makeNoLongerReadable: false);
+
+				// Block compression needs multiple-of-4 dimensions; everything else ships raw RGBA32,
+				// which still uploads without a decode step.
+				var pixelFormat = VpePixelFormats.Rgba32;
+				if (width % 4 == 0 && height % 4 == 0 && width >= 4 && height >= 4) {
+					if (repackNormal) {
+						EditorUtility.CompressTexture(cookTexture, TextureFormat.DXT5, TextureCompressionQuality.Best);
+						pixelFormat = VpePixelFormats.Dxt5;
+					} else {
+						EditorUtility.CompressTexture(cookTexture, TextureFormat.BC7, TextureCompressionQuality.Normal);
+						pixelFormat = VpePixelFormats.Bc7;
+					}
+				}
+
+				var rawData = cookTexture.GetRawTextureData();
+				if (rawData == null || rawData.Length == 0) {
+					Logger.Warn($"Cooking texture '{source.name}' produced no data; falling back to PNG side-channel.");
+					return false;
+				}
+
+				cooked = new CookedTexture(rawData, pixelFormat, cookTexture.mipmapCount, width, height);
+				return true;
+
+			} catch (Exception e) {
+				Logger.Warn(e, $"Unable to cook texture '{source.name}' for v1 material export.");
+				return false;
+
+			} finally {
+				DestroyTexture(cookTexture);
 				DestroyTexture(readableTexture);
 			}
 		}
