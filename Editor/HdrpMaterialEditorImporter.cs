@@ -31,15 +31,16 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 	// Editor-side .vpe material reconstruction. Drives the same HdrpMaterialResolver the player
 	// uses — so property mapping has a single home — but feeds it the freshly imported texture
 	// assets and persists the resulting materials as .mat assets.
-	internal sealed class HdrpMaterialV1EditorImporter : IVpeMaterialV1EditorImporter
+	internal sealed class HdrpMaterialEditorImporter : IVpeMaterialEditorImporter
 	{
 		private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
 		public int Apply(
 			Transform tableRoot,
-			VpeMaterialsPayloadV1 payload,
+			VpeMaterialsPayload payload,
 			IReadOnlyDictionary<string, Texture2D> texturesById,
-			string materialAssetFolder)
+			string materialAssetFolder,
+			Func<string, Transform> resolveNode)
 		{
 			if (!tableRoot || payload?.Profiles == null) {
 				return 0;
@@ -60,14 +61,14 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				materialOverrides: FindShaderGraphTemplates(payload));
 
 			var provider = new AssetTextureProvider(texturesById);
-			var profilesByName = new Dictionary<string, VpeMaterialProfileV1>(StringComparer.Ordinal);
+			var profilesByName = new Dictionary<string, VpeMaterialProfile>(StringComparer.Ordinal);
 			foreach (var profile in payload.Profiles) {
 				if (profile != null && !string.IsNullOrWhiteSpace(profile.Name)) {
 					profilesByName[VpeMaterialNameUtil.NormalizeMaterialName(profile.Name)] = profile;
 				}
 			}
 
-			var materialsByProfile = new Dictionary<VpeMaterialProfileV1, Material>();
+			var materialsByProfile = new Dictionary<VpeMaterialProfile, Material>();
 			var appliedSlots = 0;
 			foreach (var renderer in tableRoot.GetComponentsInChildren<Renderer>(true)) {
 				if (!renderer) {
@@ -106,12 +107,12 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				}
 			}
 
-			ApplyRendererStates(tableRoot, payload);
+			ApplyRendererStates(tableRoot, payload, resolveNode);
 			AssetDatabase.SaveAssets();
 			return appliedSlots;
 		}
 
-		private static void SetAssetNormalPacking(VpeNormalMapRefV1 normalMap)
+		private static void SetAssetNormalPacking(VpeNormalMapRef normalMap)
 		{
 			if (normalMap != null && !string.IsNullOrEmpty(normalMap.TextureId)) {
 				normalMap.Packing = VpeNormalPackings.Dxt5nm;
@@ -133,7 +134,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 
 		// Locates shader-graph template materials (metal/rubber/DMD) by their captured template
 		// names, searching the HDRP package and the project.
-		private static Dictionary<string, Material> FindShaderGraphTemplates(VpeMaterialsPayloadV1 payload)
+		private static Dictionary<string, Material> FindShaderGraphTemplates(VpeMaterialsPayload payload)
 		{
 			var overrides = new Dictionary<string, Material>(StringComparer.Ordinal);
 			foreach (var profile in payload.Profiles) {
@@ -153,24 +154,27 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			return overrides;
 		}
 
-		private static void ApplyRendererStates(Transform tableRoot, VpeMaterialsPayloadV1 payload)
+		private static void ApplyRendererStates(Transform tableRoot, VpeMaterialsPayload payload, Func<string, Transform> resolveNode)
 		{
 			if (payload.RendererStates == null) {
 				return;
 			}
 			foreach (var state in payload.RendererStates) {
-				if (state == null || string.IsNullOrEmpty(state.Path)) {
+				if (state == null) {
 					continue;
 				}
-				var target = tableRoot.FindByPath(state.Path);
+				Transform target = null;
+				if (!string.IsNullOrEmpty(state.NodeId) && resolveNode != null) {
+					target = resolveNode(state.NodeId);
+				}
 				if (!target || !target.TryGetComponent<Renderer>(out var renderer)) {
 					continue;
 				}
-				renderer.shadowCastingMode = (ShadowCastingMode)state.ShadowCastingMode;
+				renderer.shadowCastingMode = VpeMaterialEnums.ParseShadowCastingMode(state.CastShadows);
 				renderer.receiveShadows = state.ReceiveShadows;
 				renderer.renderingLayerMask = state.RenderingLayerMask;
-				if (state.RayTracingMode >= 0) {
-					renderer.rayTracingMode = (UnityEngine.Experimental.Rendering.RayTracingMode)state.RayTracingMode;
+				if (state.Hdrp != null && state.Hdrp.RayTracingMode >= 0) {
+					renderer.rayTracingMode = (UnityEngine.Experimental.Rendering.RayTracingMode)state.Hdrp.RayTracingMode;
 				}
 			}
 		}
@@ -206,11 +210,11 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 	}
 
 	[InitializeOnLoad]
-	internal static class HdrpMaterialV1EditorImporterRegistration
+	internal static class HdrpMaterialEditorImporterRegistration
 	{
-		static HdrpMaterialV1EditorImporterRegistration()
+		static HdrpMaterialEditorImporterRegistration()
 		{
-			VpeMaterialV1EditorImport.Register(new HdrpMaterialV1EditorImporter());
+			VpeMaterialEditorImport.Register(new HdrpMaterialEditorImporter());
 		}
 	}
 }
