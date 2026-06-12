@@ -18,6 +18,8 @@ using System;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.HighDefinition;
 using VisualPinball.Unity.Editor;
 
 namespace VisualPinball.Engine.Unity.Hdrp.Editor
@@ -32,9 +34,9 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 
 		private sealed class Provider : IPackageScreenshotEnvironmentProvider
 		{
-			public IDisposable CreateEnvironmentScope(Transform tableRoot, Cubemap hdriCubemap, float hdriExposure)
+			public IDisposable CreateEnvironmentScope(Transform tableRoot, Cubemap hdriCubemap, float hdriExposure, bool includeDirectionalLight)
 			{
-				return new TemporaryHdrpEnvironmentScope(tableRoot);
+				return new TemporaryHdrpEnvironmentScope(tableRoot, hdriCubemap, hdriExposure, includeDirectionalLight);
 			}
 		}
 	}
@@ -47,20 +49,25 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		private readonly GameObject _temporaryDirectionalLight;
 		private readonly Light _originalSun;
 		private readonly List<DisabledLightState> _disabledLights = new();
+		private readonly GameObject _temporaryHdriVolume;
+		private readonly VolumeProfile _temporaryHdriProfile;
 
-		public TemporaryHdrpEnvironmentScope(Transform tableRoot)
+		public TemporaryHdrpEnvironmentScope(Transform tableRoot, Cubemap hdriCubemap, float hdriExposure, bool includeDirectionalLight)
 		{
 			_originalSun = RenderSettings.sun;
 
-			_temporaryDirectionalLight = InstantiateDirectionalLight();
-			if (_temporaryDirectionalLight) {
-				var light = _temporaryDirectionalLight.GetComponentInChildren<Light>(true);
-				if (light) {
-					RenderSettings.sun = light;
+			if (includeDirectionalLight) {
+				_temporaryDirectionalLight = InstantiateDirectionalLight();
+				if (_temporaryDirectionalLight) {
+					var light = _temporaryDirectionalLight.GetComponentInChildren<Light>(true);
+					if (light) {
+						RenderSettings.sun = light;
+					}
 				}
 			}
 
 			DisableNonTableLights(tableRoot);
+			_temporaryHdriVolume = CreateTemporaryHdriOverride(hdriCubemap, hdriExposure, out _temporaryHdriProfile);
 		}
 
 		public void Dispose()
@@ -77,6 +84,50 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			if (_temporaryDirectionalLight) {
 				UnityEngine.Object.DestroyImmediate(_temporaryDirectionalLight);
 			}
+
+			if (_temporaryHdriVolume) {
+				UnityEngine.Object.DestroyImmediate(_temporaryHdriVolume);
+			}
+
+			if (_temporaryHdriProfile) {
+				UnityEngine.Object.DestroyImmediate(_temporaryHdriProfile);
+			}
+		}
+
+		// Replace the scene's HDRI sky with the one configured on the table (plus
+		// its exposure) for the duration of the screenshot, via a top-priority
+		// global volume that only overrides the HDRI texture and exposure.
+		private static GameObject CreateTemporaryHdriOverride(Cubemap hdriCubemap, float hdriExposure, out VolumeProfile profile)
+		{
+			profile = null;
+			if (!hdriCubemap) {
+				return null;
+			}
+
+			var go = new GameObject("Package Screenshot HDRI") {
+				hideFlags = HideFlags.HideAndDontSave
+			};
+
+			var volume = go.AddComponent<Volume>();
+			volume.isGlobal = true;
+			// Higher than any scene volume so this HDRI always wins.
+			volume.priority = float.MaxValue;
+
+			profile = ScriptableObject.CreateInstance<VolumeProfile>();
+			profile.hideFlags = HideFlags.HideAndDontSave;
+
+			// overrides:false so only the parameters we touch below are applied;
+			// rotation and everything else still come from the scene's sky volume.
+			var sky = profile.Add<HDRISky>(false);
+			sky.hdriSky.overrideState = true;
+			sky.hdriSky.value = hdriCubemap;
+			sky.skyIntensityMode.overrideState = true;
+			sky.skyIntensityMode.value = SkyIntensityMode.Exposure;
+			sky.exposure.overrideState = true;
+			sky.exposure.value = hdriExposure;
+
+			volume.sharedProfile = profile;
+			return go;
 		}
 
 		// The screenshot directional light is a fully authored prefab (HDRP light
