@@ -1115,7 +1115,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				if (!string.IsNullOrEmpty(assetPath) && File.Exists(assetPath)) {
 					var sourceExtension = Path.GetExtension(assetPath);
 					if (string.Equals(sourceExtension, ".png", StringComparison.OrdinalIgnoreCase)) {
-						blobData = File.ReadAllBytes(assetPath);
+						blobData = ReadPngForPackaging(assetPath);
 						asset.MimeType = "image/png";
 						extension = ".png";
 					} else if (string.Equals(sourceExtension, ".jpg", StringComparison.OrdinalIgnoreCase)
@@ -1137,6 +1137,48 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				_assetsByTexture[texture] = asset;
 				_textureBlobs[asset.FileName] = blobData;
 				return asset;
+			}
+
+			// Reads a source PNG for packing. 8-bit PNGs are packed untouched (no re-encode). 16-bit
+			// PNGs are downconverted to 8-bit: the player cook produces 8-bit BC7 regardless, so the
+			// extra precision is dead weight that roughly doubles file size and decode time (16-bit PNG
+			// decode is the cook's main-thread bottleneck — the 50 MB cabinet normals). Re-encode loss
+			// is acceptable here per the load-time tradeoff (decided 2026-06-13).
+			private static byte[] ReadPngForPackaging(string assetPath)
+			{
+				var bytes = File.ReadAllBytes(assetPath);
+				if (!IsPng16Bit(bytes)) {
+					return bytes;
+				}
+
+				Texture2D tmp = null;
+				try {
+					tmp = new Texture2D(2, 2, TextureFormat.RGBA32, false, linear: true) { hideFlags = HideFlags.HideAndDontSave };
+					// LoadImage stores the decoded bytes (16->8 high-byte downconvert) and EncodeToPNG
+					// writes them back unchanged — no gamma shift, just a bit-depth reduction.
+					if (ImageConversion.LoadImage(tmp, bytes, markNonReadable: false)) {
+						var reduced = ImageConversion.EncodeToPNG(tmp);
+						if (reduced != null && reduced.Length > 0) {
+							return reduced;
+						}
+					}
+				} catch (Exception ex) {
+					Logger.Warn(ex, $"HdrpMaterialTranslator: failed downconverting 16-bit PNG '{assetPath}'; packing original.");
+				} finally {
+					if (tmp) {
+						UnityEngine.Object.DestroyImmediate(tmp);
+					}
+				}
+				return bytes;
+			}
+
+			// PNG layout: 8-byte signature, then the IHDR chunk (4 length + 4 "IHDR" + 4 width + 4
+			// height + 1 bit depth). Bit depth therefore sits at byte 24.
+			private static bool IsPng16Bit(byte[] png)
+			{
+				return png != null && png.Length > 25
+					&& png[0] == 0x89 && png[1] == 0x50 && png[2] == 0x4E && png[3] == 0x47
+					&& png[24] == 16;
 			}
 
 			// Texture names are not unique across a table; two distinct textures sharing a name
