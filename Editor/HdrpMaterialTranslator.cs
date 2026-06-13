@@ -99,7 +99,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				RendererStates = rendererStates.ToArray(),
 			};
 			ctx.LogUnsupportedMaterialsSummary();
-			return new VpeMaterialCaptureResult(payload, ctx.TextureBlobs);
+			return new VpeMaterialCaptureResult(payload, ctx.BlobSources);
 		}
 
 		public static IDisposable PrepareGltfExport(IEnumerable<Renderer> renderers)
@@ -817,10 +817,13 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		{
 			private readonly Dictionary<Texture2D, VpeTexture> _assetsByTexture = new();
 			private readonly HashSet<string> _usedIds = new(StringComparer.Ordinal);
-			private readonly Dictionary<string, byte[]> _textureBlobs = new(StringComparer.Ordinal);
+			private readonly HashSet<string> _usedFileNames = new(StringComparer.Ordinal);
+			// Deferred byte sources (file path or inline bytes) recorded during the main-thread walk;
+			// the caller loads them in parallel off the main thread.
+			private readonly List<VpeTextureBlobSource> _blobSources = new();
 			private readonly Dictionary<string, UnsupportedShaderUsage> _unsupportedShaders = new(StringComparer.Ordinal);
 
-			public IReadOnlyDictionary<string, byte[]> TextureBlobs => _textureBlobs;
+			public IReadOnlyList<VpeTextureBlobSource> BlobSources => _blobSources;
 
 			public VpeTexture[] BuildTextureAssets()
 			{
@@ -1110,23 +1113,31 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				// else (no source file, runtime-generated, exotic formats) falls back to a lossless
 				// PNG of the imported pixels. GPU-ready payloads are never written into the package;
 				// the player cooks and caches them locally.
-				byte[] blobData = null;
+				// Determine the byte source on the main thread (asset path / mime / extension), but
+				// DON'T read the file here — record a deferred source so the heavy disk + PNG16→8 work
+				// runs in parallel off the main thread (see VpeTextureBlobLoader). Textures with no
+				// decodable source file fall back to a lossless PNG of the imported pixels, which needs
+				// a Unity readback and so is encoded inline, here, on the main thread (rare).
+				string fileAssetPath = null;
+				var fileIsPng = false;
+				byte[] inlineBytes = null;
 				string extension = null;
 				if (!string.IsNullOrEmpty(assetPath) && File.Exists(assetPath)) {
 					var sourceExtension = Path.GetExtension(assetPath);
 					if (string.Equals(sourceExtension, ".png", StringComparison.OrdinalIgnoreCase)) {
-						blobData = ReadPngForPackaging(assetPath);
+						fileAssetPath = assetPath;
+						fileIsPng = true;
 						asset.MimeType = "image/png";
 						extension = ".png";
 					} else if (string.Equals(sourceExtension, ".jpg", StringComparison.OrdinalIgnoreCase)
 						|| string.Equals(sourceExtension, ".jpeg", StringComparison.OrdinalIgnoreCase)) {
-						blobData = File.ReadAllBytes(assetPath);
+						fileAssetPath = assetPath;
 						asset.MimeType = "image/jpeg";
 						extension = ".jpg";
 					}
 				}
-				if (blobData == null) {
-					if (!HdrpMaterialTextureEncoder.TryEncode(texture, linear, out blobData)) {
+				if (fileAssetPath == null) {
+					if (!HdrpMaterialTextureEncoder.TryEncode(texture, linear, out inlineBytes)) {
 						return null;
 					}
 					asset.MimeType = "image/png";
@@ -1135,45 +1146,10 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				asset.FileName = BuildFileName(id, extension);
 
 				_assetsByTexture[texture] = asset;
-				_textureBlobs[asset.FileName] = blobData;
+				_blobSources.Add(inlineBytes != null
+					? VpeTextureBlobSource.FromBytes(asset.FileName, inlineBytes)
+					: VpeTextureBlobSource.FromFile(asset.FileName, fileAssetPath, fileIsPng));
 				return asset;
-			}
-
-			// Reads a source PNG for packing. 8-bit PNGs are packed untouched (no re-encode). 16-bit
-			// PNGs are downconverted to 8-bit: the player cook produces 8-bit BC7 regardless, so the
-			// extra precision is dead weight that roughly doubles file size and decode time (16-bit PNG
-			// decode is the cook's main-thread bottleneck — the 50 MB cabinet normals). Re-encode loss
-			// is acceptable here per the load-time tradeoff (decided 2026-06-13).
-			private static byte[] ReadPngForPackaging(string assetPath)
-			{
-				var bytes = File.ReadAllBytes(assetPath);
-				if (!IsPng16Bit(bytes)) {
-					return bytes;
-				}
-
-				try {
-					// libvips (native, far faster than Unity's LoadImage+EncodeToPNG and thread-safe so
-					// it can run off the main thread): load, shift the 16-bit channels down to their high
-					// byte (the same downconvert Unity does), re-save as 8-bit PNG.
-					using var image = NetVips.Image.NewFromBuffer(bytes);
-					using var reduced = image.Cast(NetVips.Enums.BandFormat.Uchar, shift: true);
-					var pngBytes = reduced.PngsaveBuffer();
-					if (pngBytes != null && pngBytes.Length > 0) {
-						return pngBytes;
-					}
-				} catch (Exception ex) {
-					Logger.Warn(ex, $"HdrpMaterialTranslator: failed downconverting 16-bit PNG '{assetPath}' via libvips; packing original.");
-				}
-				return bytes;
-			}
-
-			// PNG layout: 8-byte signature, then the IHDR chunk (4 length + 4 "IHDR" + 4 width + 4
-			// height + 1 bit depth). Bit depth therefore sits at byte 24.
-			private static bool IsPng16Bit(byte[] png)
-			{
-				return png != null && png.Length > 25
-					&& png[0] == 0x89 && png[1] == 0x50 && png[2] == 0x4E && png[3] == 0x47
-					&& png[24] == 16;
 			}
 
 			// Texture names are not unique across a table; two distinct textures sharing a name
@@ -1209,9 +1185,10 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				}
 				var stem = new string(chars);
 				var fileName = $"{stem}{extension}";
-				// Sanitization can collapse two distinct ids onto the same file name.
+				// Sanitization can collapse two distinct ids onto the same file name. Reserve the name
+				// in _usedFileNames so the next texture can't claim it.
 				var n = 2;
-				while (_textureBlobs.ContainsKey(fileName)) {
+				while (!_usedFileNames.Add(fileName)) {
 					fileName = $"{stem}-{n++}{extension}";
 				}
 				return fileName;
