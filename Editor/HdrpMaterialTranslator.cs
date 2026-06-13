@@ -1151,23 +1151,18 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					return bytes;
 				}
 
-				Texture2D tmp = null;
 				try {
-					tmp = new Texture2D(2, 2, TextureFormat.RGBA32, false, linear: true) { hideFlags = HideFlags.HideAndDontSave };
-					// LoadImage stores the decoded bytes (16->8 high-byte downconvert) and EncodeToPNG
-					// writes them back unchanged — no gamma shift, just a bit-depth reduction.
-					if (ImageConversion.LoadImage(tmp, bytes, markNonReadable: false)) {
-						var reduced = ImageConversion.EncodeToPNG(tmp);
-						if (reduced != null && reduced.Length > 0) {
-							return reduced;
-						}
+					// libvips (native, far faster than Unity's LoadImage+EncodeToPNG and thread-safe so
+					// it can run off the main thread): load, shift the 16-bit channels down to their high
+					// byte (the same downconvert Unity does), re-save as 8-bit PNG.
+					using var image = NetVips.Image.NewFromBuffer(bytes);
+					using var reduced = image.Cast(NetVips.Enums.BandFormat.Uchar, shift: true);
+					var pngBytes = reduced.PngsaveBuffer();
+					if (pngBytes != null && pngBytes.Length > 0) {
+						return pngBytes;
 					}
 				} catch (Exception ex) {
-					Logger.Warn(ex, $"HdrpMaterialTranslator: failed downconverting 16-bit PNG '{assetPath}'; packing original.");
-				} finally {
-					if (tmp) {
-						UnityEngine.Object.DestroyImmediate(tmp);
-					}
+					Logger.Warn(ex, $"HdrpMaterialTranslator: failed downconverting 16-bit PNG '{assetPath}' via libvips; packing original.");
 				}
 				return bytes;
 			}
