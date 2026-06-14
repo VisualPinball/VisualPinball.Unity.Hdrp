@@ -5,7 +5,8 @@
 		"VisualPinball.Engine",
 		"VisualPinball.Unity",
 		"Unity.RenderPipelines.HighDefinition.Runtime",
-		"Unity.RenderPipelines.HighDefinition.Config.Runtime"
+		"Unity.RenderPipelines.HighDefinition.Config.Runtime",
+		"Unity.RenderPipelines.Core.Runtime"
 	],
 	"includePlatforms": [],
 	"excludePlatforms": [],
