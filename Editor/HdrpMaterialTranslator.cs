@@ -38,6 +38,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
 		private const string HdrpLitShaderName = "HDRP/Lit";
+		private const string HdrpFabricShaderPrefix = "HDRP/Fabric/";
 		private const string HdrpDecalShaderName = "HDRP/Decal";
 		private const string HdrpUnlitShaderName = "HDRP/Unlit";
 		private const string VpeMetalShaderGraphPathSuffix = "/Assets/Resources/Graphs/Metal.shadergraph";
@@ -136,6 +137,9 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				case HdrpUnlitShaderName:
 					return TranslateHdrpUnlit(material, ctx);
 			}
+			if (IsHdrpFabricShader(shaderName)) {
+				return TranslateHdrpFabricSilk(material, ctx);
+			}
 
 			if (IsVpeRubberMaterial(material)) {
 				return TranslateVpeRubberShaderGraph(material, ctx);
@@ -228,6 +232,12 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					GeometricSpecularAa = SafeGetFloat(material, "_EnableGeometricSpecularAA", 0f) > 0.5f,
 					SpecularAaScreenSpaceVariance = SafeGetFloat(material, "_SpecularAAScreenSpaceVariance", 0f),
 					SpecularAaThreshold = SafeGetFloat(material, "_SpecularAAThreshold", 0f),
+					SpecularOcclusionMode = Mathf.RoundToInt(SafeGetFloat(material, "_SpecularOcclusionMode", -1f)),
+					EnergyConservingSpecularColor = SafeGetFloat(material, "_EnergyConservingSpecularColor", 1f) > 0.5f,
+					SpecularColor = SafeGetColor(material, "_SpecularColor", Color.white),
+					SpecularColorMap = ctx.CaptureSideChannelTextureRef(material, "_SpecularColorMap", VpeColorSpaces.SRgb),
+					CoatMask = SafeGetFloat(material, "_CoatMask", -1f),
+					CoatMaskMap = ctx.CaptureSideChannelTextureRef(material, "_CoatMaskMap", VpeColorSpaces.Linear),
 					SupportDecals = SafeGetFloat(material, "_SupportDecals", 1f) > 0.5f
 						&& !material.IsKeywordEnabled("_DISABLE_DECALS"),
 					CullMode = Mathf.RoundToInt(SafeGetFloat(material, "_CullMode", -1f)),
@@ -242,6 +252,11 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 							|| material.IsKeywordEnabled("_TRANSPARENT_WRITES_MOTION_VEC"))
 						&& (material.GetShaderPassEnabled("MOTIONVECTORS") || material.GetShaderPassEnabled("MotionVectors")),
 					TransparentBackface = SafeGetFloat(material, "_TransparentBackfaceEnable", 0f) > 0.5f,
+					BlendModePreserveSpecularLighting = SafeGetFloat(material, "_EnableBlendModePreserveSpecularLighting", 1f) > 0.5f
+						|| material.IsKeywordEnabled("_BLENDMODE_PRESERVE_SPECULAR_LIGHTING"),
+					ZTestTransparent = Mathf.RoundToInt(SafeGetFloat(material, "_ZTestTransparent", -1f)),
+					ZTestDepthEqualForOpaque = Mathf.RoundToInt(SafeGetFloat(material, "_ZTestDepthEqualForOpaque", -1f)),
+					ZTestGBuffer = Mathf.RoundToInt(SafeGetFloat(material, "_ZTestGBuffer", -1f)),
 					DisableSsrTransparent = material.IsKeywordEnabled("_DISABLE_SSR_TRANSPARENT")
 						|| SafeGetFloat(material, "_ReceivesSSRTransparent", 0f) < 0.5f,
 					DisableSsr = material.IsKeywordEnabled("_DISABLE_SSR")
@@ -260,6 +275,31 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			return new VpeMaterialProfile {
 				Type = VpeMaterialTypes.Lit,
 				Lit = lit,
+			};
+		}
+
+		private static VpeMaterialProfile TranslateHdrpFabricSilk(Material material, CaptureContext ctx)
+		{
+			var litProfile = TranslateHdrpLit(material, ctx);
+			var fabric = new VpeFabricSilkProfile {
+				Lit = litProfile.Lit,
+				Hdrp = new VpeHdrpFabricSilkHints {
+					UseThreadMap = SafeGetFloat(material, "_useThreadMap", 0f) > 0.5f
+						|| material.IsKeywordEnabled("_THREAD_UV_CHANNEL_UV0"),
+					ThreadMap = ctx.CaptureSideChannelTextureRef(material, "_ThreadMap", VpeColorSpaces.Linear),
+					ThreadAOStrength01 = SafeGetFloat(material, "_ThreadAOStrength01", -1f),
+					ThreadNormalStrength = SafeGetFloat(material, "_ThreadNormalStrength", -1f),
+					ThreadSmoothnessScale = SafeGetFloat(material, "_ThreadSmoothnessScale", -1f),
+					ThreadUvChannel = SafeGetFloat(material, "_THREAD_UV_CHANNEL", -1f),
+					FuzzMap = ctx.CaptureSideChannelTextureRef(material, "_FuzzMap", VpeColorSpaces.Linear),
+					FuzzStrength = SafeGetFloat(material, "_FuzzStrength", -1f),
+					FuzzMapUvScale = SafeGetFloat(material, "_FuzzMapUVScale", -1f),
+				},
+			};
+
+			return new VpeMaterialProfile {
+				Type = VpeMaterialTypes.FabricSilk,
+				Fabric = fabric,
 			};
 		}
 
@@ -318,10 +358,18 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					GeometricSpecularAa = SafeGetFloat(material, "_EnableGeometricSpecularAA", SafeGetFloat(source, "_EnableGeometricSpecularAA", 0f)) > 0.5f,
 					SpecularAaScreenSpaceVariance = SafeGetFloat(material, "_SpecularAAScreenSpaceVariance", SafeGetFloat(source, "_SpecularAAScreenSpaceVariance", 0f)),
 					SpecularAaThreshold = SafeGetFloat(material, "_SpecularAAThreshold", SafeGetFloat(source, "_SpecularAAThreshold", 0f)),
+					SpecularOcclusionMode = Mathf.RoundToInt(SafeGetFloat(material, "_SpecularOcclusionMode", SafeGetFloat(source, "_SpecularOcclusionMode", -1f))),
+					EnergyConservingSpecularColor = SafeGetFloat(material, "_EnergyConservingSpecularColor", SafeGetFloat(source, "_EnergyConservingSpecularColor", 1f)) > 0.5f,
+					SpecularColor = SafeGetColor(material, "_SpecularColor", SafeGetColor(source, "_SpecularColor", Color.white)),
+					SpecularColorMap = CaptureShaderGraphTextureRef(ctx, material, source, "_SpecularColorMap", VpeColorSpaces.SRgb),
+					CoatMask = SafeGetFloat(material, "_CoatMask", SafeGetFloat(source, "_CoatMask", -1f)),
+					CoatMaskMap = CaptureShaderGraphTextureRef(ctx, material, source, "_CoatMaskMap", VpeColorSpaces.Linear),
 					CullMode = Mathf.RoundToInt(SafeGetFloat(material, "_CullMode", -1f)),
 					CullModeForward = Mathf.RoundToInt(SafeGetFloat(material, "_CullModeForward", -1f)),
 					OpaqueCullMode = Mathf.RoundToInt(SafeGetFloat(material, "_OpaqueCullMode", -1f)),
 					TransparentCullMode = Mathf.RoundToInt(SafeGetFloat(material, "_TransparentCullMode", -1f)),
+					BlendModePreserveSpecularLighting = SafeGetFloat(material, "_EnableBlendModePreserveSpecularLighting", SafeGetFloat(source, "_EnableBlendModePreserveSpecularLighting", 1f)) > 0.5f
+						|| material.IsKeywordEnabled("_BLENDMODE_PRESERVE_SPECULAR_LIGHTING"),
 					DisableSsr = material.IsKeywordEnabled("_DISABLE_SSR")
 						|| SafeGetFloat(material, "_ReceivesSSR", 1f) < 0.5f,
 					RayTracing = Mathf.RoundToInt(SafeGetFloat(material, "_RayTracing", -1f)),
@@ -413,10 +461,18 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					GeometricSpecularAa = SafeGetFloat(material, "_EnableGeometricSpecularAA", SafeGetFloat(source, "_EnableGeometricSpecularAA", 0f)) > 0.5f,
 					SpecularAaScreenSpaceVariance = SafeGetFloat(material, "_SpecularAAScreenSpaceVariance", SafeGetFloat(source, "_SpecularAAScreenSpaceVariance", 0f)),
 					SpecularAaThreshold = SafeGetFloat(material, "_SpecularAAThreshold", SafeGetFloat(source, "_SpecularAAThreshold", 0f)),
+					SpecularOcclusionMode = Mathf.RoundToInt(SafeGetFloat(material, "_SpecularOcclusionMode", SafeGetFloat(source, "_SpecularOcclusionMode", -1f))),
+					EnergyConservingSpecularColor = SafeGetFloat(material, "_EnergyConservingSpecularColor", SafeGetFloat(source, "_EnergyConservingSpecularColor", 1f)) > 0.5f,
+					SpecularColor = SafeGetColor(material, "_SpecularColor", SafeGetColor(source, "_SpecularColor", Color.white)),
+					SpecularColorMap = CaptureShaderGraphTextureRef(ctx, material, source, "_SpecularColorMap", VpeColorSpaces.SRgb),
+					CoatMask = SafeGetFloat(material, "_CoatMask", SafeGetFloat(source, "_CoatMask", -1f)),
+					CoatMaskMap = CaptureShaderGraphTextureRef(ctx, material, source, "_CoatMaskMap", VpeColorSpaces.Linear),
 					CullMode = Mathf.RoundToInt(SafeGetFloat(material, "_CullMode", -1f)),
 					CullModeForward = Mathf.RoundToInt(SafeGetFloat(material, "_CullModeForward", -1f)),
 					OpaqueCullMode = Mathf.RoundToInt(SafeGetFloat(material, "_OpaqueCullMode", -1f)),
 					TransparentCullMode = Mathf.RoundToInt(SafeGetFloat(material, "_TransparentCullMode", -1f)),
+					BlendModePreserveSpecularLighting = SafeGetFloat(material, "_EnableBlendModePreserveSpecularLighting", SafeGetFloat(source, "_EnableBlendModePreserveSpecularLighting", 1f)) > 0.5f
+						|| material.IsKeywordEnabled("_BLENDMODE_PRESERVE_SPECULAR_LIGHTING"),
 					DisableSsr = material.IsKeywordEnabled("_DISABLE_SSR")
 						|| SafeGetFloat(material, "_ReceivesSSR", 1f) < 0.5f,
 					RayTracing = Mathf.RoundToInt(SafeGetFloat(material, "_RayTracing", -1f)),
@@ -515,6 +571,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				HdrpLitShaderName => CreateTextureFreeClone(source),
 				HdrpDecalShaderName => CreateTextureFreeClone(source),
 				_ => IsVpeRubberMaterial(source) || IsVpeMetalMaterial(source) || IsVpeDmdMaterial(source)
+					|| IsHdrpFabricShader(shaderName)
 					? CreateTextureFreeClone(source)
 					: null,
 			};
@@ -528,9 +585,11 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		private static Material CreateTextureFreeClone(Material source)
 		{
 			var hasAnyTexture = false;
-			var propertyNames = source.GetTexturePropertyNames();
+			var propertyNames = GetSerializedTexturePropertyNames(source);
 			foreach (var propertyName in propertyNames) {
-				if (!string.IsNullOrWhiteSpace(propertyName) && source.GetTexture(propertyName)) {
+				if (!string.IsNullOrWhiteSpace(propertyName)
+					&& IsTextureShaderProperty(source.shader, propertyName)
+					&& source.GetTexture(propertyName)) {
 					hasAnyTexture = true;
 					break;
 				}
@@ -541,11 +600,53 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 
 			var clone = new Material(source);
 			foreach (var propertyName in propertyNames) {
-				if (!string.IsNullOrWhiteSpace(propertyName) && clone.GetTexture(propertyName)) {
+				if (!string.IsNullOrWhiteSpace(propertyName)
+					&& IsTextureShaderProperty(clone.shader, propertyName)
+					&& clone.GetTexture(propertyName)) {
 					clone.SetTexture(propertyName, null);
 				}
 			}
 			return clone;
+		}
+
+		private static List<string> GetSerializedTexturePropertyNames(Material source)
+		{
+			var propertyNames = new List<string>();
+			if (!source) {
+				return propertyNames;
+			}
+
+			var texEnvs = new SerializedObject(source).FindProperty("m_SavedProperties.m_TexEnvs");
+			if (texEnvs == null || !texEnvs.isArray) {
+				propertyNames.AddRange(source.GetTexturePropertyNames()
+					.Where(propertyName => source.HasProperty(propertyName)));
+				return propertyNames;
+			}
+
+			for (var i = 0; i < texEnvs.arraySize; i++) {
+				var entry = texEnvs.GetArrayElementAtIndex(i);
+				var propertyName = entry.FindPropertyRelative("first")?.stringValue;
+				if (!string.IsNullOrWhiteSpace(propertyName) && source.HasProperty(propertyName)) {
+					propertyNames.Add(propertyName);
+				}
+			}
+			return propertyNames;
+		}
+
+		private static bool IsTextureShaderProperty(Shader shader, string propertyName)
+		{
+			if (!shader || string.IsNullOrWhiteSpace(propertyName)) {
+				return false;
+			}
+
+			var propertyCount = ShaderUtil.GetPropertyCount(shader);
+			for (var i = 0; i < propertyCount; i++) {
+				if (!string.Equals(ShaderUtil.GetPropertyName(shader, i), propertyName, StringComparison.Ordinal)) {
+					continue;
+				}
+				return string.Equals(ShaderUtil.GetPropertyType(shader, i).ToString(), "TexEnv", StringComparison.Ordinal);
+			}
+			return false;
 		}
 
 		private static bool IsVpeMetalShaderGraph(Shader shader)
@@ -594,6 +695,12 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		private static bool IsVpeDmdMaterial(Material material)
 		{
 			return IsVpeDmdShaderGraph(material.shader);
+		}
+
+		private static bool IsHdrpFabricShader(string shaderName)
+		{
+			return !string.IsNullOrWhiteSpace(shaderName)
+				&& shaderName.StartsWith(HdrpFabricShaderPrefix, StringComparison.Ordinal);
 		}
 
 		// HDRP _RefractionModel float: 0=None, 1=Plane, 2=Sphere, 3=Thin. We also check keywords

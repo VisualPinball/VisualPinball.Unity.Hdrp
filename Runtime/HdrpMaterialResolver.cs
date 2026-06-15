@@ -47,6 +47,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		private readonly Material _litTranslucentThinTemplate;
 		private readonly Material _litTranslucentPlanarTemplate;
 		private readonly Material _litTranslucentSphereTemplate;
+		private readonly Material _fabricSilkTemplate;
 		private readonly Material _decalTemplate;
 		private readonly Dictionary<string, Material> _materialOverrides;
 		private static readonly int MainTextureProperty = Shader.PropertyToID("_MainTex");
@@ -78,6 +79,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			Material litTranslucentThinTemplate = null,
 			Material litTranslucentPlanarTemplate = null,
 			Material litTranslucentSphereTemplate = null,
+			Material fabricSilkTemplate = null,
 			Material decalTemplate = null,
 			Dictionary<string, Material> materialOverrides = null)
 		{
@@ -86,6 +88,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			_litTranslucentThinTemplate = litTranslucentThinTemplate;
 			_litTranslucentPlanarTemplate = litTranslucentPlanarTemplate;
 			_litTranslucentSphereTemplate = litTranslucentSphereTemplate;
+			_fabricSilkTemplate = fabricSilkTemplate;
 			_decalTemplate = decalTemplate;
 			_materialOverrides = materialOverrides ?? new Dictionary<string, Material>(StringComparer.Ordinal);
 		}
@@ -94,6 +97,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		{
 			return materialType switch {
 				VpeMaterialTypes.Lit => _litOpaqueTemplate,
+				VpeMaterialTypes.FabricSilk => _fabricSilkTemplate,
 				VpeMaterialTypes.Decal => _decalTemplate,
 				VpeMaterialTypes.Metal => true,
 				VpeMaterialTypes.Rubber => true,
@@ -112,6 +116,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 			return profile.Type switch {
 				VpeMaterialTypes.Lit => BuildLit(profile, textures, importedMaterial),
+				VpeMaterialTypes.FabricSilk => BuildFabricSilk(profile, textures, importedMaterial),
 				VpeMaterialTypes.Decal => BuildDecal(profile, textures, importedMaterial),
 				VpeMaterialTypes.Metal => BuildShaderGraphMaterial(profile, profile.Metal) ?? BuildLit(profile, textures, importedMaterial),
 				VpeMaterialTypes.Rubber => BuildShaderGraphMaterial(profile, profile.Rubber) ?? BuildLit(profile, textures, importedMaterial),
@@ -212,27 +217,47 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 		private Material BuildLit(VpeMaterialProfile profile, IVpeTextureProvider textures, Material imported)
 		{
+			return BuildLit(profile.Name, profile.Lit, textures, imported);
+		}
+
+		private Material BuildFabricSilk(VpeMaterialProfile profile, IVpeTextureProvider textures, Material imported)
+		{
+			var fabric = profile.Fabric;
+			if (fabric?.Lit == null || !_fabricSilkTemplate) {
+				return null;
+			}
+
+			return BuildLit(profile.Name, fabric.Lit, textures, imported, _fabricSilkTemplate, fabric.Hdrp);
+		}
+
+		private Material BuildLit(
+			string profileName,
+			VpeLitProfile lit,
+			IVpeTextureProvider textures,
+			Material imported,
+			Material forcedTemplate = null,
+			VpeHdrpFabricSilkHints fabricSilk = null)
+		{
 			_diagnostics.LitBuilds++;
-			var lit = profile.Lit;
 			if (lit == null) {
 				return null;
 			}
 			var hdrp = lit.Hdrp ?? new VpeHdrpLitHints();
 
-			if (_materialOverrides.TryGetValue(profile.Name, out var overrideTemplate) && overrideTemplate) {
-				return new Material(overrideTemplate) { name = profile.Name };
+			if (_materialOverrides.TryGetValue(profileName, out var overrideTemplate) && overrideTemplate) {
+				return new Material(overrideTemplate) { name = profileName };
 			}
 
-			var template = PickLitTemplate(lit, profile.Name);
+			var template = forcedTemplate ? forcedTemplate : PickLitTemplate(lit, profileName);
 			if (!template) {
 				return null;
 			}
 
 			var cloneStopwatch = Stopwatch.StartNew();
-			var material = new Material(template) { name = profile.Name };
+			var material = new Material(template) { name = profileName };
 			cloneStopwatch.Stop();
 			_diagnostics.MaterialCloneMilliseconds += cloneStopwatch.ElapsedMilliseconds;
-			LogApronImportedMaterial(profile.Name, imported);
+			LogApronImportedMaterial(profileName, imported);
 
 			SetColor(material, "_BaseColor", lit.BaseColor.Color);
 			SetColor(material, "_Color", lit.BaseColor.Color);
@@ -261,6 +286,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			} else {
 				material.DisableKeyword("_ENABLE_GEOMETRIC_SPECULAR_AA");
 			}
+			ApplyHdrpSupplementalState(material, lit, textures);
 			SetFloat(material, "_SupportDecals", hdrp.SupportDecals ? 1f : 0f);
 			if (hdrp.SupportDecals) {
 				material.DisableKeyword("_DISABLE_DECALS");
@@ -281,6 +307,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			if (lit.NormalMap != null) {
 				SetFloat(material, "_NormalScale", lit.NormalMap.Strength);
 			}
+			ApplyFabricSilkState(material, fabricSilk, textures);
 
 			SetColor(material, "_EmissiveColor", lit.Emissive.Color);
 			var emissiveLdrColor = lit.Emissive.HasLdrColor
@@ -320,12 +347,14 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				SetFloat(material, "_RayTracing", hdrp.RayTracing);
 			}
 			ApplyMaterialFeatureState(material, lit);
+			ApplyFabricSilkState(material, fabricSilk, textures);
+			ApplyHdrpSupplementalState(material, lit, textures);
 			var diffusionStopwatch = Stopwatch.StartNew();
-			ApplyTransmissionDiffusionProfile(material, profile.Name, lit);
+			ApplyTransmissionDiffusionProfile(material, profileName, lit);
 			diffusionStopwatch.Stop();
 			_diagnostics.DiffusionMilliseconds += diffusionStopwatch.ElapsedMilliseconds;
 
-			LogFirstOfEach(lit.SurfaceType, lit.RefractionModel, profile.Name, template.name, material);
+			LogFirstOfEach(lit.SurfaceType, lit.RefractionModel, profileName, template.name, material);
 
 			return material;
 		}
@@ -535,7 +564,11 @@ namespace VisualPinball.Engine.Unity.Hdrp
 					SetFloat(material, "_TransparentDepthPostpassEnable", hdrp.TransparentDepthPostpass ? 1f : 0f);
 					SetFloat(material, "_TransparentWritingMotionVec", hdrp.TransparentWritesMotionVectors ? 1f : 0f);
 					SetFloat(material, "_TransparentBackfaceEnable", hdrp.TransparentBackface ? 1f : 0f);
+					if (hdrp.ZTestTransparent >= 0) {
+						SetFloat(material, "_ZTestTransparent", hdrp.ZTestTransparent);
+					}
 					SetFloat(material, "_EnableFogOnTransparent", hdrp.EnableFogOnTransparent ? 1f : 0f);
+					SetFloat(material, "_EnableBlendModePreserveSpecularLighting", hdrp.BlendModePreserveSpecularLighting ? 1f : 0f);
 					SetFloat(material, "_AlphaCutoffEnable", 0f);
 					material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
 					if (hdrp.EnableFogOnTransparent) {
@@ -548,6 +581,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 					} else {
 						material.DisableKeyword("_TRANSPARENT_WRITES_MOTION_VEC");
 					}
+					ApplyBlendModeKeywords(material, lit.BlendMode, hdrp.BlendModePreserveSpecularLighting);
 					material.DisableKeyword("_ALPHATEST_ON");
 					SetShaderPassEnabledSafe(material, "MOTIONVECTORS", hdrp.TransparentWritesMotionVectors);
 					SetShaderPassEnabledSafe(material, "MotionVectors", hdrp.TransparentWritesMotionVectors);
@@ -565,6 +599,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 					SetFloat(material, "_Cutoff", lit.AlphaCutoff);
 					material.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
 					material.EnableKeyword("_ALPHATEST_ON");
+					ApplyOpaqueZTestState(material, hdrp);
 					SetShaderPassEnabledSafe(material, "MOTIONVECTORS", true);
 					SetShaderPassEnabledSafe(material, "MotionVectors", true);
 					if (material.renderQueue is < 2450 or > 2499) {
@@ -579,12 +614,40 @@ namespace VisualPinball.Engine.Unity.Hdrp
 					material.DisableKeyword("_ALPHATEST_ON");
 					material.DisableKeyword("_TRANSPARENT_WRITES_MOTION_VEC");
 					material.DisableKeyword("_ENABLE_FOG_ON_TRANSPARENT");
+					material.DisableKeyword("_BLENDMODE_PRE_MULTIPLY");
+					material.DisableKeyword("_BLENDMODE_PRESERVE_SPECULAR_LIGHTING");
 					SetFloat(material, "_TransparentDepthPrepassEnable", 0f);
 					SetFloat(material, "_TransparentDepthPostpassEnable", 0f);
 					SetFloat(material, "_TransparentWritingMotionVec", 0f);
 					SetFloat(material, "_TransparentBackfaceEnable", 0f);
 					SetFloat(material, "_TransparentSortPriority", 0f);
+					ApplyOpaqueZTestState(material, hdrp);
 					break;
+			}
+		}
+
+		private static void ApplyOpaqueZTestState(Material material, VpeHdrpLitHints hdrp)
+		{
+			if (hdrp.ZTestDepthEqualForOpaque >= 0) {
+				SetFloat(material, "_ZTestDepthEqualForOpaque", hdrp.ZTestDepthEqualForOpaque);
+			}
+			if (hdrp.ZTestGBuffer >= 0) {
+				SetFloat(material, "_ZTestGBuffer", hdrp.ZTestGBuffer);
+			}
+		}
+
+		private static void ApplyBlendModeKeywords(Material material, string blendMode, bool preserveSpecular)
+		{
+			if (blendMode == VpeBlendModes.Premultiply) {
+				material.EnableKeyword("_BLENDMODE_PRE_MULTIPLY");
+			} else {
+				material.DisableKeyword("_BLENDMODE_PRE_MULTIPLY");
+			}
+
+			if (preserveSpecular) {
+				material.EnableKeyword("_BLENDMODE_PRESERVE_SPECULAR_LIGHTING");
+			} else {
+				material.DisableKeyword("_BLENDMODE_PRESERVE_SPECULAR_LIGHTING");
 			}
 		}
 
@@ -616,6 +679,78 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				material.EnableKeyword("_MATERIAL_FEATURE_TRANSMISSION");
 			} else {
 				material.DisableKeyword("_MATERIAL_FEATURE_TRANSMISSION");
+			}
+		}
+
+		private static void ApplyHdrpSupplementalState(Material material, VpeLitProfile lit, IVpeTextureProvider textures)
+		{
+			if (material == null || lit == null) {
+				return;
+			}
+
+			var hdrp = lit.Hdrp ?? new VpeHdrpLitHints();
+			if (hdrp.SpecularOcclusionMode >= 0) {
+				SetFloat(material, "_SpecularOcclusionMode", hdrp.SpecularOcclusionMode);
+			}
+			SetFloat(material, "_EnergyConservingSpecularColor", hdrp.EnergyConservingSpecularColor ? 1f : 0f);
+			SetColor(material, "_SpecularColor", hdrp.SpecularColor);
+			SetTexture(material, "_SpecularColorMap", hdrp.SpecularColorMap, textures, importedMaterial: null);
+
+			var hasCoatMaskMap = hdrp.CoatMaskMap != null && !string.IsNullOrWhiteSpace(hdrp.CoatMaskMap.TextureId);
+			if (hdrp.CoatMask >= 0f) {
+				SetFloat(material, "_CoatMask", hdrp.CoatMask);
+				if (hdrp.CoatMask > 0.000001f || hasCoatMaskMap) {
+					material.EnableKeyword("_MATERIAL_FEATURE_CLEAR_COAT");
+				} else {
+					material.DisableKeyword("_MATERIAL_FEATURE_CLEAR_COAT");
+				}
+			} else if (hasCoatMaskMap) {
+				material.EnableKeyword("_MATERIAL_FEATURE_CLEAR_COAT");
+			}
+			SetTexture(material, "_CoatMaskMap", hdrp.CoatMaskMap, textures, importedMaterial: null);
+
+			if (hdrp.DisableSsr) {
+				SetFloat(material, "_ReceivesSSR", 0f);
+				material.EnableKeyword("_DISABLE_SSR");
+			} else {
+				SetFloat(material, "_ReceivesSSR", 1f);
+				material.DisableKeyword("_DISABLE_SSR");
+			}
+		}
+
+		private static void ApplyFabricSilkState(Material material, VpeHdrpFabricSilkHints fabric, IVpeTextureProvider textures)
+		{
+			if (fabric == null || material == null) {
+				return;
+			}
+
+			SetFloat(material, "_useThreadMap", fabric.UseThreadMap ? 1f : 0f);
+			if (fabric.ThreadAOStrength01 >= 0f) {
+				SetFloat(material, "_ThreadAOStrength01", fabric.ThreadAOStrength01);
+			}
+			if (fabric.ThreadNormalStrength >= 0f) {
+				SetFloat(material, "_ThreadNormalStrength", fabric.ThreadNormalStrength);
+			}
+			if (fabric.ThreadSmoothnessScale >= 0f) {
+				SetFloat(material, "_ThreadSmoothnessScale", fabric.ThreadSmoothnessScale);
+			}
+			if (fabric.ThreadUvChannel >= 0f) {
+				SetFloat(material, "_THREAD_UV_CHANNEL", fabric.ThreadUvChannel);
+			}
+			if (fabric.FuzzStrength >= 0f) {
+				SetFloat(material, "_FuzzStrength", fabric.FuzzStrength);
+			}
+			if (fabric.FuzzMapUvScale >= 0f) {
+				SetFloat(material, "_FuzzMapUVScale", fabric.FuzzMapUvScale);
+			}
+
+			SetTexture(material, "_ThreadMap", fabric.ThreadMap, textures, importedMaterial: null);
+			SetTexture(material, "_FuzzMap", fabric.FuzzMap, textures, importedMaterial: null);
+
+			if (fabric.UseThreadMap) {
+				material.EnableKeyword("_THREAD_UV_CHANNEL_UV0");
+			} else {
+				material.DisableKeyword("_THREAD_UV_CHANNEL_UV0");
 			}
 		}
 
