@@ -33,6 +33,16 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				if (!_hdrpLit) {
 					_hdrpLit = Shader.Find("HDRP/Lit");
 				}
+				if (!_hdrpLit) {
+					// Shader.Find can return null on very early calls (gltFast init, before HDRP/Lit
+					// is registered). Fall back to the shipped opaque template's shader — also
+					// HDRP/Lit and guaranteed in the build — so we never drop through to gltFast's
+					// (stripped) shadergraph and log a spurious "shader missing" warning.
+					var template = UnityEngine.Resources.Load<Material>("Materials/VpeLitOpaqueTemplate");
+					if (template) {
+						_hdrpLit = template.shader;
+					}
+				}
 				return _hdrpLit;
 			}
 		}
