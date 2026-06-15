@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-using UnityEngine;
 using System.Collections.Generic;
+using UnityEngine;
 using VisualPinball.Unity;
 
 namespace VisualPinball.Engine.Unity.Hdrp
@@ -31,6 +31,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		private const string LitTranslucentThinTemplatePath = "Materials/VpeLitTranslucentThinTemplate";
 		private const string LitTranslucentPlanarTemplatePath = "Materials/VpeLitTranslucentPlanarTemplate";
 		private const string LitTranslucentSphereTemplatePath = "Materials/VpeLitTranslucentSphereTemplate";
+		private const string FabricSilkTemplatePath = "Materials/VpeLitFabricSilkTemplate";
 		private const string DecalTemplatePath = "Materials/VpeDecalTemplate";
 		private const string MetalScratchedOverridePath = "Materials/VpeMeasured/MetalScratched";
 		private const string RubberDirtWhiteOverridePath = "Materials/VpeMeasured/RubberDirt White";
@@ -46,6 +47,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			var litTranslucentThin = UnityEngine.Resources.Load<Material>(LitTranslucentThinTemplatePath);
 			var litTranslucentPlanar = UnityEngine.Resources.Load<Material>(LitTranslucentPlanarTemplatePath);
 			var litTranslucentSphere = UnityEngine.Resources.Load<Material>(LitTranslucentSphereTemplatePath);
+			var fabricSilk = UnityEngine.Resources.Load<Material>(FabricSilkTemplatePath);
 			var decalTemplate = UnityEngine.Resources.Load<Material>(DecalTemplatePath);
 			var materialOverrides = new Dictionary<string, Material>(System.StringComparer.Ordinal);
 			RegisterMaterialOverride(materialOverrides, "MetalScratched", MetalScratchedOverridePath);
@@ -77,6 +79,11 @@ namespace VisualPinball.Engine.Unity.Hdrp
 					$"VpeMaterialResolverBootstrap: could not load '{LitTranslucentSphereTemplatePath}' from Resources. " +
 					"Sphere translucent (posts, rounded plastics) will fall back to planar/thin.");
 			}
+			if (!fabricSilk) {
+				Debug.LogWarning(
+					$"VpeMaterialResolverBootstrap: could not load '{FabricSilkTemplatePath}' from Resources. " +
+					"vpe.fabric.silk profiles will fall back to glTF-imported materials.");
+			}
 			if (!decalTemplate) {
 				Debug.LogWarning(
 					$"VpeMaterialResolverBootstrap: could not load '{DecalTemplatePath}' from Resources. " +
@@ -89,6 +96,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				$"translucent-thin={(litTranslucentThin ? litTranslucentThin.name : "<missing>")}, " +
 				$"translucent-planar={(litTranslucentPlanar ? litTranslucentPlanar.name : "<missing>")}, " +
 				$"translucent-sphere={(litTranslucentSphere ? litTranslucentSphere.name : "<missing>")}, " +
+				$"fabric-silk={(fabricSilk ? fabricSilk.name : "<missing>")}, " +
 				$"decal={(decalTemplate ? decalTemplate.name : "<missing>")}.");
 			VpeMaterialResolver.Register(new HdrpMaterialResolver(
 				litOpaque,
@@ -96,6 +104,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				litTranslucentThin,
 				litTranslucentPlanar,
 				litTranslucentSphere,
+				fabricSilk,
 				decalTemplate,
 				materialOverrides
 			));

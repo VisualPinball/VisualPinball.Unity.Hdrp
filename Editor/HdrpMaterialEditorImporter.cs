@@ -50,6 +50,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			// normal-map imports that HDRP samples natively, so the resolver must not re-pack them.
 			foreach (var profile in payload.Profiles) {
 				SetAssetNormalPacking(profile?.Lit?.NormalMap);
+				SetAssetNormalPacking(profile?.Fabric?.Lit?.NormalMap);
 				SetAssetNormalPacking(profile?.Decal?.NormalMap);
 			}
 
@@ -57,6 +58,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				NewLitTemplate("VpeImportLitOpaque"),
 				NewLitTemplate("VpeImportLitTransparent"),
 				litTranslucentThinTemplate: NewLitTemplate("VpeImportLitTranslucent"),
+				fabricSilkTemplate: NewFabricSilkTemplate(),
 				decalTemplate: NewDecalTemplate(),
 				materialOverrides: FindShaderGraphTemplates(payload));
 
@@ -130,6 +132,12 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		{
 			var shader = Shader.Find("HDRP/Decal");
 			return shader ? new Material(shader) { name = "VpeImportDecal" } : null;
+		}
+
+		private static Material NewFabricSilkTemplate()
+		{
+			var shader = Shader.Find("HDRP/Fabric/Fabric Silk");
+			return shader ? new Material(shader) { name = "VpeImportFabricSilk" } : null;
 		}
 
 		// Locates shader-graph template materials (metal/rubber/DMD) by their captured template

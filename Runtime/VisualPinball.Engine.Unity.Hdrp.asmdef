@@ -4,6 +4,7 @@
 	"references": [
 		"VisualPinball.Engine",
 		"VisualPinball.Unity",
+		"glTFast",
 		"Unity.RenderPipelines.HighDefinition.Runtime",
 		"Unity.RenderPipelines.HighDefinition.Config.Runtime",
 		"Unity.RenderPipelines.Core.Runtime"
