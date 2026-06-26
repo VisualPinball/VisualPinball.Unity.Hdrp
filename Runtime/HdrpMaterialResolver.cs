@@ -416,7 +416,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				return 0f;
 			}
 
-			var id = profile.GetInstanceID();
+			var id = UnityObjectId.Get(profile);
 			if (_diffusionProfileHashByInstance.TryGetValue(id, out var cached)) {
 				return cached;
 			}
