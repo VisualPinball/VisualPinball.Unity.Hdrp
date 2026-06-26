@@ -7,11 +7,29 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - name: Publish
+      - uses: actions/checkout@v5
+      - name: Install Unity Package Manager CLI
+        run: |
+          curl -fsSL https://cdn.packages.unity.com/upm-cli/install.sh | bash
+          echo "$HOME/.upm/bin" >> "$GITHUB_PATH"
+          "$HOME/.upm/bin/upm" --version
+      - name: Pack and sign
+        run: |
+          test -n "${UNITY_ORGANIZATION_ID}"
+          mkdir -p "$RUNNER_TEMP/signed-package"
+          upm pack . \
+            --organization-id "${UNITY_ORGANIZATION_ID}" \
+            --destination "$RUNNER_TEMP/signed-package"
+        env:
+          UPM_SERVICE_ACCOUNT_KEY_ID: ${{ secrets.UPM_SERVICE_ACCOUNT_KEY_ID }}
+          UPM_SERVICE_ACCOUNT_KEY_SECRET: ${{ secrets.UPM_SERVICE_ACCOUNT_KEY_SECRET }}
+          UNITY_ORGANIZATION_ID: ${{ secrets.UNITY_ORGANIZATION_ID }}
+      - name: Publish signed package
         run: |
           echo "//registry.visualpinball.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
-          npm publish
+          package_tgz="$(find "$RUNNER_TEMP/signed-package" -maxdepth 1 -name '*.tgz' -print -quit)"
+          test -n "$package_tgz"
+          npm publish "$package_tgz" --registry=https://registry.visualpinball.org/
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -19,9 +37,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [ publish ]
     steps:
-      - uses: peter-evans/repository-dispatch@v1
+      - uses: peter-evans/repository-dispatch@v4
         with:
           token: ${{ secrets.GH_PAT }}
           event-type: publish-complete
           client-payload: '{"artifacts_run_id": "${{ github.run_id }}"}'
-
