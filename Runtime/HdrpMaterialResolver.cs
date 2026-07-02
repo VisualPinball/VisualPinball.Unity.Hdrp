@@ -97,6 +97,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		{
 			return materialType switch {
 				VpeMaterialTypes.Lit => _litOpaqueTemplate,
+				VpeMaterialTypes.Insert => _litOpaqueTemplate,
 				VpeMaterialTypes.FabricSilk => _fabricSilkTemplate,
 				VpeMaterialTypes.Decal => _decalTemplate,
 				VpeMaterialTypes.Metal => true,
@@ -116,6 +117,10 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 			return profile.Type switch {
 				VpeMaterialTypes.Lit => BuildLit(profile, textures, importedMaterial),
+				// An insert carries a full lit payload; HDRP realizes it exactly like vpe.lit
+				// (translucent template + hints). The semantic type only matters to pipelines
+				// without HDRP's translucency.
+				VpeMaterialTypes.Insert => BuildLit(profile.Name, profile.Insert?.Lit, textures, importedMaterial),
 				VpeMaterialTypes.FabricSilk => BuildFabricSilk(profile, textures, importedMaterial),
 				VpeMaterialTypes.Decal => BuildDecal(profile, textures, importedMaterial),
 				VpeMaterialTypes.Metal => BuildShaderGraphMaterial(profile, profile.Metal) ?? BuildLit(profile, textures, importedMaterial),

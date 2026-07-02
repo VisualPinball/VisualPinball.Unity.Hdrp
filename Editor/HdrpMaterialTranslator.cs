@@ -64,30 +64,30 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			var rendererStates = new List<VpeRendererState>();
 			var ctx = new CaptureContext();
 
-			if (renderers != null) {
-				foreach (var renderer in renderers) {
-					if (!renderer) {
+			var rendererList = renderers?.Where(r => r).ToList() ?? new List<Renderer>();
+			var insertCandidateKeys = CollectInsertCandidateMaterialKeys(rendererList);
+
+			foreach (var renderer in rendererList) {
+				if (tableRoot) {
+					rendererStates.Add(CaptureRendererState(renderer, tableRoot, nodeId));
+				}
+
+				foreach (var material in renderer.sharedMaterials) {
+					if (!material) {
+						continue;
+					}
+					var key = NormalizeMaterialName(material.name);
+					if (string.IsNullOrWhiteSpace(key) || profiles.ContainsKey(key)) {
 						continue;
 					}
 
-					if (tableRoot) {
-						rendererStates.Add(CaptureRendererState(renderer, tableRoot, nodeId));
-					}
-
-					foreach (var material in renderer.sharedMaterials) {
-						if (!material) {
-							continue;
+					var profile = TranslateMaterial(material, ctx);
+					if (profile != null) {
+						profile.Name = key;
+						if (insertCandidateKeys.Contains(key)) {
+							PromoteToInsert(profile);
 						}
-						var key = NormalizeMaterialName(material.name);
-						if (string.IsNullOrWhiteSpace(key) || profiles.ContainsKey(key)) {
-							continue;
-						}
-
-						var profile = TranslateMaterial(material, ctx);
-						if (profile != null) {
-							profile.Name = key;
-							profiles[key] = profile;
-						}
+						profiles[key] = profile;
 					}
 				}
 			}
@@ -106,6 +106,49 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		public static IDisposable PrepareGltfExport(IEnumerable<Renderer> renderers)
 		{
 			return new GltfExportMaterialScope(renderers);
+		}
+
+		// Heuristic insert classification: materials on renderers that sit under a LightComponent
+		// are insert candidates. The material itself must additionally be transparent and
+		// transmissive (see PromoteToInsert) — that keeps opaque faux bulbs and unrelated meshes
+		// under lights classified as plain vpe.lit.
+		private static HashSet<string> CollectInsertCandidateMaterialKeys(IEnumerable<Renderer> renderers)
+		{
+			var keys = new HashSet<string>(StringComparer.Ordinal);
+			foreach (var renderer in renderers) {
+				if (!renderer || !renderer.GetComponentInParent<LightComponent>(true)) {
+					continue;
+				}
+				foreach (var material in renderer.sharedMaterials) {
+					if (material) {
+						keys.Add(NormalizeMaterialName(material.name));
+					}
+				}
+			}
+			return keys;
+		}
+
+		// Re-types a captured vpe.lit profile as vpe.insert. The lit payload moves into the
+		// insert profile unchanged, so HDRP resolves it exactly as before; only the semantic
+		// type differs. The faceted reflector body is the part that carries a refraction model,
+		// the flush lens ("hat") does not.
+		private static void PromoteToInsert(VpeMaterialProfile profile)
+		{
+			if (profile.Type != VpeMaterialTypes.Lit || profile.Lit == null) {
+				return;
+			}
+			var lit = profile.Lit;
+			if (lit.SurfaceType != VpeSurfaceTypes.Transparent || !lit.HasTransmission) {
+				return;
+			}
+			profile.Type = VpeMaterialTypes.Insert;
+			profile.Insert = new VpeInsertProfile {
+				Part = lit.RefractionModel != VpeRefractionModels.None
+					? VpeInsertParts.Reflector
+					: VpeInsertParts.Lens,
+				Lit = lit,
+			};
+			profile.Lit = null;
 		}
 
 		private static VpeRendererState CaptureRendererState(Renderer renderer, Transform tableRoot, Func<Transform, string> nodeId)
