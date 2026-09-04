@@ -18,6 +18,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
@@ -103,6 +104,52 @@ namespace VisualPinball.Unity.Library
 		{
 			_combinations?.Clear();
 			IsProcessing = false;
+		}
+
+		/// <summary>
+		/// Renders the current view of the main camera and writes it as a PNG to
+		/// <paramref name="path"/>. Independent of the thumbnail batch; captures whatever the
+		/// camera currently frames.
+		/// </summary>
+		public void SaveCurrentFrame(string path)
+		{
+			if (string.IsNullOrEmpty(path)) {
+				return;
+			}
+			var camera = Camera.main;
+			if (camera == null) {
+				Debug.LogError("Cannot save frame: no main camera found in the scene.");
+				return;
+			}
+
+			var width = camera.pixelWidth > 0 ? camera.pixelWidth : 1920;
+			var height = camera.pixelHeight > 0 ? camera.pixelHeight : 1080;
+			var renderTexture = new RenderTexture(width, height, 24, RenderTextureFormat.ARGB32);
+			var previousTarget = camera.targetTexture;
+			var previousActive = RenderTexture.active;
+			Texture2D texture = null;
+			try {
+				camera.targetTexture = renderTexture;
+				camera.Render();
+
+				RenderTexture.active = renderTexture;
+				texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+				texture.ReadPixels(new Rect(0, 0, width, height), 0, 0);
+				texture.Apply();
+
+				File.WriteAllBytes(path, texture.EncodeToPNG());
+				Debug.Log($"Saved current camera frame to {path}");
+			} catch (Exception e) {
+				Debug.LogError($"Failed to save camera frame: {e}");
+			} finally {
+				camera.targetTexture = previousTarget;
+				RenderTexture.active = previousActive;
+				if (texture != null) {
+					DestroyImmediate(texture);
+				}
+				renderTexture.Release();
+				DestroyImmediate(renderTexture);
+			}
 		}
 
 		private void Process(AssetMaterialCombination a)

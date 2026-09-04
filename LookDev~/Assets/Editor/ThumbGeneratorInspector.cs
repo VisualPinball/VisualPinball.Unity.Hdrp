@@ -60,6 +60,16 @@ namespace VisualPinball.Unity.Library.Editor
 				_generator.StopProcessing();
 			}
 
+			GUI.enabled = !_generator.IsProcessing;
+			EditorGUILayout.Space();
+			if (GUILayout.Button("Save Current Frame...")) {
+				var path = EditorUtility.SaveFilePanel("Save Current Camera Frame",
+					"", "frame.png", "png");
+				if (!string.IsNullOrEmpty(path)) {
+					_generator.SaveCurrentFrame(path);
+				}
+			}
+
 			GUI.enabled = true;
 
 			if (_generator.IsProcessing) {
