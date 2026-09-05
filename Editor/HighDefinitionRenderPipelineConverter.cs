@@ -29,7 +29,6 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		public string Name => "High Definition Render Pipeline";
 
 		public RenderPipelineType Type => RenderPipelineType.Hdrp;
-		public IMaterialAdapter MaterialAdapter { get; } = new MaterialAdapter();
 		public IPrefabProvider PrefabProvider { get; } = new PrefabProvider();
 	}
 }
