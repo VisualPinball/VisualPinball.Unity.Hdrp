@@ -59,7 +59,7 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float4 Lamp, float Ior, float Warp, float Scatter, float EdgeGlow, float LampGain,
     float NormalStrength, float3 Tint, float3 LampColor, float3 DriveColor, float Level,
     float4 Starburst, float Contrast, float Variation, float Seed, float Brightness,
-    float MottleSize, float Grain, float BulbDefinition,
+    float MottleSize, float Grain, float BulbDefinition, float MinBrightness,
     out float3 BaseColor, out float3 NormalTS, out float3 Emission)
 {
     float3 rawNormal = SAMPLE_TEXTURE2D(OpticalNormal.tex, OpticalNormal.samplerstate, UV).rgb * 2.0 - 1.0;
@@ -122,7 +122,10 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     // The material sets full-intensity brightness; ROM events only change the
     // normalized intensity and RGB through the renderer's property block.
     Emission = max(LampColor, 0.0) * max(DriveColor, 0.0) * saturate(Level) * max(Brightness, 0.0) * (glow + LampGain * transmitted) * finish;
-    BaseColor = Tint * (0.35 + 0.65 * response.r) * finish;
+    // Darken the unlit plastic without keeping the bulb or spill light on.
+    // Fade back to the authored albedo as the ROM raises lamp intensity.
+    float bodyBrightness = lerp(saturate(MinBrightness), 1.0, saturate(Level));
+    BaseColor = Tint * (0.35 + 0.65 * response.r) * finish * bodyBrightness;
     float4 packedNormal = SAMPLE_TEXTURE2D(SurfaceNormal.tex, SurfaceNormal.samplerstate, UV);
     float3 surface = UnpackNormal(packedNormal);
     NormalTS = normalize(float3(surface.xy * NormalStrength, lerp(1.0, surface.z, saturate(NormalStrength))));
