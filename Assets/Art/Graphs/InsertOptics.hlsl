@@ -119,7 +119,9 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float glow = Scatter * response.r * lerp(1.0, faceGain, floorMask * 0.65)
         + EdgeGlow * response.g * (0.25 + 0.75 * response.r);
     // Every term is achromatic until here: RGB lamp events can tint all of it.
-    Emission = max(LampColor, 0.0) * max(DriveColor, 0.0) * max(Level * Brightness, 0.0) * (glow + LampGain * transmitted) * finish;
+    // The material sets full-intensity brightness; ROM events only change the
+    // normalized intensity and RGB through the renderer's property block.
+    Emission = max(LampColor, 0.0) * max(DriveColor, 0.0) * saturate(Level) * max(Brightness, 0.0) * (glow + LampGain * transmitted) * finish;
     BaseColor = Tint * (0.35 + 0.65 * response.r) * finish;
     float4 packedNormal = SAMPLE_TEXTURE2D(SurfaceNormal.tex, SurfaceNormal.samplerstate, UV);
     float3 surface = UnpackNormal(packedNormal);
