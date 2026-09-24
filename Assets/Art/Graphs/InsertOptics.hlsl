@@ -75,15 +75,16 @@ float3 InsertOpticsHsvToRgb(float3 c)
 // Turns the colour's hue towards the lamp's, the short way round the wheel,
 // and its saturation towards the lamp's, never below its own, both by the
 // amount; the value is never touched, so a grey haze comes out the lamp's
-// colour, as bright as the grey was, and never darker. The lamp's own
-// brightness scales the amount, since an RGB lamp carries its intensity in
-// its colour, so a lamp that is off, or whose channels are all down, leaves
-// the colour untouched, and a white lamp has no hue to give.
+// colour, as bright as the grey was, and never darker. An RGB lamp carries
+// its intensity in its colour, and a dim lamp is still its colour: the amount
+// is full from a tenth of full brightness up, and only a lamp that is off,
+// its channels all down, leaves the colour untouched. A white lamp has no hue
+// to give.
 float3 InsertOpticsTowardsLampHue(float3 color, float3 lamp, float amount)
 {
     float3 hsv = InsertOpticsRgbToHsv(max(color, 0.0));
     float3 lampHsv = InsertOpticsRgbToHsv(max(lamp, 0.0));
-    amount = saturate(amount) * saturate(lampHsv.z);
+    amount = saturate(amount) * saturate(lampHsv.z * 10.0);
     float turn = frac(lampHsv.x - hsv.x + 0.5) - 0.5;
     hsv.x = frac(hsv.x + turn * amount);
     hsv.y = lerp(hsv.y, max(hsv.y, lampHsv.y), amount);
