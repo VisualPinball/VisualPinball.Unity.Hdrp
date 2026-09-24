@@ -331,7 +331,7 @@
             "m_Id": "5efee24d3d145df7b6a2de4cf8200ad0"
         }
     ],
-    "m_CustomEditorGUI": "",
+    "m_CustomEditorGUI": "VisualPinball.Engine.Unity.Hdrp.Editor.InsertCoverGUI",
     "m_SupportVFX": false,
     "m_SupportLineRendering": false
 }
