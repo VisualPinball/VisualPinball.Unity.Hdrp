@@ -856,7 +856,7 @@
             "m_Id": "82a37421177050b8b4f15561181b130e"
         }
     ],
-    "m_CustomEditorGUI": "",
+    "m_CustomEditorGUI": "VisualPinball.Engine.Unity.Hdrp.Editor.InsertHybridGUI",
     "m_SupportVFX": false,
     "m_SupportLineRendering": false
 }

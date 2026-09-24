@@ -7,7 +7,9 @@
 		"VisualPinball.Unity",
 		"VisualPinball.Unity.AssetLibrary",
 		"Unity.RenderPipelines.Core.Runtime",
+		"Unity.RenderPipelines.Core.Editor",
 		"Unity.RenderPipelines.HighDefinition.Runtime",
+		"Unity.RenderPipelines.HighDefinition.Editor",
 		"Unity.RenderPipelines.HighDefinition.Config.Runtime",
 		"VisualPinball.Unity.Editor",
 		"VisualPinball.Engine.Unity.Hdrp"
