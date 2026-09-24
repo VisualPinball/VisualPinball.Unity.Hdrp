@@ -270,30 +270,61 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		}
 	}
 
-	/// <summary>What the insert's bake wrote into the material, shown but not edited here.</summary>
+	/// <summary>
+	/// What the insert's bake wrote into the material. Editable, so a material
+	/// that had another's properties copied over it, for a colour of its own,
+	/// can have its own maps put back.
+	/// </summary>
 	internal sealed class BakeBlock : InsertBlock
 	{
 		private static readonly GUIContent SurfaceLabel = new("Surface Normal", "Tangent-space normal map of the rounded edges and the grain, for the reflections.");
 		private static readonly GUIContent OpticalLabel = new("Optical Normals", "Sharp facet normals in insert space, for the lamp's refraction.");
 		private static readonly GUIContent ResponseLabel = new("Optical Response", "Cavity irradiance, edge mask and transmission mask, one per channel.");
+		private static readonly GUIContent SectorsLabel = new("Starburst Sectors", "How many sectors the fan the bake found has; the facet variation follows it. Below four there is no starburst.");
+		private static readonly GUIContent CentreLabel = new("Starburst Centre (mm)", "Where the fan's centre sits in insert space, X across and Z along the length.");
 
 		public BakeBlock() : base(ExpandableBit.User2, "Baked Data") { }
 
 		protected override void Draw()
 		{
-			EditorGUILayout.HelpBox("Written by the insert's bake and kept in step with its mesh. Bake Again on the Insert component to update them.", MessageType.None);
-			using (new EditorGUI.DisabledScope(true)) {
-				Texture(SurfaceLabel, "_NormalMap");
-				Texture(OpticalLabel, "_OpticalNormalMap");
-				Texture(ResponseLabel, "_OpticalResponseMap");
-			}
+			EditorGUILayout.HelpBox("Written by the insert's bake, and kept in step with its mesh by Bake Again on the Insert component. Copying another material's properties over this one replaces them; put this insert's own back here.", MessageType.None);
+			Texture(SurfaceLabel, "_NormalMap");
+			Texture(OpticalLabel, "_OpticalNormalMap");
+			Texture(ResponseLabel, "_OpticalResponseMap");
 			var starburst = FindProperty("_OpticalStarburst");
 			if (starburst != null) {
 				var fan = starburst.vectorValue;
-				var summary = starburst.hasMixedValue ? "differs between the selected materials"
-					: fan.z >= 4f ? $"{fan.z:0} sectors around ({fan.x * 1000f:0.0}, {fan.y * 1000f:0.0}) mm"
-					: "none";
-				EditorGUILayout.LabelField(new GUIContent("Starburst", "The fan the bake found: sector count and centre in insert space. The facet variation follows it."), new GUIContent(summary));
+				MaterialEditor.BeginProperty(starburst);
+				EditorGUI.showMixedValue = starburst.hasMixedValue;
+				EditorGUI.BeginChangeCheck();
+				var sectors = EditorGUILayout.IntField(SectorsLabel, Mathf.RoundToInt(fan.z));
+				var sectorsChanged = EditorGUI.EndChangeCheck();
+				EditorGUI.BeginChangeCheck();
+				var wide = EditorGUIUtility.wideMode;
+				EditorGUIUtility.wideMode = true;
+				var centre = EditorGUILayout.Vector2Field(CentreLabel, new Vector2(fan.x, fan.y) * 1000f);
+				EditorGUIUtility.wideMode = wide;
+				var centreChanged = EditorGUI.EndChangeCheck();
+				EditorGUI.showMixedValue = false;
+				MaterialEditor.EndProperty();
+				if (sectorsChanged || centreChanged) {
+					// Each material keeps what was not edited, its floor height in
+					// w above all: the property's own setter would copy the first
+					// material's whole vector onto every one selected.
+					var selected = starburst.targets.OfType<Material>().ToArray();
+					Undo.RecordObjects(selected, "Edit Starburst");
+					foreach (var material in selected) {
+						var value = material.GetVector("_OpticalStarburst");
+						if (centreChanged) {
+							value.x = centre.x / 1000f;
+							value.y = centre.y / 1000f;
+						}
+						if (sectorsChanged) {
+							value.z = Mathf.Max(0, sectors);
+						}
+						material.SetVector("_OpticalStarburst", value);
+					}
+				}
 			}
 		}
 
