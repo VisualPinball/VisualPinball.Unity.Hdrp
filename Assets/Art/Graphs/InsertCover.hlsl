@@ -6,9 +6,11 @@
 
 // Cover UVs and their tangent frame follow the referenced playfield's XZ
 // projection. Its texture and source strength are supplied per material slot.
+// The haze is the colour the cover blends in at its opacity: a light veil that
+// softens the ribs underneath the way a worn, slightly frosted top does.
 void InsertCover_float(float2 UV, UnityTexture2D NormalMap, float PlayfieldStrength,
-    float Strength, float Smoothness, float Opacity,
-    out float3 NormalTS, out float SurfaceSmoothness, out float Alpha)
+    float Strength, float Smoothness, float Opacity, float3 HazeColor,
+    out float3 NormalTS, out float SurfaceSmoothness, out float Alpha, out float3 BaseColor)
 {
 #if defined(SHADERPASS) && defined(SHADERPASS_SHADOWS) && (SHADERPASS == SHADERPASS_SHADOWS)
     clip(-1);
@@ -17,5 +19,6 @@ void InsertCover_float(float2 UV, UnityTexture2D NormalMap, float PlayfieldStren
     NormalTS = normalize(float3(normal.xy * max(PlayfieldStrength * Strength, 0.0), normal.z));
     SurfaceSmoothness = saturate(Smoothness);
     Alpha = saturate(Opacity);
+    BaseColor = max(HazeColor, 0.0);
 }
 #endif
