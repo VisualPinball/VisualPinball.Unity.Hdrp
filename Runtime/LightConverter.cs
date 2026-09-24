@@ -68,6 +68,25 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				hdLight.SetShadowUpdateMode(isDynamic ? ShadowUpdateMode.EveryFrame : ShadowUpdateMode.OnEnable);
 			}
 		}
+		public void InsertSpill(Light light)
+		{
+			var hdLight = light.GetComponent<HDAdditionalLightData>();
+			if (hdLight == null) {
+				hdLight = light.gameObject.AddComponent<HDAdditionalLightData>();
+				HDAdditionalLightData.InitDefaultHDAdditionalLightData(hdLight);
+			}
+			light.type = LightType.Spot;
+			light.bounceIntensity = 0f;
+			// A cone wide enough to reach the whole insert from just below it,
+			// its inner cone most of that so the edge is soft; a small source, no
+			// volumetrics and no shadows: the cheapest light that does the job.
+			hdLight.SetSpotAngle(147f, 62f);
+			hdLight.shapeRadius = 0.002f;
+			hdLight.affectsVolumetric = false;
+			hdLight.volumetricDimmer = 0f;
+			hdLight.EnableShadows(false);
+		}
+
 		public void SetRange(Light light, float range)
 		{
 			var hdLight = light.GetComponent<HDAdditionalLightData>();
