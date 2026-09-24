@@ -59,7 +59,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			Field("_CoverOpacity", "Opacity",
 				"How much of the haze shows over the body. A hundredth is a clean top with only its reflection; five to ten hundredths a milky veil that softens the ribs like a worn, slightly frosted top. The reflections stay at full strength whatever the value.");
 			Field("_HazeColor", "Haze Color",
-				"The colour of that veil. A light grey for worn clear plastic; darker greys dull the body, white brightens it.",
+				"The colour of that veil. A light grey for worn clear plastic; darker greys dull the body, white brightens it. An Insert Light with Tint With Lamp on gives it the lamp's hue while the lamp is lit.",
 				Above("_CoverOpacity", 0f));
 		}
 	}

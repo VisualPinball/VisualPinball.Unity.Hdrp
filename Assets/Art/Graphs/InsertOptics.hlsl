@@ -54,6 +54,42 @@ float InsertDetailVisibility(float2 p)
 
 // All positions and directions are in insert local space, in metres. This
 // works per eye and at arbitrary camera angles without a scene-colour buffer.
+// Hue, saturation and value, hue as a turn of the wheel in 0..1.
+float3 InsertOpticsRgbToHsv(float3 c)
+{
+    float4 K = float4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+    float4 p = lerp(float4(c.bg, K.wz), float4(c.gb, K.xy), step(c.b, c.g));
+    float4 q = lerp(float4(p.xyw, c.r), float4(c.r, p.yzx), step(p.x, c.r));
+    float d = q.x - min(q.w, q.y);
+    float e = 1.0e-10;
+    return float3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+}
+
+float3 InsertOpticsHsvToRgb(float3 c)
+{
+    float4 K = float4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+    float3 p = abs(frac(c.xxx + K.xyz) * 6.0 - K.www);
+    return c.z * lerp(K.xxx, saturate(p - K.xxx), c.y);
+}
+
+// Turns the colour's hue towards the lamp's, the short way round the wheel,
+// and its saturation towards the lamp's, never below its own, both by the
+// amount; the value is never touched, so a grey haze comes out the lamp's
+// colour, as bright as the grey was, and never darker. The lamp's own
+// brightness scales the amount, since an RGB lamp carries its intensity in
+// its colour, so a lamp that is off, or whose channels are all down, leaves
+// the colour untouched, and a white lamp has no hue to give.
+float3 InsertOpticsTowardsLampHue(float3 color, float3 lamp, float amount)
+{
+    float3 hsv = InsertOpticsRgbToHsv(max(color, 0.0));
+    float3 lampHsv = InsertOpticsRgbToHsv(max(lamp, 0.0));
+    amount = saturate(amount) * saturate(lampHsv.z);
+    float turn = frac(lampHsv.x - hsv.x + 0.5) - 0.5;
+    hsv.x = frac(hsv.x + turn * amount);
+    hsv.y = lerp(hsv.y, max(hsv.y, lampHsv.y), amount);
+    return InsertOpticsHsvToRgb(hsv);
+}
+
 void InsertOptics_float(float3 Position, float3 View, float2 UV,
     UnityTexture2D OpticalNormal, UnityTexture2D Response, UnityTexture2D SurfaceNormal,
     float4 Lamp, float Ior, float Warp, float Scatter, float EdgeGlow, float LampGain,
@@ -62,6 +98,7 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float MottleSize, float Grain, float BulbDefinition, float MinBrightness,
     float3 WorldNormal, float3 WorldTangent, float3 WorldBitangent, float Flatten,
     float Clarity, float3 CavityColor, float CavitySpread, float CavityContrast,
+    float LampTint,
     out float3 BaseColor, out float3 NormalTS, out float3 Emission)
 {
     float3 rawNormal = SAMPLE_TEXTURE2D(OpticalNormal.tex, OpticalNormal.samplerstate, UV).rgb * 2.0 - 1.0;
@@ -144,6 +181,10 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     // body less than it darkens the tinted one.
     float3 clearBody = CavityColor * (0.6 + 0.4 * response.r) * lerp(0.6, cavityView, floorMask);
     BaseColor = lerp(tintedBody, Tint * clearBody, saturate(Clarity)) * finish;
+    // A grey body under a coloured lamp milks its colour. Tinted with the lamp,
+    // the body's hue and saturation turn to the lamp's as far as the lamp is
+    // lit, its value untouched, so nothing of the lamp stays once it is off.
+    BaseColor = InsertOpticsTowardsLampHue(BaseColor, DriveColor, saturate(Level) * saturate(LampTint));
     float4 packedNormal = SAMPLE_TEXTURE2D(SurfaceNormal.tex, SurfaceNormal.samplerstate, UV);
     float3 surface = UnpackNormal(packedNormal);
     float3 shading = normalize(float3(surface.xy * NormalStrength, lerp(1.0, surface.z, saturate(NormalStrength))));
