@@ -60,6 +60,7 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float NormalStrength, float3 Tint, float3 LampColor, float3 DriveColor, float Level,
     float4 Starburst, float Contrast, float Variation, float Seed, float Brightness,
     float MottleSize, float Grain, float BulbDefinition, float MinBrightness,
+    float3 WorldNormal, float3 WorldTangent, float3 WorldBitangent, float Flatten,
     out float3 BaseColor, out float3 NormalTS, out float3 Emission)
 {
     float3 rawNormal = SAMPLE_TEXTURE2D(OpticalNormal.tex, OpticalNormal.samplerstate, UV).rgb * 2.0 - 1.0;
@@ -128,6 +129,16 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     BaseColor = Tint * (0.35 + 0.65 * response.r) * finish * bodyBrightness;
     float4 packedNormal = SAMPLE_TEXTURE2D(SurfaceNormal.tex, SurfaceNormal.samplerstate, UV);
     float3 surface = UnpackNormal(packedNormal);
-    NormalTS = normalize(float3(surface.xy * NormalStrength, lerp(1.0, surface.z, saturate(NormalStrength))));
+    float3 shading = normalize(float3(surface.xy * NormalStrength, lerp(1.0, surface.z, saturate(NormalStrength))));
+    // Room light enters a clear insert through its flat top, and the facets
+    // underneath only redistribute what is already inside. To the lights and
+    // reflection probes the surface is that flat top, so the shading normal is
+    // flattened towards it, written in the frame the tangent-space normal is
+    // read back in. The optical normal that refracts the lamp stays as baked.
+    float3 upWS = TransformObjectToWorldNormal(float3(0.0, 1.0, 0.0));
+    // The interpolated frame need not be orthonormal, so this is the frame's
+    // proper inverse, not three dot products.
+    float3 upTS = TransformWorldToTangent(upWS, float3x3(WorldTangent, WorldBitangent, WorldNormal));
+    NormalTS = normalize(lerp(shading, upTS, saturate(Flatten)) + float3(0.0, 0.0, 1e-5));
 }
 #endif
