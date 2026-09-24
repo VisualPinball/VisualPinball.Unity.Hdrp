@@ -168,7 +168,18 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		private static readonly GUIContent PositionLabel = new("Position (mm)",
 			"Where the virtual lamp sits, in insert space: X across, Y up, so negative is below the top, Z along the length. The bake suggests a start below the middle. Move it sideways to shift the bright patch, lower it for more parallax.");
 		private static readonly GUIContent RadiusLabel = new("Radius (mm)",
-			"Size of the virtual lamp's soft image. Larger softens the moving hotspot; the cavity of a clear insert is measured in this radius too.");
+			"Size of the virtual lamps' soft image, shared by every bulb. Larger softens the moving hotspot; the cavity of a clear insert is measured in this radius too.");
+		private static readonly GUIContent BulbsLabel = new("Bulbs",
+			"How many bulbs light the insert: a banana has its three or four in a row. Each has a position of its own, and on the Insert Light a colour and intensity of its own; the radius, Max Brightness and the emission colour are shared.");
+		private static readonly GUIContent[] BulbLabels = {
+			PositionLabel,
+			new("Bulb 2 (mm)", "Where the second bulb sits, in insert space."),
+			new("Bulb 3 (mm)", "Where the third bulb sits, in insert space."),
+			new("Bulb 4 (mm)", "Where the fourth bulb sits, in insert space."),
+		};
+		private static readonly GUIContent[] BulbCounts = { new("1"), new("2"), new("3"), new("4") };
+		private static readonly int[] BulbCountValues = { 1, 2, 3, 4 };
+		private static readonly string[] LampNames = { "_OpticalLamp", "_OpticalLampB", "_OpticalLampC", "_OpticalLampD" };
 
 		public LampBlock() : base(ExpandableBit.User1, "Lamp") { }
 
@@ -195,10 +206,11 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			var contrast = facets && Above("_OpticalContrast", 0f);
 
 			SubHeader("Virtual Lamp");
-			// With a spread, the lamp's position is where the glow falls off from,
-			// bulb or no bulb.
-			var spread = lit && Above("_OpticalSpread", 0f) && (Above("_OpticalScatter", 0f) || Above("_OpticalEdgeGlow", 0f));
-			using (new EditorGUI.DisabledScope(!(bulb || CavityView || spread))) {
+			// The glow, bulb or no bulb, falls off from the lamps with a spread
+			// and takes its colour from the nearest of several: their places
+			// matter as long as there is a glow at all.
+			var glowing = lit && (Above("_OpticalScatter", 0f) || Above("_OpticalEdgeGlow", 0f));
+			using (new EditorGUI.DisabledScope(!(bulb || CavityView || glowing))) {
 				DrawLamp();
 			}
 			Field("_OpticalLampGain", "Strength",
@@ -248,30 +260,151 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 
 		private void DrawLamp()
 		{
-			var lamp = FindProperty("_OpticalLamp");
-			if (lamp == null) {
+			var lamps = LampNames.Select(name => FindProperty(name)).ToArray();
+			if (lamps[0] == null) {
 				return;
 			}
-			// Shown to a hundredth of a millimetre: the bake leaves float noise
-			// in the metres that would otherwise print as scientific notation.
-			var value = lamp.vectorValue * 1000f;
-			var position = Round(new Vector3(value.x, value.y, value.z));
-			var radius = Round(value.w);
-			// The property scope brings the material variant override, revert
-			// and lock handling that ShaderProperty would have drawn.
-			MaterialEditor.BeginProperty(lamp);
-			EditorGUI.showMixedValue = lamp.hasMixedValue;
+			var materials = lamps[0].targets.OfType<Material>().ToArray();
+			// A bulb is on while it has a radius. A revert or reset can leave a
+			// lower bulb off under a higher one that is on, which the shader
+			// still lights: the lower one is switched back on, so what the
+			// inspector shows is what the shader draws.
+			foreach (var material in materials) {
+				var highest = 0;
+				for (var i = 1; i < lamps.Length; i++) {
+					if (lamps[i] != null && material.GetVector(LampNames[i]).w > 0f) {
+						highest = i;
+					}
+				}
+				for (var i = 1; i < highest; i++) {
+					if (material.GetVector(LampNames[i]).w <= 0f) {
+						SwitchOn(material, i);
+					}
+				}
+			}
+			var count = 1;
+			while (count < lamps.Length && lamps[count] != null && materials.Any(m => m.GetVector(LampNames[count]).w > 0f)) {
+				count++;
+			}
+
+			// The count and the shared radius write several properties: every
+			// one of them is scoped, so a variant reverts them together.
+			for (var i = 0; i < lamps.Length; i++) {
+				if (lamps[i] != null) {
+					MaterialEditor.BeginProperty(lamps[i]);
+				}
+			}
+			EditorGUI.showMixedValue = materials.Length > 1 && materials.Any(m => Count(m, lamps) != count);
 			EditorGUI.BeginChangeCheck();
-			var wide = EditorGUIUtility.wideMode;
-			EditorGUIUtility.wideMode = true;
-			position = EditorGUILayout.Vector3Field(PositionLabel, position);
-			EditorGUIUtility.wideMode = wide;
-			radius = EditorGUILayout.FloatField(RadiusLabel, radius);
+			var wanted = EditorGUILayout.IntPopup(BulbsLabel, count, BulbCounts, BulbCountValues);
 			if (EditorGUI.EndChangeCheck()) {
-				lamp.vectorValue = new Vector4(position.x, position.y, position.z, Mathf.Max(radius, 0.1f)) / 1000f;
+				Undo.RecordObjects(materials, "Change Insert Bulbs");
+				foreach (var material in materials) {
+					for (var i = 1; i < lamps.Length; i++) {
+						if (lamps[i] == null) {
+							continue;
+						}
+						if (i < wanted) {
+							SwitchOn(material, i);
+						} else {
+							// Off keeps its place for when it comes back.
+							var value = material.GetVector(LampNames[i]);
+							value.w = 0f;
+							material.SetVector(LampNames[i], value);
+						}
+					}
+				}
+				count = wanted;
 			}
 			EditorGUI.showMixedValue = false;
-			MaterialEditor.EndProperty();
+			for (var i = lamps.Length - 1; i >= 0; i--) {
+				if (lamps[i] != null) {
+					MaterialEditor.EndProperty();
+				}
+			}
+
+			var wide = EditorGUIUtility.wideMode;
+			EditorGUIUtility.wideMode = true;
+			for (var i = 0; i < count; i++) {
+				var lamp = lamps[i];
+				// Shown to a hundredth of a millimetre: the bake leaves float noise
+				// in the metres that would otherwise print as scientific notation.
+				var value = lamp.vectorValue * 1000f;
+				var position = Round(new Vector3(value.x, value.y, value.z));
+				MaterialEditor.BeginProperty(lamp);
+				EditorGUI.showMixedValue = lamp.hasMixedValue;
+				EditorGUI.BeginChangeCheck();
+				position = EditorGUILayout.Vector3Field(BulbLabels[i], position);
+				if (EditorGUI.EndChangeCheck()) {
+					// Each material keeps its own radius on the bulb.
+					Undo.RecordObjects(materials, "Move Insert Bulb");
+					foreach (var material in materials) {
+						var own = material.GetVector(LampNames[i]);
+						material.SetVector(LampNames[i], new Vector4(position.x, position.y, position.z, Mathf.Max(own.w * 1000f, 0.1f)) / 1000f);
+					}
+				}
+				EditorGUI.showMixedValue = false;
+				MaterialEditor.EndProperty();
+			}
+			EditorGUIUtility.wideMode = wide;
+
+			// One radius for every bulb that is on, kept on the first: each
+			// material's own bulbs get it, their places untouched.
+			for (var i = 0; i < count; i++) {
+				MaterialEditor.BeginProperty(lamps[i]);
+			}
+			var radius = Round(lamps[0].vectorValue.w * 1000f);
+			EditorGUI.showMixedValue = lamps[0].hasMixedValue;
+			EditorGUI.BeginChangeCheck();
+			radius = EditorGUILayout.FloatField(RadiusLabel, radius);
+			if (EditorGUI.EndChangeCheck()) {
+				radius = Mathf.Max(radius, 0.1f) / 1000f;
+				Undo.RecordObjects(materials, "Change Insert Bulb Radius");
+				foreach (var material in materials) {
+					for (var i = 0; i < lamps.Length; i++) {
+						if (lamps[i] == null) {
+							continue;
+						}
+						var value = material.GetVector(LampNames[i]);
+						if (i == 0 || value.w > 0f) {
+							value.w = radius;
+							material.SetVector(LampNames[i], value);
+						}
+					}
+				}
+			}
+			EditorGUI.showMixedValue = false;
+			for (var i = 0; i < count; i++) {
+				MaterialEditor.EndProperty();
+			}
+		}
+
+		/// <summary>How many bulbs the material has on: the first and those with a radius.</summary>
+		private static int Count(Material material, MaterialProperty[] lamps)
+		{
+			var count = 1;
+			while (count < lamps.Length && lamps[count] != null && material.GetVector(LampNames[count]).w > 0f) {
+				count++;
+			}
+			return count;
+		}
+
+		/// <summary>
+		/// Switches a bulb on with the first bulb's radius. A bulb that was on
+		/// before comes back where it was; one never placed starts a couple of
+		/// radii along from the bulb before it.
+		/// </summary>
+		private static void SwitchOn(Material material, int index)
+		{
+			var value = material.GetVector(LampNames[index]);
+			var radius = material.GetVector(LampNames[0]).w;
+			if (value.x == 0f && value.y == 0f && value.z == 0f) {
+				var previous = material.GetVector(LampNames[index - 1]);
+				value = new Vector4(previous.x, previous.y, previous.z + radius * 2.5f, radius);
+			} else {
+				value.w = radius;
+			}
+			material.SetVector(LampNames[index], value);
 		}
 	}
 
