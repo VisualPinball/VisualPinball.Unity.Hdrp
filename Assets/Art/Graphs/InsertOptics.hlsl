@@ -99,7 +99,7 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float MottleSize, float Grain, float BulbDefinition, float MinBrightness,
     float3 WorldNormal, float3 WorldTangent, float3 WorldBitangent, float Flatten,
     float Clarity, float3 CavityColor, float CavitySpread, float CavityContrast,
-    float LampTint,
+    float LampTint, float Spread,
     out float3 BaseColor, out float3 NormalTS, out float3 Emission)
 {
     float3 rawNormal = SAMPLE_TEXTURE2D(OpticalNormal.tex, OpticalNormal.samplerstate, UV).rgb * 2.0 - 1.0;
@@ -158,10 +158,23 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
         * ((direct + 0.17 * bounced) * faceGain + bulb * lerp(1.0, faceGain, 0.25));
     float glow = Scatter * response.r * lerp(1.0, faceGain, floorMask * 0.65)
         + EdgeGlow * response.g * (0.25 + 0.75 * response.r);
+    // Every facet tilted towards the lamp shows its halo, however far from the
+    // lamp it sits, and the baked glow reaches the whole body alike, so raising
+    // the brightness floods the body. A real insert is brightest around its
+    // bulb and dims away from it, the light falling off with the distance it
+    // travels through the plastic: the spread, in millimetres, is the distance
+    // from the lamp at which the lit look has fallen to half, a sixteenth at
+    // twice that and nothing to speak of at three times, steep enough to show
+    // against an emission far above white. Zero leaves it everywhere alike.
+    float leak = 1.0;
+    if (Spread > 0.0) {
+        float2 away = (Position.xz - Lamp.xz) / (Spread * 0.001);
+        leak = exp2(-dot(away, away));
+    }
     // Every term is achromatic until here: RGB lamp events can tint all of it.
     // The material sets full-intensity brightness; ROM events only change the
     // normalized intensity and RGB through the renderer's property block.
-    Emission = max(LampColor, 0.0) * max(DriveColor, 0.0) * saturate(Level) * max(Brightness, 0.0) * (glow + LampGain * transmitted) * finish;
+    Emission = max(LampColor, 0.0) * max(DriveColor, 0.0) * saturate(Level) * max(Brightness, 0.0) * (glow + LampGain * transmitted) * leak * finish;
     // Darken the unlit plastic without keeping the bulb or spill light on.
     // Fade back to the authored albedo as the ROM raises lamp intensity.
     float bodyBrightness = lerp(saturate(MinBrightness), 1.0, saturate(Level));
