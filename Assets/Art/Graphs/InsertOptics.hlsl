@@ -61,6 +61,7 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float4 Starburst, float Contrast, float Variation, float Seed, float Brightness,
     float MottleSize, float Grain, float BulbDefinition, float MinBrightness,
     float3 WorldNormal, float3 WorldTangent, float3 WorldBitangent, float Flatten,
+    float Clarity, float3 CavityColor, float CavitySpread, float CavityContrast,
     out float3 BaseColor, out float3 NormalTS, out float3 Emission)
 {
     float3 rawNormal = SAMPLE_TEXTURE2D(OpticalNormal.tex, OpticalNormal.samplerstate, UV).rgb * 2.0 - 1.0;
@@ -126,7 +127,23 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     // Darken the unlit plastic without keeping the bulb or spill light on.
     // Fade back to the authored albedo as the ROM raises lamp intensity.
     float bodyBrightness = lerp(saturate(MinBrightness), 1.0, saturate(Level));
-    BaseColor = Tint * (0.35 + 0.65 * response.r) * finish * bodyBrightness;
+    float cavity = 0.35 + 0.65 * response.r;
+    float3 tintedBody = Tint * cavity * bodyBrightness;
+    // Clear plastic absorbs nothing: an off clear insert shows the bright lamp
+    // board or reflector under it, lit by room light that came in through the
+    // top, lamp or no lamp. Each face shows the part of that cavity its
+    // refracted view ray lands on, spread wide and kept soft, so the ribs shift
+    // with the view instead of alternating with the lights. The walls and the
+    // channel get their share by internal reflection: the baked irradiance.
+    float spread = radius * max(CavitySpread, 0.1);
+    float2 cavityDelta = (hit - Lamp.xz) / spread;
+    float2 cavityBounce = (reflectedHit - Lamp.xz) / (spread * 1.5);
+    float seen = saturate(exp2(-dot(cavityDelta, cavityDelta)) + 0.3 * exp2(-dot(cavityBounce, cavityBounce)));
+    float cavityView = lerp(1.0, seen, saturate(CavityContrast));
+    // Room light reaches the whole cavity, so its irradiance shapes the clear
+    // body less than it darkens the tinted one.
+    float3 clearBody = CavityColor * (0.6 + 0.4 * response.r) * lerp(0.6, cavityView, floorMask);
+    BaseColor = lerp(tintedBody, Tint * clearBody, saturate(Clarity)) * finish;
     float4 packedNormal = SAMPLE_TEXTURE2D(SurfaceNormal.tex, SurfaceNormal.samplerstate, UV);
     float3 surface = UnpackNormal(packedNormal);
     float3 shading = normalize(float3(surface.xy * NormalStrength, lerp(1.0, surface.z, saturate(NormalStrength))));
