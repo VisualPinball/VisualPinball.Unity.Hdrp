@@ -238,20 +238,30 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				Above("_OpticalGrain", 0f) || (facets && Above("_OpticalVariation", 0f)));
 		}
 
+		private static float Round(float millimetres) => Mathf.Round(millimetres * 100f) / 100f;
+		private static Vector3 Round(Vector3 millimetres) => new(Round(millimetres.x), Round(millimetres.y), Round(millimetres.z));
+
 		private void DrawLamp()
 		{
 			var lamp = FindProperty("_OpticalLamp");
 			if (lamp == null) {
 				return;
 			}
-			var value = lamp.vectorValue;
+			// Shown to a hundredth of a millimetre: the bake leaves float noise
+			// in the metres that would otherwise print as scientific notation.
+			var value = lamp.vectorValue * 1000f;
+			var position = Round(new Vector3(value.x, value.y, value.z));
+			var radius = Round(value.w);
 			// The property scope brings the material variant override, revert
 			// and lock handling that ShaderProperty would have drawn.
 			MaterialEditor.BeginProperty(lamp);
 			EditorGUI.showMixedValue = lamp.hasMixedValue;
 			EditorGUI.BeginChangeCheck();
-			var position = EditorGUILayout.Vector3Field(PositionLabel, new Vector3(value.x, value.y, value.z) * 1000f);
-			var radius = EditorGUILayout.FloatField(RadiusLabel, value.w * 1000f);
+			var wide = EditorGUIUtility.wideMode;
+			EditorGUIUtility.wideMode = true;
+			position = EditorGUILayout.Vector3Field(PositionLabel, position);
+			EditorGUIUtility.wideMode = wide;
+			radius = EditorGUILayout.FloatField(RadiusLabel, radius);
 			if (EditorGUI.EndChangeCheck()) {
 				lamp.vectorValue = new Vector4(position.x, position.y, position.z, Mathf.Max(radius, 0.1f)) / 1000f;
 			}
