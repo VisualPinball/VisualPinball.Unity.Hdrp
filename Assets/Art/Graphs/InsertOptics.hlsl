@@ -237,9 +237,10 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float3 clearBody = CavityColor * (0.6 + 0.4 * response.r) * lerp(0.6, cavityView, floorMask);
     BaseColor = lerp(tintedBody, Tint * clearBody, saturate(Clarity)) * finish;
     // A grey body under a coloured lamp milks its colour. Tinted with the lamp,
-    // the body's hue and saturation turn to the lamp's as far as the lamp is
-    // lit, its value untouched, so nothing of the lamp stays once it is off.
-    BaseColor = InsertOpticsTowardsLampHue(BaseColor, DriveColor, saturate(Level) * saturate(LampTint));
+    // the body's hue and saturation turn to the nearest bulb's, as the glow's
+    // colour is mixed, as far as that is lit, its value untouched, so nothing
+    // of the lamps stays once they are off.
+    BaseColor = InsertOpticsTowardsLampHue(BaseColor, glowDrive, saturate(LampTint));
     float4 packedNormal = SAMPLE_TEXTURE2D(SurfaceNormal.tex, SurfaceNormal.samplerstate, UV);
     float3 surface = UnpackNormal(packedNormal);
     float3 shading = normalize(float3(surface.xy * NormalStrength, lerp(1.0, surface.z, saturate(NormalStrength))));

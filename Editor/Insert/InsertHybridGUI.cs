@@ -206,13 +206,10 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			var contrast = facets && Above("_OpticalContrast", 0f);
 
 			SubHeader("Virtual Lamp");
-			// The glow, bulb or no bulb, falls off from the lamps with a spread
-			// and takes its colour from the nearest of several: their places
-			// matter as long as there is a glow at all.
-			var glowing = lit && (Above("_OpticalScatter", 0f) || Above("_OpticalEdgeGlow", 0f));
-			using (new EditorGUI.DisabledScope(!(bulb || CavityView || glowing))) {
-				DrawLamp();
-			}
+			// The bulbs' places shape the lamp's image, the glow's colour and
+			// fall-off, and where an Insert Light's Tint With Lamp takes each
+			// bulb's colour, lamp or no lamp: they are always live.
+			DrawLamp();
 			Field("_OpticalLampGain", "Strength",
 				"How much of the lit look is the lamp seen through the facets, against the baked glow below. Zero leaves only the glow.",
 				lit);
@@ -226,12 +223,14 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				"Scales the facets' optical tilt without touching the surface reflections. One is the baked geometry; zero makes the lamp a flat glow. Facet Contrast and a clear body's cavity read the same tilt.",
 				bulb || CavityView || contrast);
 
+			// The spread also bounds how far each bulb's colour reaches into
+			// the tint, lamp or no lamp.
+			Field("_OpticalSpread", "Lamp Spread (mm)",
+				"How far from the virtual lamp the lit look reaches before it has fallen to half, and to a sixteenth at twice that: a real insert is brightest around its bulb and dims away from it. Zero lights the whole body alike, which floods it as Max Brightness goes up. An Insert Light's Tint With Lamp takes each bulb's colour as far as this too.");
 			using (new EditorGUI.DisabledScope(!lit)) {
 				SubHeader("Glow");
 				Field("_OpticalScatter", "Baked Scatter",
 					"Broad light scattered through the plastic, from the bake's cavity irradiance. Too much washes out the starburst.");
-				Field("_OpticalSpread", "Lamp Spread (mm)",
-					"How far from the virtual lamp the lit look reaches before it has fallen to half, and to a sixteenth at twice that: a real insert is brightest around its bulb and dims away from it. Zero lights the whole body alike, which floods it as Max Brightness goes up.");
 				Field("_OpticalEdgeGlow", "Edge Glow",
 					"Light caught by rounded edges, rims and hole walls, from the bake's edge mask. Keep it low, or every edge turns into a neon outline.");
 
