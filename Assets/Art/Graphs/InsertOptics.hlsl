@@ -72,9 +72,8 @@ float3 InsertOpticsHsvToRgb(float3 c)
     return c.z * lerp(K.xxx, saturate(p - K.xxx), c.y);
 }
 
-// Turns the colour's hue towards the lamp's, the short way round the wheel,
-// and its saturation towards the lamp's, never below its own, both by the
-// amount; the value is never touched, so a grey haze comes out the lamp's
+// Turns the colour's hue towards the lamp's, and its saturation towards the
+// lamp's, never below its own, both by the amount; the value is never touched, so a grey haze comes out the lamp's
 // colour, as bright as the grey was, and never darker. An RGB lamp carries
 // its intensity in its colour, and a dim lamp is still its colour: the amount
 // is full from a tenth of full brightness up, and only a lamp that is off,
@@ -85,8 +84,15 @@ float3 InsertOpticsTowardsLampHue(float3 color, float3 lamp, float amount)
     float3 hsv = InsertOpticsRgbToHsv(max(color, 0.0));
     float3 lampHsv = InsertOpticsRgbToHsv(max(lamp, 0.0));
     amount = saturate(amount) * saturate(lampHsv.z * 10.0);
+    // The hue turns the short way round the wheel, by the lamp's share of the
+    // saturation the mix ends up with: a grey, which has no hue of its own,
+    // takes the lamp's hue at any amount, its saturation growing with it,
+    // instead of a hue part of the way round the wheel, so a grey haze half
+    // tinted by a blue lamp is a paler blue, never pink; two colours as
+    // saturated as each other turn by the amount itself.
     float turn = frac(lampHsv.x - hsv.x + 0.5) - 0.5;
-    hsv.x = frac(hsv.x + turn * amount);
+    float share = saturate(amount * lampHsv.y / max(lerp(hsv.y, lampHsv.y, amount), 1e-5));
+    hsv.x = frac(hsv.x + turn * share);
     hsv.y = lerp(hsv.y, max(hsv.y, lampHsv.y), amount);
     return InsertOpticsHsvToRgb(hsv);
 }
@@ -222,6 +228,12 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float lit = dot(reach, level);
     float3 chroma = (share.x * driveA + share.y * driveB + share.z * driveC + share.w * driveD) / max(dot(share, level), 1e-6);
     float3 glowDrive = lit * chroma;
+    // How far the bulbs' colour reaches for the tint: as the light does, full
+    // to a tenth of the bulb's own and fading beyond, from a bulb that counts
+    // as on from a tenth of full up, so a bulb fading in tints its whole
+    // reach at once and grows brighter within it, never creeping outwards
+    // from the bulb as the light itself climbs.
+    float tinted = dot(saturate(reach * 10.0), saturate(level * 10.0));
     float seen = saturate(bulbA.y + bulbB.y + bulbC.y + bulbD.y);
     float glow = Scatter * response.r * lerp(1.0, faceGain, floorMask * 0.65)
         + EdgeGlow * response.g * (0.25 + 0.75 * response.r);
@@ -248,7 +260,7 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     // the body's hue and saturation turn to the nearest lit bulb's, as the
     // glow's colour is mixed, as far as its light reaches, its value untouched,
     // so nothing of the lamps stays once they are off.
-    BaseColor = InsertOpticsTowardsLampHue(BaseColor, glowDrive, saturate(LampTint));
+    BaseColor = InsertOpticsTowardsLampHue(BaseColor, chroma, saturate(LampTint) * saturate(tinted));
     float4 packedNormal = SAMPLE_TEXTURE2D(SurfaceNormal.tex, SurfaceNormal.samplerstate, UV);
     float3 surface = UnpackNormal(packedNormal);
     float3 shading = normalize(float3(surface.xy * NormalStrength, lerp(1.0, surface.z, saturate(NormalStrength))));
