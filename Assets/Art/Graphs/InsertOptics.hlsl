@@ -102,7 +102,7 @@ float3 InsertOpticsTowardsLampHue(float3 color, float3 lamp, float amount)
 // (y), and how far the point sits from it for the spread (z, one without a
 // spread). Position and the refracted view ray are in insert space, the lamp
 // its position in metres with its radius in w.
-float3 InsertOpticsBulb(float4 lamp, float3 position, float3 ray, float faceGain, float fresnel,
+float3 InsertOpticsBulb(float4 lamp, float3 position, float3 ray, float faceGain, float fresnel, float exit,
     float responseB, float bulbDefinition, float cavitySpread, float spread)
 {
     float distance = max(position.y - lamp.y, 0.0) / max(-ray.y, 0.12);
@@ -119,15 +119,17 @@ float3 InsertOpticsBulb(float4 lamp, float3 position, float3 ray, float faceGain
     float bounced = exp2(-2.0 * dot(reflectedDelta, reflectedDelta));
     // The tight source image survives even on the less efficient slopes;
     // the broad transmitted component still carries face-to-face contrast.
+    // Both are what the facet lets through, none at all once it traps the
+    // ray; the bounce is what it throws back and stays.
     float transmitted = responseB * (1.0 - 0.65 * fresnel)
-        * ((direct + 0.17 * bounced) * faceGain + bulb * lerp(1.0, faceGain, 0.25));
+        * ((direct * exit + 0.17 * bounced) * faceGain + bulb * exit * lerp(1.0, faceGain, 0.25));
     // Each face shows the part of the cavity its refracted view ray lands on,
     // spread wide and kept soft, so the ribs shift with the view instead of
     // alternating with the lights.
     float wide = radius * max(cavitySpread, 0.1);
     float2 cavityDelta = (hit - lamp.xz) / wide;
     float2 cavityBounce = (reflectedHit - lamp.xz) / (wide * 1.5);
-    float seen = exp2(-dot(cavityDelta, cavityDelta)) + 0.3 * exp2(-dot(cavityBounce, cavityBounce));
+    float seen = exit * exp2(-dot(cavityDelta, cavityDelta)) + 0.3 * exp2(-dot(cavityBounce, cavityBounce));
     // Every facet tilted towards the lamp shows its halo, however far from the
     // lamp it sits, and the baked glow reaches the whole body alike, so raising
     // the brightness floods the body. A real insert is brightest around its
@@ -185,7 +187,31 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     // Optical normal strength is independent of surface reflection strength.
     // Flattening steep walls keeps this deliberately artistic ray pointed down.
     n = normalize(float3(n.x * Warp, max(abs(n.y), 0.25), n.z * Warp));
-    float3 ray = refract(-v, n, rcp(max(Ior, 1.001)));
+    // The view ray enters the plastic through its flat top, bending towards
+    // the vertical, and leaves it through the facet underneath into the air
+    // of the cavity, bending back the other way, the facet a prism, before it
+    // runs on down to the bulb. Traced so, the bulb sits its full depth below
+    // the insert: it shifts against the body by the whole of the depth times
+    // the view's tilt as the eye moves, and each eye of a headset sees it
+    // where its own ray meets it. One refraction with the facet's normal kept
+    // the steeper in-plastic ray all the way down, half the parallax, and bent
+    // it the wrong way round the facet. What the facet lets through falls
+    // with the exit's Fresnel reflectance, to nothing at the critical angle,
+    // where the facet traps the ray, total internal reflection: the sharp
+    // image and the cavity view fade out there instead of jumping, the ray
+    // keeps the in-plastic direction, and the bounce term stands in for it.
+    float eta = max(Ior, 1.001);
+    float3 inside = refract(-v, float3(0.0, 1.0, 0.0), rcp(eta));
+    float3 ray = refract(inside, n, eta);
+    float exit = 0.0;
+    if (dot(ray, ray) > 1e-6) {
+        float cosExit = saturate(dot(ray, -n));
+        float reflectance0 = (eta - 1.0) / (eta + 1.0);
+        reflectance0 *= reflectance0;
+        exit = 1.0 - (reflectance0 + (1.0 - reflectance0) * pow(1.0 - cosExit, 5.0));
+    } else {
+        ray = inside;
+    }
     float facing = saturate(dot(v, n));
     float fresnel = 0.04 + 0.96 * pow(1.0 - facing, 5.0);
     // Opposite slopes couple very differently to the same internal light.
@@ -200,10 +226,10 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     // own spread; the baked glow, one for the whole body, fades with the
     // nearest bulb, and a clear body's face looks onto whichever cavity its
     // ray lands on.
-    float3 bulbA = InsertOpticsBulb(Lamp, Position, ray, faceGain, fresnel, response.b, BulbDefinition, CavitySpread, Spread);
-    float3 bulbB = LampB.w > 0.0 ? InsertOpticsBulb(LampB, Position, ray, faceGain, fresnel, response.b, BulbDefinition, CavitySpread, Spread) : float3(0.0, 0.0, 0.0);
-    float3 bulbC = LampC.w > 0.0 ? InsertOpticsBulb(LampC, Position, ray, faceGain, fresnel, response.b, BulbDefinition, CavitySpread, Spread) : float3(0.0, 0.0, 0.0);
-    float3 bulbD = LampD.w > 0.0 ? InsertOpticsBulb(LampD, Position, ray, faceGain, fresnel, response.b, BulbDefinition, CavitySpread, Spread) : float3(0.0, 0.0, 0.0);
+    float3 bulbA = InsertOpticsBulb(Lamp, Position, ray, faceGain, fresnel, exit, response.b, BulbDefinition, CavitySpread, Spread);
+    float3 bulbB = LampB.w > 0.0 ? InsertOpticsBulb(LampB, Position, ray, faceGain, fresnel, exit, response.b, BulbDefinition, CavitySpread, Spread) : float3(0.0, 0.0, 0.0);
+    float3 bulbC = LampC.w > 0.0 ? InsertOpticsBulb(LampC, Position, ray, faceGain, fresnel, exit, response.b, BulbDefinition, CavitySpread, Spread) : float3(0.0, 0.0, 0.0);
+    float3 bulbD = LampD.w > 0.0 ? InsertOpticsBulb(LampD, Position, ray, faceGain, fresnel, exit, response.b, BulbDefinition, CavitySpread, Spread) : float3(0.0, 0.0, 0.0);
     // Each bulb is driven on its own, the first by the lamp colour and level,
     // the others by a colour with the level in w: its halo carries its own
     // colour, and the baked glow, one for the whole body, is the plain sum of
