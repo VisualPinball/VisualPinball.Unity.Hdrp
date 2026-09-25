@@ -99,11 +99,10 @@ float3 InsertOpticsTowardsLampHue(float3 color, float3 lamp, float amount)
 
 // One virtual bulb's share of a point: the halo and the bulb image its facet
 // shows (x), how much of the cavity under it a clear body's face looks onto
-// (y), how far the point sits from it for the spread (z, one without a
-// spread), and how near the bulb is against the others (w), which decides
-// whose colour the glow here takes. Position and the refracted view ray are
-// in insert space, the lamp its position in metres with its radius in w.
-float4 InsertOpticsBulb(float4 lamp, float3 position, float3 ray, float faceGain, float fresnel,
+// (y), and how far the point sits from it for the spread (z, one without a
+// spread). Position and the refracted view ray are in insert space, the lamp
+// its position in metres with its radius in w.
+float3 InsertOpticsBulb(float4 lamp, float3 position, float3 ray, float faceGain, float fresnel,
     float responseB, float bulbDefinition, float cavitySpread, float spread)
 {
     float distance = max(position.y - lamp.y, 0.0) / max(-ray.y, 0.12);
@@ -143,9 +142,7 @@ float4 InsertOpticsBulb(float4 lamp, float3 position, float3 ray, float faceGain
         float2 away = (position.xz - lamp.xz) / (spread * 0.001);
         leak = rcp(1.0 + dot(away, away));
     }
-    float2 apart = position.xz - lamp.xz;
-    float near = rcp(dot(apart, apart) + radius * radius);
-    return float4(transmitted, seen, leak, near);
+    return float3(transmitted, seen, leak);
 }
 
 void InsertOptics_float(float3 Position, float3 View, float2 UV,
@@ -203,19 +200,19 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     // own spread; the baked glow, one for the whole body, fades with the
     // nearest bulb, and a clear body's face looks onto whichever cavity its
     // ray lands on.
-    float4 bulbA = InsertOpticsBulb(Lamp, Position, ray, faceGain, fresnel, response.b, BulbDefinition, CavitySpread, Spread);
-    float4 bulbB = LampB.w > 0.0 ? InsertOpticsBulb(LampB, Position, ray, faceGain, fresnel, response.b, BulbDefinition, CavitySpread, Spread) : float4(0.0, 0.0, 0.0, 0.0);
-    float4 bulbC = LampC.w > 0.0 ? InsertOpticsBulb(LampC, Position, ray, faceGain, fresnel, response.b, BulbDefinition, CavitySpread, Spread) : float4(0.0, 0.0, 0.0, 0.0);
-    float4 bulbD = LampD.w > 0.0 ? InsertOpticsBulb(LampD, Position, ray, faceGain, fresnel, response.b, BulbDefinition, CavitySpread, Spread) : float4(0.0, 0.0, 0.0, 0.0);
+    float3 bulbA = InsertOpticsBulb(Lamp, Position, ray, faceGain, fresnel, response.b, BulbDefinition, CavitySpread, Spread);
+    float3 bulbB = LampB.w > 0.0 ? InsertOpticsBulb(LampB, Position, ray, faceGain, fresnel, response.b, BulbDefinition, CavitySpread, Spread) : float3(0.0, 0.0, 0.0);
+    float3 bulbC = LampC.w > 0.0 ? InsertOpticsBulb(LampC, Position, ray, faceGain, fresnel, response.b, BulbDefinition, CavitySpread, Spread) : float3(0.0, 0.0, 0.0);
+    float3 bulbD = LampD.w > 0.0 ? InsertOpticsBulb(LampD, Position, ray, faceGain, fresnel, response.b, BulbDefinition, CavitySpread, Spread) : float3(0.0, 0.0, 0.0);
     // Each bulb is driven on its own, the first by the lamp colour and level,
     // the others by a colour with the level in w: its halo carries its own
-    // colour, and the baked glow, one for the whole body, is lit by every bulb
-    // that is on, each reaching as far as its spread lets it, so one bulb of
-    // a banana lights its end and fades along the body, undimmed by the bulbs
-    // beside it that are off, and two bulbs on add up where they meet. The
-    // glow's colour is the nearest lit bulb's, the others blending in by the
-    // inverse square of their distance, so a red bulb at one end and a green
-    // one at the other glow red and green with a mix only between them.
+    // colour, and the baked glow, one for the whole body, is the plain sum of
+    // every bulb's light, each reaching as far as its spread lets it, colour
+    // and all. So one bulb of a banana lights its end and fades along the
+    // body, undimmed by the bulbs beside it that are off, two bulbs on add up
+    // where they meet, and a bulb fading in colours every point it reaches in
+    // proportion to its level, from the first glimmer on, instead of its
+    // colour creeping in from the bulb once it is bright enough to win.
     float3 driveA = max(DriveColor, 0.0) * saturate(Level);
     float3 driveB = max(DriveB.rgb, 0.0) * saturate(DriveB.w);
     float3 driveC = max(DriveC.rgb, 0.0) * saturate(DriveC.w);
@@ -224,10 +221,9 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float4 level = float4(max(driveA.r, max(driveA.g, driveA.b)), max(driveB.r, max(driveB.g, driveB.b)),
         max(driveC.r, max(driveC.g, driveC.b)), max(driveD.r, max(driveD.g, driveD.b)));
     float4 reach = float4(bulbA.z, bulbB.z, bulbC.z, bulbD.z);
-    float4 share = reach * float4(bulbA.w, bulbB.w, bulbC.w, bulbD.w);
-    float lit = dot(reach, level);
-    float3 chroma = (share.x * driveA + share.y * driveB + share.z * driveC + share.w * driveD) / max(dot(share, level), 1e-6);
-    float3 glowDrive = lit * chroma;
+    float3 glowDrive = reach.x * driveA + reach.y * driveB + reach.z * driveC + reach.w * driveD;
+    // The light's colour at unit level, for the tint's hue.
+    float3 chroma = glowDrive / max(dot(reach, level), 1e-6);
     // How far the bulbs' colour reaches for the tint: as the light does, full
     // to a tenth of the bulb's own and fading beyond, from a bulb that counts
     // as on from a tenth of full up, so a bulb fading in tints its whole
@@ -257,9 +253,9 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float3 clearBody = CavityColor * (0.6 + 0.4 * response.r) * lerp(0.6, cavityView, floorMask);
     BaseColor = lerp(tintedBody, Tint * clearBody, saturate(Clarity)) * finish;
     // A grey body under a coloured lamp milks its colour. Tinted with the lamp,
-    // the body's hue and saturation turn to the nearest lit bulb's, as the
-    // glow's colour is mixed, as far as its light reaches, its value untouched,
-    // so nothing of the lamps stays once they are off.
+    // the body's hue and saturation turn to the light's, the bulbs' colours
+    // summed as the glow sums them, as far as their light reaches, its value
+    // untouched, so nothing of the lamps stays once they are off.
     BaseColor = InsertOpticsTowardsLampHue(BaseColor, chroma, saturate(LampTint) * saturate(tinted));
     float4 packedNormal = SAMPLE_TEXTURE2D(SurfaceNormal.tex, SurfaceNormal.samplerstate, UV);
     float3 surface = UnpackNormal(packedNormal);
