@@ -45,10 +45,13 @@ float3 InsertCoverTowardsLampHue(float3 color, float3 lamp, float amount)
     return InsertCoverHsvToRgb(hsv);
 }
 
-// The bulb nearest a point gives it its colour, the others blending in by
-// the inverse square of their distance, the same mix the body's glow takes.
-// Each lamp is a position in insert space with its radius in w, off at zero;
-// each drive a linear colour with the level in w, the first split in two.
+// The light the bulbs send to a point, the same the body's glow takes: every
+// lit bulb reaches it by the inverse square of the distance over its spread,
+// bulbs that are off adding nothing and taking nothing away, and the colour
+// is the nearest lit bulb's, the others blending in by the inverse square of
+// their distance. Each lamp is a position in insert space with its radius in
+// w, off at zero; each drive a linear colour with the level in w, the first
+// split in two.
 float3 InsertCoverLampMix(float2 position, float4 lampA, float4 lampB, float4 lampC, float4 lampD,
     float3 colorA, float levelA, float4 driveB, float4 driveC, float4 driveD, float spread)
 {
@@ -57,6 +60,7 @@ float3 InsertCoverLampMix(float2 position, float4 lampA, float4 lampB, float4 la
         max(driveC.rgb, 0.0) * saturate(driveC.w), max(driveD.rgb, 0.0) * saturate(driveD.w) };
     float3 mixed = 0.0;
     float weight = 0.0;
+    float lit = 0.0;
     [unroll]
     for (int i = 0; i < 4; i++) {
         if (i > 0 && lamps[i].w <= 0.0) continue;
@@ -67,13 +71,15 @@ float3 InsertCoverLampMix(float2 position, float4 lampA, float4 lampB, float4 la
         float leak = 1.0;
         if (spread > 0.0) {
             float2 away = apart / (spread * 0.001);
-            leak = exp2(-dot(away, away));
+            leak = rcp(1.0 + dot(away, away));
         }
+        float level = max(drives[i].r, max(drives[i].g, drives[i].b));
         float near = leak * rcp(dot(apart, apart) + radius * radius);
         mixed += near * drives[i];
-        weight += near;
+        weight += near * level;
+        lit += leak * level;
     }
-    return mixed / max(weight, 1e-6);
+    return lit * mixed / max(weight, 1e-6);
 }
 
 void InsertCover_float(float2 UV, UnityTexture2D NormalMap, float PlayfieldStrength,
@@ -90,11 +96,11 @@ void InsertCover_float(float2 UV, UnityTexture2D NormalMap, float PlayfieldStren
     NormalTS = normalize(float3(normal.xy * max(PlayfieldStrength * Strength, 0.0), normal.z));
     SurfaceSmoothness = saturate(Smoothness);
     Alpha = saturate(Opacity);
-    // The haze's hue and saturation turn to the nearest bulb's, as far as the
-    // insert light asks and that bulb is lit, its value untouched, so a
-    // coloured lamp is not milked by a grey veil, a banana lit red, green and
-    // blue along its length is hazed red, green and blue, and lamps that are
-    // off leave the haze its own colour, as bright as ever.
+    // The haze's hue and saturation turn to the nearest lit bulb's, as far as
+    // the insert light asks and that bulb's light reaches, its value
+    // untouched, so a coloured lamp is not milked by a grey veil, a banana lit
+    // red, green and blue along its length is hazed red, green and blue, and
+    // lamps that are off leave the haze its own colour, as bright as ever.
     float3 mixed = InsertCoverLampMix(Position.xz, LampA, LampB, LampC, LampD, LampColor, LampLevel, DriveB, DriveC, DriveD, Spread);
     BaseColor = InsertCoverTowardsLampHue(max(HazeColor, 0.0), mixed, saturate(LampTint));
 }
