@@ -126,15 +126,16 @@ float4 InsertOpticsBulb(float4 lamp, float3 position, float3 ray, float faceGain
     // Every facet tilted towards the lamp shows its halo, however far from the
     // lamp it sits, and the baked glow reaches the whole body alike, so raising
     // the brightness floods the body. A real insert is brightest around its
-    // bulb and dims away from it, the light falling off with the distance it
-    // travels through the plastic: the spread, in millimetres, is the distance
-    // from the lamp at which the lit look has fallen to half, a sixteenth at
-    // twice that and nothing to speak of at three times, steep enough to show
-    // against an emission far above white. Zero leaves it everywhere alike.
+    // bulb and dims away from it, the light spreading out from the bulb as
+    // from a point, by the inverse square of the distance: the spread, in
+    // millimetres, is the distance from the lamp at which the lit look has
+    // fallen to half, a fifth at twice that and a tenth at three times, a long
+    // reach so that one bulb of a banana still shows at its far end and two
+    // bulbs meet in a soft blend, never a seam. Zero leaves it everywhere alike.
     float leak = 1.0;
     if (spread > 0.0) {
         float2 away = (position.xz - lamp.xz) / (spread * 0.001);
-        leak = exp2(-dot(away, away));
+        leak = rcp(1.0 + dot(away, away));
     }
     float2 apart = position.xz - lamp.xz;
     float near = rcp(dot(apart, apart) + radius * radius);
@@ -202,25 +203,32 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float4 bulbD = LampD.w > 0.0 ? InsertOpticsBulb(LampD, Position, ray, faceGain, fresnel, response.b, BulbDefinition, CavitySpread, Spread) : float4(0.0, 0.0, 0.0, 0.0);
     // Each bulb is driven on its own, the first by the lamp colour and level,
     // the others by a colour with the level in w: its halo carries its own
-    // colour, and the baked glow, one for the whole body, takes at each point
-    // the colour of the nearest bulb, the others blending in by the inverse
-    // square of their distance, so a red bulb at one end and a green one at
-    // the other glow red and green with a mix only between them.
+    // colour, and the baked glow, one for the whole body, is lit by every bulb
+    // that is on, each reaching as far as its spread lets it, so one bulb of
+    // a banana lights its end and fades along the body, undimmed by the bulbs
+    // beside it that are off, and two bulbs on add up where they meet. The
+    // glow's colour is the nearest lit bulb's, the others blending in by the
+    // inverse square of their distance, so a red bulb at one end and a green
+    // one at the other glow red and green with a mix only between them.
     float3 driveA = max(DriveColor, 0.0) * saturate(Level);
     float3 driveB = max(DriveB.rgb, 0.0) * saturate(DriveB.w);
     float3 driveC = max(DriveC.rgb, 0.0) * saturate(DriveC.w);
     float3 driveD = max(DriveD.rgb, 0.0) * saturate(DriveD.w);
     float3 transmitted = bulbA.x * bulbA.z * driveA + bulbB.x * bulbB.z * driveB + bulbC.x * bulbC.z * driveC + bulbD.x * bulbD.z * driveD;
-    float4 share = float4(bulbA.z * bulbA.w, bulbB.z * bulbB.w, bulbC.z * bulbC.w, bulbD.z * bulbD.w);
-    float3 glowDrive = (share.x * driveA + share.y * driveB + share.z * driveC + share.w * driveD) / max(share.x + share.y + share.z + share.w, 1e-6);
-    float leak = max(max(bulbA.z, bulbB.z), max(bulbC.z, bulbD.z));
+    float4 level = float4(max(driveA.r, max(driveA.g, driveA.b)), max(driveB.r, max(driveB.g, driveB.b)),
+        max(driveC.r, max(driveC.g, driveC.b)), max(driveD.r, max(driveD.g, driveD.b)));
+    float4 reach = float4(bulbA.z, bulbB.z, bulbC.z, bulbD.z);
+    float4 share = reach * float4(bulbA.w, bulbB.w, bulbC.w, bulbD.w);
+    float lit = dot(reach, level);
+    float3 chroma = (share.x * driveA + share.y * driveB + share.z * driveC + share.w * driveD) / max(dot(share, level), 1e-6);
+    float3 glowDrive = lit * chroma;
     float seen = saturate(bulbA.y + bulbB.y + bulbC.y + bulbD.y);
     float glow = Scatter * response.r * lerp(1.0, faceGain, floorMask * 0.65)
         + EdgeGlow * response.g * (0.25 + 0.75 * response.r);
     // The material sets full-intensity brightness and its emission colour; ROM
     // events only change each bulb's normalized level and RGB through the
     // renderer's property block.
-    Emission = max(LampColor, 0.0) * max(Brightness, 0.0) * (glow * leak * glowDrive + LampGain * transmitted) * finish;
+    Emission = max(LampColor, 0.0) * max(Brightness, 0.0) * (glow * glowDrive + LampGain * transmitted) * finish;
     // Darken the unlit plastic without keeping the bulb or spill light on.
     // Fade back to the authored albedo as the ROM raises lamp intensity.
     float bodyBrightness = lerp(saturate(MinBrightness), 1.0, saturate(Level));
@@ -237,9 +245,9 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float3 clearBody = CavityColor * (0.6 + 0.4 * response.r) * lerp(0.6, cavityView, floorMask);
     BaseColor = lerp(tintedBody, Tint * clearBody, saturate(Clarity)) * finish;
     // A grey body under a coloured lamp milks its colour. Tinted with the lamp,
-    // the body's hue and saturation turn to the nearest bulb's, as the glow's
-    // colour is mixed, as far as that is lit, its value untouched, so nothing
-    // of the lamps stays once they are off.
+    // the body's hue and saturation turn to the nearest lit bulb's, as the
+    // glow's colour is mixed, as far as its light reaches, its value untouched,
+    // so nothing of the lamps stays once they are off.
     BaseColor = InsertOpticsTowardsLampHue(BaseColor, glowDrive, saturate(LampTint));
     float4 packedNormal = SAMPLE_TEXTURE2D(SurfaceNormal.tex, SurfaceNormal.samplerstate, UV);
     float3 surface = UnpackNormal(packedNormal);

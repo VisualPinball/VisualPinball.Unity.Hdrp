@@ -226,7 +226,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			// The spread also bounds how far each bulb's colour reaches into
 			// the tint, lamp or no lamp.
 			Field("_OpticalSpread", "Lamp Spread (mm)",
-				"How far from the virtual lamp the lit look reaches before it has fallen to half, and to a sixteenth at twice that: a real insert is brightest around its bulb and dims away from it. Zero lights the whole body alike, which floods it as Max Brightness goes up. An Insert Light's Tint With Lamp takes each bulb's colour as far as this too.");
+				"How far from each virtual bulb the lit look reaches before it has fallen to half, to a fifth at twice that and a tenth at three times: a real insert is brightest around its bulb and dims away from it, and a banana's bulbs meet in a soft blend. Zero lights the whole body alike, which floods it as Max Brightness goes up. An Insert Light's Tint With Lamp takes each bulb's colour as far as this too.");
 			using (new EditorGUI.DisabledScope(!lit)) {
 				SubHeader("Glow");
 				Field("_OpticalScatter", "Baked Scatter",
