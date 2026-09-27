@@ -109,45 +109,10 @@ MonoBehaviour:
     Float: 17.2
     Color: {r: 0, g: 0, b: 0, a: 0}
     Vector: {x: 0, y: 0, z: 0, w: 0}
-  - Name: _BaseColor
-    Kind: 1
-    Float: 0
-    Color: {r: 1, g: 0, b: 0, a: 1}
-    Vector: {x: 0, y: 0, z: 0, w: 0}
-  - Name: _InsertCavityColor
-    Kind: 1
-    Float: 0
-    Color: {r: 0.9, g: 0.9, b: 0.9, a: 1}
-    Vector: {x: 0, y: 0, z: 0, w: 0}
-  - Name: _EmissiveColor
-    Kind: 1
-    Float: 0
-    Color: {r: 1024, g: 0, b: 0, a: 1}
-    Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _Smoothness
     Kind: 0
     Float: 0.65
     Color: {r: 0, g: 0, b: 0, a: 0}
     Vector: {x: 0, y: 0, z: 0, w: 0}
-  CoverShader: Visual Pinball/Insert Cover
-  Cover:
-  - Name: _CoverNormalStrength
-    Kind: 0
-    Float: 1
-    Color: {r: 0, g: 0, b: 0, a: 0}
-    Vector: {x: 0, y: 0, z: 0, w: 0}
-  - Name: _Smoothness
-    Kind: 0
-    Float: 0.8509804
-    Color: {r: 0, g: 0, b: 0, a: 0}
-    Vector: {x: 0, y: 0, z: 0, w: 0}
-  - Name: _CoverOpacity
-    Kind: 0
-    Float: 0.365
-    Color: {r: 0, g: 0, b: 0, a: 0}
-    Vector: {x: 0, y: 0, z: 0, w: 0}
-  - Name: _HazeColor
-    Kind: 1
-    Float: 0
-    Color: {r: 0.8221023, g: 0, b: 0, a: 1}
-    Vector: {x: 0, y: 0, z: 0, w: 0}
+  CoverShader:
+  Cover: []
