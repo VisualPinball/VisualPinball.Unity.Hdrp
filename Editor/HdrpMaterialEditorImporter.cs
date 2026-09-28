@@ -60,13 +60,28 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				litTranslucentThinTemplate: NewLitTemplate("VpeImportLitTranslucent"),
 				fabricSilkTemplate: NewFabricSilkTemplate(),
 				decalTemplate: NewDecalTemplate(),
-				materialOverrides: FindShaderGraphTemplates(payload));
+				materialOverrides: FindShaderGraphTemplates(payload),
+				insertHybridTemplate: NewInsertTemplate("Visual Pinball/Insert Hybrid"),
+				insertCoverTemplate: NewInsertTemplate("Visual Pinball/Insert Cover"));
 
 			var provider = new AssetTextureProvider(texturesById);
 			var profilesByName = new Dictionary<string, VpeMaterialProfile>(StringComparer.Ordinal);
+			var profilesById = new Dictionary<string, VpeMaterialProfile>(StringComparer.Ordinal);
 			foreach (var profile in payload.Profiles) {
 				if (profile != null && !string.IsNullOrWhiteSpace(profile.Name)) {
 					profilesByName[VpeMaterialNameUtil.NormalizeMaterialName(profile.Name)] = profile;
+				}
+				if (profile != null && !string.IsNullOrEmpty(profile.Id)) { profilesById[profile.Id] = profile; }
+			}
+			var profilesBySlot = new Dictionary<(Renderer, int), VpeMaterialProfile>();
+			if (payload.Bindings != null) {
+				foreach (var binding in payload.Bindings) {
+					if (binding == null || string.IsNullOrEmpty(binding.ProfileId)
+						|| !profilesById.TryGetValue(binding.ProfileId, out var profile)) { continue; }
+					var node = resolveNode?.Invoke(binding.NodeId);
+					if (node && node.TryGetComponent<Renderer>(out var renderer)) {
+						profilesBySlot[(renderer, binding.Slot)] = profile;
+					}
 				}
 			}
 
@@ -84,14 +99,15 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 						continue;
 					}
 					var key = VpeMaterialNameUtil.NormalizeMaterialName(imported.name);
-					if (!profilesByName.TryGetValue(key, out var profile)) {
+					if (!profilesBySlot.TryGetValue((renderer, i), out var profile)
+						&& !profilesByName.TryGetValue(key, out profile)) {
 						continue;
 					}
 
 					if (!materialsByProfile.TryGetValue(profile, out var material)) {
 						material = resolver.CreateMaterial(profile, provider, imported);
 						if (material) {
-							var assetPath = $"{materialAssetFolder}/{SanitizeFileName(profile.Name)}.mat";
+							var assetPath = $"{materialAssetFolder}/{SanitizeFileName(profile.Name)}-{SanitizeFileName(profile.Id ?? "material")}.mat";
 							AssetDatabase.CreateAsset(material, assetPath);
 						}
 						materialsByProfile[profile] = material;
@@ -126,6 +142,12 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		{
 			var shader = Shader.Find("HDRP/Lit");
 			return shader ? new Material(shader) { name = name } : null;
+		}
+
+		private static Material NewInsertTemplate(string shaderName)
+		{
+			var shader = Shader.Find(shaderName);
+			return shader ? new Material(shader) { name = $"VpeImport{shaderName.Split('/')[1]}" } : null;
 		}
 
 		private static Material NewDecalTemplate()
