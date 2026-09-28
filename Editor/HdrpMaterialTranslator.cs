@@ -100,6 +100,30 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				}
 			}
 
+			// Bake assets can refer to a material or texture that is no longer worn by the
+			// renderer. Keep those dependencies available to the editor-only insert sidecar.
+			var runtimeTextures = new HashSet<Texture2D>(ctx.CapturedTextures);
+			var exportedRenderers = new HashSet<Renderer>(rendererList);
+			if (tableRoot) {
+				foreach (var insert in tableRoot.GetComponentsInChildren<InsertComponent>(true)) {
+					if (!exportedRenderers.Contains(insert.GetComponent<MeshRenderer>())) { continue; }
+					foreach (var material in new[] { insert.PreBakeMaterial, insert.Bake?.Material }) {
+						if (!material || profiles.ContainsKey(material)) { continue; }
+						var profile = TranslateMaterial(material, ctx);
+						if (profile == null) { continue; }
+						profile.Name = NormalizeMaterialName(material.name);
+						profile.Id = $"material-{profiles.Count + 1}";
+						profiles.Add(material, profile);
+					}
+					var bake = insert.Bake;
+					if (bake == null) { continue; }
+					ctx.CaptureEditorTexture(bake.NormalMap, VpeColorSpaces.Linear);
+					ctx.CaptureEditorTexture(bake.OpticalNormalMap, VpeColorSpaces.Linear, true);
+					ctx.CaptureEditorTexture(bake.OpticalResponseMap, VpeColorSpaces.Linear, true);
+				}
+			}
+			ctx.MarkEditorOnlyTextures(runtimeTextures);
+
 			var payload = new VpeMaterialsPayload {
 				FormatVersion = VpeMaterialSchema.Version,
 				WrittenBy = "HdrpMaterialTranslator",
@@ -109,7 +133,8 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				RendererStates = rendererStates.ToArray(),
 			};
 			ctx.LogUnsupportedMaterialsSummary();
-			return new VpeMaterialCaptureResult(payload, ctx.BlobSources);
+			return new VpeMaterialCaptureResult(payload, ctx.BlobSources,
+				profiles.ToDictionary(pair => pair.Key, pair => pair.Value.Id), ctx.TextureIdsByTexture);
 		}
 
 		public static IDisposable PrepareGltfExport(IEnumerable<Renderer> renderers)
@@ -1035,6 +1060,24 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			private readonly Dictionary<string, UnsupportedShaderUsage> _unsupportedShaders = new(StringComparer.Ordinal);
 
 			public IReadOnlyList<VpeTextureBlobSource> BlobSources => _blobSources;
+			public IEnumerable<Texture2D> CapturedTextures => _assetsByTexture.Keys;
+			public IReadOnlyDictionary<Texture2D, string> TextureIdsByTexture =>
+				_assetsByTexture.ToDictionary(pair => pair.Key, pair => pair.Value.Id);
+
+			public void MarkEditorOnlyTextures(HashSet<Texture2D> runtimeTextures)
+			{
+				foreach (var pair in _assetsByTexture) {
+					pair.Value.EditorOnly = !runtimeTextures.Contains(pair.Key);
+				}
+			}
+
+			public string CaptureEditorTexture(Texture2D texture, string colorSpace, bool forceUncompressed = false)
+			{
+				if (!texture) { return null; }
+				var asset = GetOrCaptureAsset(texture, colorSpace);
+				if (forceUncompressed) { RequireUncompressed(texture); }
+				return asset?.Id;
+			}
 
 			public VpeTexture[] BuildTextureAssets()
 			{

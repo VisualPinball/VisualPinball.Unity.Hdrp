@@ -35,7 +35,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 	{
 		private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
 
-		public int Apply(
+		public VpeMaterialImportResult Apply(
 			Transform tableRoot,
 			VpeMaterialsPayload payload,
 			IReadOnlyDictionary<string, Texture2D> texturesById,
@@ -43,7 +43,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			Func<string, Transform> resolveNode)
 		{
 			if (!tableRoot || payload?.Profiles == null) {
-				return 0;
+				return new VpeMaterialImportResult();
 			}
 
 			// The imported textures are real Unity assets: normal maps come back as proper
@@ -67,8 +67,13 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			var provider = new AssetTextureProvider(texturesById);
 			var profilesByName = new Dictionary<string, VpeMaterialProfile>(StringComparer.Ordinal);
 			var profilesById = new Dictionary<string, VpeMaterialProfile>(StringComparer.Ordinal);
+			var boundIds = new HashSet<string>(StringComparer.Ordinal);
+			foreach (var binding in payload.Bindings ?? Array.Empty<VpeMaterialBinding>()) {
+				if (!string.IsNullOrEmpty(binding?.ProfileId)) { boundIds.Add(binding.ProfileId); }
+			}
 			foreach (var profile in payload.Profiles) {
-				if (profile != null && !string.IsNullOrWhiteSpace(profile.Name)) {
+				if (profile != null && !string.IsNullOrWhiteSpace(profile.Name)
+					&& (boundIds.Count == 0 || boundIds.Contains(profile.Id))) {
 					profilesByName[VpeMaterialNameUtil.NormalizeMaterialName(profile.Name)] = profile;
 				}
 				if (profile != null && !string.IsNullOrEmpty(profile.Id)) { profilesById[profile.Id] = profile; }
@@ -86,6 +91,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			}
 
 			var materialsByProfile = new Dictionary<VpeMaterialProfile, Material>();
+			var materialsById = new Dictionary<string, Material>(StringComparer.Ordinal);
 			var appliedSlots = 0;
 			foreach (var renderer in tableRoot.GetComponentsInChildren<Renderer>(true)) {
 				if (!renderer) {
@@ -107,8 +113,9 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					if (!materialsByProfile.TryGetValue(profile, out var material)) {
 						material = resolver.CreateMaterial(profile, provider, imported);
 						if (material) {
-							var assetPath = $"{materialAssetFolder}/{SanitizeFileName(profile.Name)}-{SanitizeFileName(profile.Id ?? "material")}.mat";
+							var assetPath = $"{materialAssetFolder}/{SanitizeFileName(profile.Name ?? "Material")}-{SanitizeFileName(profile.Id ?? "material")}.mat";
 							AssetDatabase.CreateAsset(material, assetPath);
+							if (!string.IsNullOrEmpty(profile.Id)) { materialsById[profile.Id] = material; }
 						}
 						materialsByProfile[profile] = material;
 					}
@@ -124,10 +131,20 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					renderer.sharedMaterials = materials;
 				}
 			}
+			// The editor sidecar can reference a pre-bake or bake-preview material that is
+			// no longer assigned to a renderer. Persist those profiles as assets too.
+			foreach (var profile in payload.Profiles) {
+				if (profile == null || materialsByProfile.ContainsKey(profile)) { continue; }
+				var material = resolver.CreateMaterial(profile, provider, null);
+				if (!material) { continue; }
+				var assetPath = $"{materialAssetFolder}/{SanitizeFileName(profile.Name ?? "Material")}-{SanitizeFileName(profile.Id ?? "material")}.mat";
+				AssetDatabase.CreateAsset(material, assetPath);
+				if (!string.IsNullOrEmpty(profile.Id)) { materialsById[profile.Id] = material; }
+			}
 
 			ApplyRendererStates(tableRoot, payload, resolveNode);
 			AssetDatabase.SaveAssets();
-			return appliedSlots;
+			return new VpeMaterialImportResult { AppliedSlots = appliedSlots, MaterialsById = materialsById };
 		}
 
 		private static void SetAssetNormalPacking(VpeNormalMapRef normalMap)
