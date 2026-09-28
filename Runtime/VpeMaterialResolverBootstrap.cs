@@ -33,6 +33,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		private const string LitTranslucentSphereTemplatePath = "Materials/VpeLitTranslucentSphereTemplate";
 		private const string FabricSilkTemplatePath = "Materials/VpeLitFabricSilkTemplate";
 		private const string DecalTemplatePath = "Materials/VpeDecalTemplate";
+		private const string InsertHybridTemplatePath = "Materials/VpeInsertHybridTemplate";
+		private const string InsertCoverTemplatePath = "Materials/VpeInsertCoverTemplate";
 		private const string MetalScratchedOverridePath = "Materials/VpeMeasured/MetalScratched";
 		private const string RubberDirtWhiteOverridePath = "Materials/VpeMeasured/RubberDirt White";
 		private const string DotMatrixDisplayOverridePath = "Materials/VpeMeasured/Dot Matrix Display (SRP)";
@@ -49,6 +51,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			var litTranslucentSphere = UnityEngine.Resources.Load<Material>(LitTranslucentSphereTemplatePath);
 			var fabricSilk = UnityEngine.Resources.Load<Material>(FabricSilkTemplatePath);
 			var decalTemplate = UnityEngine.Resources.Load<Material>(DecalTemplatePath);
+			var insertHybrid = UnityEngine.Resources.Load<Material>(InsertHybridTemplatePath);
+			var insertCover = UnityEngine.Resources.Load<Material>(InsertCoverTemplatePath);
 			var materialOverrides = new Dictionary<string, Material>(System.StringComparer.Ordinal);
 			RegisterMaterialOverride(materialOverrides, "MetalScratched", MetalScratchedOverridePath);
 			RegisterMaterialOverride(materialOverrides, "RubberDirt White", RubberDirtWhiteOverridePath);
@@ -89,6 +93,12 @@ namespace VisualPinball.Engine.Unity.Hdrp
 					$"VpeMaterialResolverBootstrap: could not load '{DecalTemplatePath}' from Resources. " +
 					"vpe.decal profiles will fall back to glTF-imported materials.");
 			}
+			if (!insertHybrid) {
+				Debug.LogWarning($"VpeMaterialResolverBootstrap: could not load '{InsertHybridTemplatePath}' from Resources. Insert bodies will use their glTF materials.");
+			}
+			if (!insertCover) {
+				Debug.LogWarning($"VpeMaterialResolverBootstrap: could not load '{InsertCoverTemplatePath}' from Resources. Insert covers will use their glTF materials.");
+			}
 			Debug.Log(
 				$"VpeMaterialResolverBootstrap: templates loaded. " +
 				$"opaque={litOpaque.name}, " +
@@ -97,7 +107,9 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				$"translucent-planar={(litTranslucentPlanar ? litTranslucentPlanar.name : "<missing>")}, " +
 				$"translucent-sphere={(litTranslucentSphere ? litTranslucentSphere.name : "<missing>")}, " +
 				$"fabric-silk={(fabricSilk ? fabricSilk.name : "<missing>")}, " +
-				$"decal={(decalTemplate ? decalTemplate.name : "<missing>")}.");
+				$"decal={(decalTemplate ? decalTemplate.name : "<missing>")}, " +
+				$"insert-hybrid={(insertHybrid ? insertHybrid.name : "<missing>")}, " +
+				$"insert-cover={(insertCover ? insertCover.name : "<missing>")}.");
 			VpeMaterialResolver.Register(new HdrpMaterialResolver(
 				litOpaque,
 				litTransparent,
@@ -106,7 +118,9 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				litTranslucentSphere,
 				fabricSilk,
 				decalTemplate,
-				materialOverrides
+				materialOverrides,
+				insertHybrid,
+				insertCover
 			));
 		}
 
