@@ -21,6 +21,7 @@ using System.Linq;
 using NLog;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering;
 using VisualPinball.Unity;
 using VisualPinball.Unity.Editor;
 using Logger = NLog.Logger;
@@ -41,6 +42,8 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		private const string HdrpFabricShaderPrefix = "HDRP/Fabric/";
 		private const string HdrpDecalShaderName = "HDRP/Decal";
 		private const string HdrpUnlitShaderName = "HDRP/Unlit";
+		private const string InsertHybridShaderName = "Visual Pinball/Insert Hybrid";
+		private const string InsertCoverShaderName = "Visual Pinball/Insert Cover";
 		private const string VpeMetalShaderGraphPathSuffix = "/Assets/Resources/Graphs/Metal.shadergraph";
 		private const string VpeRubberShaderGraphPathSuffix = "/Assets/Resources/Graphs/Rubber.shadergraph";
 		private const string VpeDmdShaderGraphPathSuffix = "/Assets/Shaders/Srp/Display/DotMatrixDisplayGraph.shadergraph";
@@ -60,7 +63,8 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 
 		public static VpeMaterialCaptureResult Capture(Transform tableRoot, IEnumerable<Renderer> renderers, Func<Transform, string> nodeId)
 		{
-			var profiles = new Dictionary<string, VpeMaterialProfile>(StringComparer.Ordinal);
+			var profiles = new Dictionary<Material, VpeMaterialProfile>();
+			var bindings = new List<VpeMaterialBinding>();
 			var rendererStates = new List<VpeRendererState>();
 			var ctx = new CaptureContext();
 
@@ -72,22 +76,26 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					rendererStates.Add(CaptureRendererState(renderer, tableRoot, nodeId));
 				}
 
-				foreach (var material in renderer.sharedMaterials) {
+				var materials = renderer.sharedMaterials;
+				for (var slot = 0; slot < materials.Length; slot++) {
+					var material = materials[slot];
 					if (!material) {
 						continue;
 					}
-					var key = NormalizeMaterialName(material.name);
-					if (string.IsNullOrWhiteSpace(key) || profiles.ContainsKey(key)) {
-						continue;
-					}
-
-					var profile = TranslateMaterial(material, ctx);
-					if (profile != null) {
-						profile.Name = key;
-						if (insertCandidateKeys.Contains(key)) {
-							PromoteToInsert(profile);
+					if (!profiles.TryGetValue(material, out var profile)) {
+						var key = NormalizeMaterialName(material.name);
+						profile = TranslateMaterial(material, ctx);
+						if (profile != null) {
+							profile.Name = key;
+							profile.Id = $"material-{profiles.Count + 1}";
+							if (insertCandidateKeys.Contains(key)) {
+								PromoteToInsert(profile);
+							}
+							profiles.Add(material, profile);
 						}
-						profiles[key] = profile;
+					}
+					if (profile != null && tableRoot && nodeId?.Invoke(renderer.transform) is { } id) {
+						bindings.Add(new VpeMaterialBinding { NodeId = id, Slot = slot, ProfileId = profile.Id });
 					}
 				}
 			}
@@ -96,6 +104,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				FormatVersion = VpeMaterialSchema.Version,
 				WrittenBy = "HdrpMaterialTranslator",
 				Profiles = profiles.Values.ToArray(),
+				Bindings = bindings.ToArray(),
 				Textures = ctx.BuildTextureAssets(),
 				RendererStates = rendererStates.ToArray(),
 			};
@@ -173,6 +182,10 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 
 			var shaderName = material.shader.name;
 			switch (shaderName) {
+				case InsertHybridShaderName:
+					return new VpeMaterialProfile { Type = VpeMaterialTypes.InsertHybrid, InsertHybrid = TranslateInsertShader(material, ctx) };
+				case InsertCoverShaderName:
+					return new VpeMaterialProfile { Type = VpeMaterialTypes.InsertCover, InsertCover = TranslateInsertShader(material, ctx) };
 				case HdrpLitShaderName:
 					return TranslateHdrpLit(material, ctx);
 				case HdrpDecalShaderName:
@@ -196,6 +209,52 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 
 			ctx.RegisterUnsupportedMaterial(shaderName, material.name);
 			return null;
+		}
+
+		private static VpeInsertShaderProfile TranslateInsertShader(Material material, CaptureContext ctx)
+		{
+			var properties = new List<VpeInsertShaderProperty>();
+			var shader = material.shader;
+			for (var i = 0; i < shader.GetPropertyCount(); i++) {
+				var name = shader.GetPropertyName(i);
+				var property = new VpeInsertShaderProperty { Name = name };
+				switch (shader.GetPropertyType(i)) {
+					case ShaderPropertyType.Float:
+					case ShaderPropertyType.Range:
+						property.Kind = "float";
+						property.FloatValue = material.GetFloat(name);
+						break;
+					case ShaderPropertyType.Int:
+						property.Kind = "integer";
+						property.IntValue = material.GetInteger(name);
+						break;
+					case ShaderPropertyType.Color:
+						property.Kind = "color";
+						property.VectorValue = material.GetColor(name);
+						break;
+					case ShaderPropertyType.Vector:
+						property.Kind = "vector";
+						property.VectorValue = material.GetVector(name);
+						break;
+					case ShaderPropertyType.Texture:
+						property.Kind = "texture";
+						var optical = name is "_OpticalNormalMap" or "_OpticalResponseMap";
+						var linear = optical || name is "_NormalMap" or "_CoverNormalMap";
+						property.Texture = ctx.CaptureSideChannelTextureRef(material, name,
+							linear ? VpeColorSpaces.Linear : VpeColorSpaces.SRgb);
+						if (optical) { ctx.RequireUncompressed(material.GetTexture(name) as Texture2D); }
+						break;
+					default:
+						continue;
+				}
+				properties.Add(property);
+			}
+			return new VpeInsertShaderProfile {
+				Properties = properties.ToArray(),
+				RenderQueue = material.renderQueue,
+				EnableInstancing = material.enableInstancing,
+				DoubleSidedGi = material.doubleSidedGI,
+			};
 		}
 
 		private static VpeMaterialProfile TranslateHdrpLit(Material material, CaptureContext ctx)
@@ -611,6 +670,8 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			// the glTF fallback material still looks right.
 			var shaderName = source.shader.name;
 			var clone = shaderName switch {
+				InsertHybridShaderName => CreateTextureFreeClone(source),
+				InsertCoverShaderName => CreateTextureFreeClone(source),
 				HdrpLitShaderName => CreateTextureFreeClone(source),
 				HdrpDecalShaderName => CreateTextureFreeClone(source),
 				_ => IsVpeRubberMaterial(source) || IsVpeMetalMaterial(source) || IsVpeDmdMaterial(source)
@@ -983,6 +1044,14 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					assets[i++] = asset;
 				}
 				return assets;
+			}
+
+			public void RequireUncompressed(Texture2D texture)
+			{
+				if (texture && _assetsByTexture.TryGetValue(texture, out var asset)) {
+					asset.RuntimeCompress = false;
+					asset.ForceUncompressed = true;
+				}
 			}
 
 			public void RegisterUnsupportedMaterial(string shaderName, string materialName)

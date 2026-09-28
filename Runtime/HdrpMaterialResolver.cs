@@ -49,6 +49,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		private readonly Material _litTranslucentSphereTemplate;
 		private readonly Material _fabricSilkTemplate;
 		private readonly Material _decalTemplate;
+		private readonly Material _insertHybridTemplate;
+		private readonly Material _insertCoverTemplate;
 		private readonly Dictionary<string, Material> _materialOverrides;
 		private static readonly int MainTextureProperty = Shader.PropertyToID("_MainTex");
 		private const string NormalRepackShaderResourcePath = "VpePackNormalForHdrp";
@@ -81,7 +83,9 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			Material litTranslucentSphereTemplate = null,
 			Material fabricSilkTemplate = null,
 			Material decalTemplate = null,
-			Dictionary<string, Material> materialOverrides = null)
+			Dictionary<string, Material> materialOverrides = null,
+			Material insertHybridTemplate = null,
+			Material insertCoverTemplate = null)
 		{
 			_litOpaqueTemplate = litOpaqueTemplate;
 			_litTransparentTemplate = litTransparentTemplate;
@@ -90,6 +94,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			_litTranslucentSphereTemplate = litTranslucentSphereTemplate;
 			_fabricSilkTemplate = fabricSilkTemplate;
 			_decalTemplate = decalTemplate;
+			_insertHybridTemplate = insertHybridTemplate;
+			_insertCoverTemplate = insertCoverTemplate;
 			_materialOverrides = materialOverrides ?? new Dictionary<string, Material>(StringComparer.Ordinal);
 		}
 
@@ -98,6 +104,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			return materialType switch {
 				VpeMaterialTypes.Lit => _litOpaqueTemplate,
 				VpeMaterialTypes.Insert => _litOpaqueTemplate,
+				VpeMaterialTypes.InsertHybrid => _insertHybridTemplate,
+				VpeMaterialTypes.InsertCover => _insertCoverTemplate,
 				VpeMaterialTypes.FabricSilk => _fabricSilkTemplate,
 				VpeMaterialTypes.Decal => _decalTemplate,
 				VpeMaterialTypes.Metal => true,
@@ -121,6 +129,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				// (translucent template + hints). The semantic type only matters to pipelines
 				// without HDRP's translucency.
 				VpeMaterialTypes.Insert => BuildLit(profile.Name, profile.Insert?.Lit, textures, importedMaterial),
+				VpeMaterialTypes.InsertHybrid => BuildInsertShaderMaterial(profile.Name, profile.InsertHybrid, _insertHybridTemplate, textures),
+				VpeMaterialTypes.InsertCover => BuildInsertShaderMaterial(profile.Name, profile.InsertCover, _insertCoverTemplate, textures),
 				VpeMaterialTypes.FabricSilk => BuildFabricSilk(profile, textures, importedMaterial),
 				VpeMaterialTypes.Decal => BuildDecal(profile, textures, importedMaterial),
 				VpeMaterialTypes.Metal => BuildShaderGraphMaterial(profile, profile.Metal) ?? BuildLit(profile, textures, importedMaterial),
@@ -128,6 +138,34 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				VpeMaterialTypes.Dmd => BuildShaderGraphMaterial(profile, profile.Dmd),
 				_ => null,
 			};
+		}
+
+		private static Material BuildInsertShaderMaterial(string name, VpeInsertShaderProfile profile,
+			Material template, IVpeTextureProvider textures)
+		{
+			if (!template || profile == null) { return null; }
+			var material = new Material(template) { name = name, enableInstancing = profile.EnableInstancing,
+				doubleSidedGI = profile.DoubleSidedGi };
+			if (profile.RenderQueue >= 0) { material.renderQueue = profile.RenderQueue; }
+			foreach (var property in profile.Properties ?? Array.Empty<VpeInsertShaderProperty>()) {
+				if (property == null || string.IsNullOrEmpty(property.Name) || !material.HasProperty(property.Name)) { continue; }
+				switch (property.Kind) {
+					case "float": material.SetFloat(property.Name, property.FloatValue); break;
+					case "integer": material.SetInteger(property.Name, property.IntValue); break;
+					case "color": material.SetColor(property.Name, property.VectorValue); break;
+					case "vector": material.SetVector(property.Name, property.VectorValue); break;
+					case "texture":
+						var textureRef = property.Texture;
+						var texture = textureRef == null ? null : textures?.Get(textureRef.TextureId);
+						material.SetTexture(property.Name, texture);
+						if (textureRef != null) {
+							material.SetTextureScale(property.Name, textureRef.Scale);
+							material.SetTextureOffset(property.Name, textureRef.Offset);
+						}
+						break;
+				}
+			}
+			return material;
 		}
 
 		private Material BuildShaderGraphMaterial(VpeMaterialProfile profile, VpeShaderGraphProfile shaderGraph)
