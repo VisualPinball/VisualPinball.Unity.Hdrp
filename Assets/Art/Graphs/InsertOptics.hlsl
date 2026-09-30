@@ -9,44 +9,55 @@ float3 InsertFacetRandom(float sector, float seed)
     return frac(sin((sector + seed * 17.13) * float3(127.1, 311.7, 74.7)) * 43758.5453);
 }
 
-float3 InsertNoiseHash(float2 p)
+float3 InsertNoiseHash(float3 p)
 {
-    float3 h = frac(float3(p.x, p.y, p.x) * 0.1031);
+    float3 h = frac(p * float3(0.1031, 0.1030, 0.0973));
     h += dot(h, h.yxz + 33.33);
-    return frac((h.xxy + h.yzz) * h.zyx);
+    return frac((h.xxy + h.yxx) * h.zyx);
 }
 
 // Soft nearest-cell values: small cloudy variations without hard Voronoi
-// borders. Coordinates are local metres, so atlas seams cannot split them.
-float InsertCellular(float2 p)
+// borders. Coordinates are local metres, in all three axes, so atlas seams
+// cannot split them and no slope stretches them: a starburst's facets stand
+// steep, and a noise laid out over the floor with a share of the height
+// mixed in was sheared along one slope of every ridge and squeezed on the
+// other, into streaks along the facets seen on every other pleat. Noise in
+// three dimensions is the same on any face, walls included.
+float InsertCellular(float3 p)
 {
-    float2 cell = floor(p);
-    float2 local = frac(p);
+    float3 cell = floor(p);
+    float3 local = frac(p);
     float value = 0.0;
     float weight = 0.0;
-    [unroll] for (int y = -1; y <= 1; y++) {
-        [unroll] for (int x = -1; x <= 1; x++) {
-            float2 offset = float2(x, y);
-            float3 random = InsertNoiseHash(cell + offset);
-            float2 delta = offset + 0.15 + 0.7 * random.xy - local;
-            float w = exp2(-8.0 * dot(delta, delta));
-            value += random.z * w;
-            weight += w;
+    [unroll] for (int z = -1; z <= 1; z++) {
+        [unroll] for (int y = -1; y <= 1; y++) {
+            [unroll] for (int x = -1; x <= 1; x++) {
+                float3 offset = float3(x, y, z);
+                float3 random = InsertNoiseHash(cell + offset);
+                float3 delta = offset + 0.15 + 0.7 * random - local;
+                float w = exp2(-8.0 * dot(delta, delta));
+                value += InsertNoiseHash(cell + offset + 17.0).x * w;
+                weight += w;
+            }
         }
     }
     return value / max(weight, 1e-5);
 }
 
-float InsertGrain(float2 p)
+float InsertGrain(float3 p)
 {
-    float2 cell = floor(p);
-    float2 t = frac(p);
+    float3 cell = floor(p);
+    float3 t = frac(p);
     t = t * t * (3.0 - 2.0 * t);
-    return lerp(lerp(InsertNoiseHash(cell).z, InsertNoiseHash(cell + float2(1, 0)).z, t.x),
-        lerp(InsertNoiseHash(cell + float2(0, 1)).z, InsertNoiseHash(cell + 1.0).z, t.x), t.y);
+    float4 below = float4(InsertNoiseHash(cell).z, InsertNoiseHash(cell + float3(1, 0, 0)).z,
+        InsertNoiseHash(cell + float3(0, 1, 0)).z, InsertNoiseHash(cell + float3(1, 1, 0)).z);
+    float4 above = float4(InsertNoiseHash(cell + float3(0, 0, 1)).z, InsertNoiseHash(cell + float3(1, 0, 1)).z,
+        InsertNoiseHash(cell + float3(0, 1, 1)).z, InsertNoiseHash(cell + 1.0).z);
+    float4 layer = lerp(below, above, t.z);
+    return lerp(lerp(layer.x, layer.y, t.x), lerp(layer.z, layer.w, t.x), t.y);
 }
 
-float InsertDetailVisibility(float2 p)
+float InsertDetailVisibility(float3 p)
 {
     float footprint = max(length(ddx(p)), length(ddy(p)));
     return 1.0 - smoothstep(0.35, 1.0, footprint);
@@ -178,10 +189,9 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     random = lerp(random, InsertFacetRandom(next, Seed), smoothstep(1.0 - width, 1.0 + width, part));
     float floorMask = step(4.0, Starburst.z) * smoothstep(0.35, 0.7, response.b)
         * smoothstep(Starburst.w - 0.00015, Starburst.w + 0.00015, Position.y);
-    float2 noisePosition = Position.xz + Position.y * float2(0.37, 0.71);
-    float2 cells = noisePosition / max(MottleSize * 0.001, 0.0001) + Seed * float2(7.13, 3.71);
+    float3 cells = Position / max(MottleSize * 0.001, 0.0001) + Seed * float3(7.13, 3.71, 5.29);
     float mottle = (InsertCellular(cells) - 0.5) * InsertDetailVisibility(cells);
-    float2 grainPosition = noisePosition * 4000.0 + Seed * float2(13.1, 17.7);
+    float3 grainPosition = Position * 4000.0 + Seed * float3(13.1, 17.7, 11.3);
     float grain = (InsertGrain(grainPosition) - 0.5) * InsertDetailVisibility(grainPosition);
     float finish = 1.0 + grain * Grain;
     // Optical normal strength is independent of surface reflection strength.
