@@ -196,22 +196,34 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     // where its own ray meets it. One refraction with the facet's normal kept
     // the steeper in-plastic ray all the way down, half the parallax, and bent
     // it the wrong way round the facet. What the facet lets through falls
-    // with the exit's Fresnel reflectance, to nothing at the critical angle,
-    // where the facet traps the ray, total internal reflection: the sharp
-    // image and the cavity view fade out there instead of jumping, the ray
-    // keeps the in-plastic direction, and the bounce term stands in for it.
+    // with the exit's Fresnel reflectance.
+    //
+    // A facet steep enough traps the ray, total internal reflection, or lets
+    // it out so near the grazing that it runs off sideways and never meets
+    // the lamp: a starburst of narrow spokes over a tall ridge has such
+    // facets everywhere, and seen along its length, where the in-plastic ray
+    // crosses every facet at its full tilt, the whole bulb went missing while
+    // it showed from the side. Through a V groove that steep a trapped ray
+    // leaves by the facet next door, thrown out to the side, so a mirrored
+    // path would not find the bulb either. What such a facet would trap or
+    // throw away goes straight on instead, as through a flat bottom, blended
+    // in as the facet's exit nears the critical angle so nothing jumps: the
+    // bulb keeps its place and its parallax from every angle, and the facets
+    // keep their prism wherever they pass the ray.
     float eta = max(Ior, 1.001);
     float3 inside = refract(-v, float3(0.0, 1.0, 0.0), rcp(eta));
-    float3 ray = refract(inside, n, eta);
-    float exit = 0.0;
-    if (dot(ray, ray) > 1e-6) {
-        float cosExit = saturate(dot(ray, -n));
-        float reflectance0 = (eta - 1.0) / (eta + 1.0);
-        reflectance0 *= reflectance0;
-        exit = 1.0 - (reflectance0 + (1.0 - reflectance0) * pow(1.0 - cosExit, 5.0));
-    } else {
-        ray = inside;
-    }
+    float reflectance0 = (eta - 1.0) / (eta + 1.0);
+    reflectance0 *= reflectance0;
+    // The sine of the facet's exit angle, past one where it traps the ray.
+    float cosInside = saturate(dot(-inside, n));
+    float sinFacet = eta * sqrt(saturate(1.0 - cosInside * cosInside));
+    float passing = 1.0 - smoothstep(0.75, 1.0, sinFacet);
+    float3 facetRay = passing > 0.0 ? refract(inside, n, eta) : -v;
+    float cosFacet = saturate(dot(facetRay, -n));
+    float facetExit = 1.0 - (reflectance0 + (1.0 - reflectance0) * pow(1.0 - cosFacet, 5.0));
+    float flatExit = 1.0 - (reflectance0 + (1.0 - reflectance0) * pow(1.0 - saturate(v.y), 5.0));
+    float3 ray = normalize(lerp(-v, facetRay, passing));
+    float exit = lerp(flatExit, facetExit, passing);
     float facing = saturate(dot(v, n));
     float fresnel = 0.04 + 0.96 * pow(1.0 - facing, 5.0);
     // Opposite slopes couple very differently to the same internal light.
