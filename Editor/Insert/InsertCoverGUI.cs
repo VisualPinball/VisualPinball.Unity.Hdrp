@@ -44,8 +44,40 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			} else {
 				uiBlocks.RemoveAt(index);
 			}
-			uiBlocks.Insert(index, new HazeBlock());
-			uiBlocks.Insert(index + 1, new CoverSurfaceBlock());
+			uiBlocks.Insert(index, new CoverPlasticBlock());
+			uiBlocks.Insert(index + 1, new HazeBlock());
+			uiBlocks.Insert(index + 2, new CoverSurfaceBlock());
+		}
+
+		/// <summary>
+		/// The slab is HDRP's planar refraction, switched on by the index: an
+		/// index of one is no slab, and the cheaper pane it was. The model is a
+		/// hidden property the keywords follow, so a cover made before the slab,
+		/// which stored no refraction, gets it as soon as its inspector opens.
+		/// </summary>
+		public override void ValidateMaterial(Material material)
+		{
+			if (material.HasProperty("_RefractionModel") && material.HasProperty("_CoverIor")) {
+				material.SetFloat("_RefractionModel", material.GetFloat("_CoverIor") > 1.0001f ? 1f : 0f);
+			}
+			base.ValidateMaterial(material);
+		}
+	}
+
+	/// <summary>The slab of plastic the cover is the top of.</summary>
+	internal sealed class CoverPlasticBlock : InsertBlock
+	{
+		public CoverPlasticBlock() : base(ExpandableBit.User2, "Plastic") { }
+
+		protected override void Draw()
+		{
+			EditorGUILayout.HelpBox("The cover is the top of a slab of plastic as deep as the insert. What shows through it is refracted as through that slab, the ribs seen a third nearer than they lie, and the light takes the tint on its way up, deeper the longer its path.", MessageType.None);
+			Field("_CoverIor", "Index of Refraction",
+				"How much the plastic bends the view: 1.49 for acrylic, 1.59 for polycarbonate. One is no slab at all.");
+			Field("_CoverTint", "Tint",
+				"The colour the light has once it has come Tint Depth through the plastic. White for clear plastic; the insert's colour for a coloured one, which then darkens towards its edges and at grazing views, as tinted plastic does.");
+			Field("_CoverTintDepth", "Tint Depth (mm)",
+				"How far through the plastic the light goes to take the tint. Shorter is a denser plastic.");
 		}
 	}
 

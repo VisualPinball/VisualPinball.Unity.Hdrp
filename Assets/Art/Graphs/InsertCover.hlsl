@@ -8,6 +8,15 @@
 // projection. Its texture and source strength are supplied per material slot.
 // The haze is the colour the cover blends in at its opacity: a light veil that
 // softens the ribs underneath the way a worn, slightly frosted top does.
+//
+// The cover is the top of a slab of plastic as thick as the insert is deep,
+// and what shows through it is refracted as through that slab: the view ray
+// bends at the top by the index, the floor with its ribs is seen where the
+// bent ray meets it, a third nearer than it lies, and the light on its way up
+// takes the plastic's tint, deeper the longer its path, so a red insert is
+// red for being red plastic rather than a red-lit tray, darkest towards its
+// edges and at grazing views. Without the slab the body sat at the bottom of
+// an open tray under a pane of glass, and looked hollow.
 // Hue, saturation and value, hue as a turn of the wheel in 0..1.
 float3 InsertCoverRgbToHsv(float3 c)
 {
@@ -94,7 +103,9 @@ void InsertCover_float(float2 UV, UnityTexture2D NormalMap, float PlayfieldStren
     float3 LampColor, float LampLevel, float LampTint,
     float3 Position, float4 LampA, float4 LampB, float4 LampC, float4 LampD,
     float4 DriveB, float4 DriveC, float4 DriveD, float Spread,
-    out float3 NormalTS, out float SurfaceSmoothness, out float Alpha, out float3 BaseColor)
+    float Ior, float3 Tint, float TintDepth, float Thickness,
+    out float3 NormalTS, out float SurfaceSmoothness, out float Alpha, out float3 BaseColor,
+    out float RefractionIndex, out float3 TransmittanceColor, out float AbsorptionDistance, out float SlabThickness)
 {
 #if defined(SHADERPASS) && defined(SHADERPASS_SHADOWS) && (SHADERPASS == SHADERPASS_SHADOWS)
     clip(-1);
@@ -111,5 +122,12 @@ void InsertCover_float(float2 UV, UnityTexture2D NormalMap, float PlayfieldStren
     // own colour, as bright as ever.
     float4 mixed = InsertCoverLampMix(Position.xz, LampA, LampB, LampC, LampD, LampColor, LampLevel, DriveB, DriveC, DriveD, Spread);
     BaseColor = InsertCoverTowardsLampHue(max(HazeColor, 0.0), mixed.rgb, saturate(LampTint) * saturate(mixed.w));
+    // The slab: its index, the colour the light has taken once it has come
+    // the tint depth through it, and its thickness, both given in millimetres
+    // and wanted in metres. The insert writes the thickness for its own depth.
+    RefractionIndex = max(Ior, 1.0);
+    TransmittanceColor = saturate(Tint);
+    AbsorptionDistance = max(TintDepth, 0.01) * 0.001;
+    SlabThickness = max(Thickness, 0.1) * 0.001;
 }
 #endif
