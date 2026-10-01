@@ -175,14 +175,18 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float3 response = SAMPLE_TEXTURE2D(Response.tex, Response.samplerstate, UV).rgb;
     float3 v = normalize(View + float3(0, 1e-5, 0));
     // The facets the bake laid out, found again from the position: a wheel's
-    // sectors round its centre, or ribs' strips across their direction, which
-    // the bake tells apart by a half pitch made negative in z. A rib's strips
-    // are counted from far off, so the index stays positive and the
-    // neighbours either side need no wrapping round.
-    bool ribbed = Starburst.z < 0.0;
-    float sectors = ribbed ? 1e6 : max(Starburst.z, 1.0);
+    // sectors round its centre, ribs' strips across their direction, which
+    // the bake tells apart by a half pitch made negative in z, or rings'
+    // strips out from their centre, the half pitch pushed past minus a
+    // thousand. Strips are counted from far off, so the index stays positive
+    // and the neighbours either side need no wrapping round.
+    bool ringed = Starburst.z <= -1000.0;
+    bool ribbed = Starburst.z < 0.0 && !ringed;
+    float sectors = Starburst.z < 0.0 ? 1e6 : max(Starburst.z, 1.0);
     float coordinate;
-    if (ribbed) {
+    if (ringed) {
+        coordinate = length(Position.xz - Starburst.xy) / max(-Starburst.z - 1000.0, 1e-6) + 4096.0;
+    } else if (ribbed) {
         coordinate = dot(Position.xz, Starburst.xy) / -Starburst.z + 4096.0;
     } else {
         float2 radial = Position.xz - Starburst.xy;
@@ -199,7 +203,7 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float next = fmod(sector + 1.0, sectors);
     random = lerp(InsertFacetRandom(previous, Seed), random, smoothstep(-width, width, part));
     random = lerp(random, InsertFacetRandom(next, Seed), smoothstep(1.0 - width, 1.0 + width, part));
-    float floorMask = (ribbed ? 1.0 : step(4.0, Starburst.z)) * smoothstep(0.35, 0.7, response.b)
+    float floorMask = (Starburst.z < 0.0 ? 1.0 : step(4.0, Starburst.z)) * smoothstep(0.35, 0.7, response.b)
         * smoothstep(Starburst.w - 0.00015, Starburst.w + 0.00015, Position.y);
     float3 cells = Position / max(MottleSize * 0.001, 0.0001) + Seed * float3(7.13, 3.71, 5.29);
     float mottle = (InsertCellular(cells) - 0.5) * InsertDetailVisibility(cells);
