@@ -179,10 +179,14 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     // the bake tells apart by a half pitch made negative in z, or rings'
     // strips out from their centre, the half pitch pushed past minus a
     // thousand. Strips are counted from far off, so the index stays positive
-    // and the neighbours either side need no wrapping round.
+    // and the neighbours either side need no wrapping round. A gem, its sides
+    // pushed past two thousand, has facets no angle alone finds again, so its
+    // variation turns round the centre smoothly, one value a side, with no
+    // step to land in the middle of a facet.
     bool ringed = Starburst.z <= -1000.0;
     bool ribbed = Starburst.z < 0.0 && !ringed;
-    float sectors = Starburst.z < 0.0 ? 1e6 : max(Starburst.z, 1.0);
+    bool gem = Starburst.z >= 2000.0;
+    float sectors = Starburst.z < 0.0 ? 1e6 : gem ? max(Starburst.z - 2000.0, 1.0) : max(Starburst.z, 1.0);
     float coordinate;
     if (ringed) {
         coordinate = length(Position.xz - Starburst.xy) / max(-Starburst.z - 1000.0, 1e-6) + 4096.0;
@@ -197,7 +201,7 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float3 random = InsertFacetRandom(sector, Seed);
     // Fade the random coefficients across less than one screen pixel at a
     // crease. Their identity comes from the fan, never quantized bake noise.
-    float width = min(0.45, max(fwidth(coordinate), 0.01));
+    float width = gem ? 0.5 : min(0.45, max(fwidth(coordinate), 0.01));
     float part = frac(coordinate);
     float previous = fmod(sector + sectors - 1.0, sectors);
     float next = fmod(sector + 1.0, sectors);
