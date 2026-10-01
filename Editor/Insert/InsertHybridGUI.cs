@@ -104,7 +104,8 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		protected bool HasOptics => materials.All(material => material.GetTexture("_OpticalNormalMap") != null && material.GetTexture("_OpticalResponseMap") != null);
 
 		/// <summary>Whether the baked mesh has a starburst, which is where facet contrast, mottle and the cavity ribs happen.</summary>
-		protected bool HasStarburst => materials.Any(material => material.HasProperty("_OpticalStarburst") && material.GetVector("_OpticalStarburst").z >= 4f);
+		/// <summary>Whether the bake found facets: a starburst of four sectors or more, or ribs, whose half pitch is stored negative.</summary>
+		protected bool HasStarburst => materials.Any(material => material.HasProperty("_OpticalStarburst") && (material.GetVector("_OpticalStarburst").z >= 4f || material.GetVector("_OpticalStarburst").z < 0f));
 
 		protected bool IsClear => Above("_InsertClarity", 0f);
 		protected bool IsTinted => Below("_InsertClarity", 1f);
@@ -429,7 +430,10 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			Texture(OpticalLabel, "_OpticalNormalMap");
 			Texture(ResponseLabel, "_OpticalResponseMap");
 			var starburst = FindProperty("_OpticalStarburst");
-			if (starburst != null) {
+			if (starburst != null && starburst.vectorValue.z < 0f) {
+				var ribs = starburst.vectorValue;
+				EditorGUILayout.HelpBox($"Ribs {-ribs.z * 2000f:0.##} mm apart, running across ({ribs.x:0.##}, {ribs.y:0.##}) in insert space; the facet variation follows them.", MessageType.None);
+			} else if (starburst != null) {
 				var fan = starburst.vectorValue;
 				MaterialEditor.BeginProperty(starburst);
 				EditorGUI.showMixedValue = starburst.hasMixedValue;
