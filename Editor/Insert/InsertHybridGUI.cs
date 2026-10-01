@@ -104,7 +104,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		protected bool HasOptics => materials.All(material => material.GetTexture("_OpticalNormalMap") != null && material.GetTexture("_OpticalResponseMap") != null);
 
 		/// <summary>Whether the baked mesh has a starburst, which is where facet contrast, mottle and the cavity ribs happen.</summary>
-		/// <summary>Whether the bake found facets: a starburst of four sectors or more, or ribs or rings, whose half pitch is stored negative.</summary>
+		/// <summary>Whether the bake found facets: a starburst of four sectors or more, a gem, whose sides are stored past two thousand, or ribs or rings, whose half pitch is stored negative.</summary>
 		protected bool HasStarburst => materials.Any(material => material.HasProperty("_OpticalStarburst") && (material.GetVector("_OpticalStarburst").z >= 4f || material.GetVector("_OpticalStarburst").z < 0f));
 
 		protected bool IsClear => Above("_InsertClarity", 0f);
@@ -430,7 +430,10 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			Texture(OpticalLabel, "_OpticalNormalMap");
 			Texture(ResponseLabel, "_OpticalResponseMap");
 			var starburst = FindProperty("_OpticalStarburst");
-			if (starburst != null && starburst.vectorValue.z <= -1000f) {
+			if (starburst != null && starburst.vectorValue.z >= 2000f) {
+				var gem = starburst.vectorValue;
+				EditorGUILayout.HelpBox($"A gem of {gem.z - 2000f:0} sides round ({gem.x * 1000f:0.#}, {gem.y * 1000f:0.#}) mm in insert space; the facet variation turns round it smoothly.", MessageType.None);
+			} else if (starburst != null && starburst.vectorValue.z <= -1000f) {
 				var rings = starburst.vectorValue;
 				EditorGUILayout.HelpBox($"Rings {(-rings.z - 1000f) * 2000f:0.##} mm apart round ({rings.x * 1000f:0.#}, {rings.y * 1000f:0.#}) mm in insert space; the facet variation follows them.", MessageType.None);
 			} else if (starburst != null && starburst.vectorValue.z < 0f) {
