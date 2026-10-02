@@ -15,8 +15,9 @@ MonoBehaviour:
   ColorName: Orange
   Order: 2
   Swatch: {r: 1, g: 0.35, b: 0, a: 1}
-  Tint: {r: 1, g: 0.34999996, b: 0, a: 1}
+  Tint: {r: 1, g: 0.51106536, b: 0, a: 1}
   CavityColor: {r: 0.9, g: 0.9, b: 0.9, a: 1}
   LampEmission: {r: 1315.5309, g: 750.046, b: 0, a: 1}
-  MaxBrightness: 1.11
+  MaxBrightness: 1.17
   HazeColor: {r: 0.54, g: 0.15, b: 0, a: 1}
+  CoverTint: {r: 0.9019608, g: 0.6002258, b: 0.019607838, a: 1}
