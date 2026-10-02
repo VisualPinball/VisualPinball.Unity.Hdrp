@@ -20,3 +20,4 @@ MonoBehaviour:
   LampEmission: {r: 85.445015, g: 85.445015, b: 85.445015, a: 1}
   MaxBrightness: 1.58
   HazeColor: {r: 0.8, g: 0.8, b: 0.8, a: 1}
+  CoverTint: {r: 1, g: 1, b: 1, a: 1}
