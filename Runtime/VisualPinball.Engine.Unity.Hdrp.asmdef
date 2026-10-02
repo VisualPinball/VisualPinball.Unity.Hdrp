@@ -7,7 +7,8 @@
 		"glTFast",
 		"Unity.RenderPipelines.HighDefinition.Runtime",
 		"Unity.RenderPipelines.HighDefinition.Config.Runtime",
-		"Unity.RenderPipelines.Core.Runtime"
+		"Unity.RenderPipelines.Core.Runtime",
+		"Unity.Mathematics"
 	],
 	"includePlatforms": [],
 	"excludePlatforms": [],
