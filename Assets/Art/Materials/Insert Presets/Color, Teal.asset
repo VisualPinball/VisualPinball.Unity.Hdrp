@@ -13,9 +13,10 @@ MonoBehaviour:
   m_Name: Color, Teal
   m_EditorClassIdentifier: VisualPinball.Unity::VisualPinball.Unity.InsertColorPreset
   ColorName: Teal
-  Order: 5
+  Order: 6
   Swatch: {r: 0, g: 0.5019608, b: 0.5019608, a: 1}
-  BodyColor: {r: 0, g: 0.5019608, b: 0.5019608, a: 1}
+  Tint: {r: 0, g: 0.45911932, b: 0.45911932, a: 1}
   CavityColor: {r: 0.9, g: 0.9, b: 0.9, a: 1}
   LampEmission: {r: 512, g: 512, b: 512, a: 1}
-  CoverColor: {r: 0, g: 0.5019608, b: 0.5019608, a: 1}
+  MaxBrightness: 0.36
+  HazeColor: {r: 0, g: 0.5019608, b: 0.5019608, a: 1}

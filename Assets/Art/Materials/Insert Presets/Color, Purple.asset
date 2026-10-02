@@ -13,9 +13,10 @@ MonoBehaviour:
   m_Name: Color, Purple
   m_EditorClassIdentifier: VisualPinball.Unity::VisualPinball.Unity.InsertColorPreset
   ColorName: Purple
-  Order: 6
+  Order: 8
   Swatch: {r: 0.894117653, g: 0, b: 0.704722464, a: 1}
-  BodyColor: {r: 0.894117653, g: 0, b: 0.704722464, a: 1}
+  Tint: {r: 0.894117653, g: 0, b: 0.704722464, a: 1}
   CavityColor: {r: 0.9, g: 0.9, b: 0.9, a: 1}
   LampEmission: {r: 448.002472, g: 188.737259, b: 766.9961, a: 1}
-  CoverColor: {r: 0.232204944, g: 0, b: 0.299191266, a: 1}
+  MaxBrightness: 1.19
+  HazeColor: {r: 0.232204944, g: 0, b: 0.299191266, a: 1}

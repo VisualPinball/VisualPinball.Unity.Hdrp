@@ -13,9 +13,10 @@ MonoBehaviour:
   m_Name: Color, Green
   m_EditorClassIdentifier: VisualPinball.Unity::VisualPinball.Unity.InsertColorPreset
   ColorName: Green
-  Order: 2
-  Swatch: {r: 0, g: 0.892183244, b: 0.2602201, a: 1}
-  BodyColor: {r: 0, g: 0.892183244, b: 0.2602201, a: 1}
+  Order: 5
+  Swatch: {r: 0, g: 0.89218324, b: 0.2602201, a: 1}
+  Tint: {r: 0, g: 0.8382749, b: 0.2426585, a: 1}
   CavityColor: {r: 0.9, g: 0.9, b: 0.9, a: 1}
-  LampEmission: {r: 188.737259, g: 766.9961, b: 255.9848, a: 1}
-  CoverColor: {r: 0, g: 0.208999962, b: 0.003906519, a: 1}
+  LampEmission: {r: 11.796079, g: 47.937256, b: 15.99905, a: 1}
+  MaxBrightness: 4.27
+  HazeColor: {r: 0, g: 0.20899996, b: 0.003906519, a: 1}

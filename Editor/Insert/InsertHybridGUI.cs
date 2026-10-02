@@ -19,6 +19,8 @@ using UnityEditor;
 using UnityEditor.Rendering;
 using UnityEditor.Rendering.HighDefinition;
 using UnityEngine;
+using VisualPinball.Unity;
+using VisualPinball.Unity.Editor;
 
 namespace VisualPinball.Engine.Unity.Hdrp.Editor
 {
@@ -113,6 +115,39 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		/// <summary>Whether the clear body's ribs read the virtual lamp at all.</summary>
 		protected bool CavityView => IsClear && HasStarburst && Above("_InsertCavityContrast", 0f);
 
+		/// <summary>
+		/// The insert color preset the selected materials follow, to link or
+		/// unlink them, and what the preset then controls.
+		/// </summary>
+		protected void LinkField(bool cover, string what)
+		{
+			var links = materials.Select(InsertColorPresets.LinkedPreset).Distinct().ToArray();
+			var readOnly = materials.Any(material => InsertBaker.IsReadOnly(AssetDatabase.GetAssetPath(material)));
+			using (new EditorGUI.DisabledScope(readOnly || EditorApplication.isPlaying)) {
+				EditorGUI.showMixedValue = links.Length > 1;
+				EditorGUI.BeginChangeCheck();
+				var picked = (InsertColorPreset)EditorGUILayout.ObjectField(new GUIContent("Color Preset",
+					$"The insert color preset this material follows: {what} come from it, now and whenever it changes. None unlinks it, keeping the values it has."),
+					links.Length == 1 ? links[0] : null, typeof(InsertColorPreset), false);
+				EditorGUI.showMixedValue = false;
+				if (EditorGUI.EndChangeCheck()) {
+					InsertColorPresets.LinkAsking(materials.Select(material => (material, cover)).ToArray(), picked, materials.Length == 1, "This material's");
+					GUIUtility.ExitGUI();
+				}
+			}
+			if (readOnly) {
+				EditorGUILayout.HelpBox("This material's package can't be written to, so it can't be linked to a color preset.", MessageType.None);
+			} else if (links.Length == 1 && links[0] != null) {
+				var preset = links[0];
+				EditorGUILayout.HelpBox($"{what} come from {preset.ColorName}, and changes made to them here are overwritten when the preset changes. Copy them to the preset to keep them.", MessageType.Info);
+				using (new EditorGUI.DisabledScope(materials.Length != 1 || EditorApplication.isPlaying || InsertBaker.IsReadOnly(AssetDatabase.GetAssetPath(preset)))) {
+					if (GUILayout.Button(new GUIContent($"Copy to {preset.ColorName}", $"Takes this material's {what} into the preset, and from there into every material linked to it."))) {
+						InsertColorPresets.Capture(preset, cover ? null : materials[0], cover ? materials[0] : null);
+					}
+				}
+			}
+		}
+
 		protected static void SubHeader(string title)
 		{
 			EditorGUILayout.Space(2f);
@@ -127,6 +162,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 
 		protected override void Draw()
 		{
+			LinkField(false, "Tint, Cavity Color, Lamp Emission and Max Brightness");
 			if (!HasOptics) {
 				EditorGUILayout.HelpBox("This material has no optical bake. Enable Bake Hybrid Optics on the insert and bake it; until then the lamp and the cavity have no maps to work from.", MessageType.Warning);
 			}

@@ -10,12 +10,13 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d9e463216c5c46dd88402d4e2ed772c5, type: 3}
-  m_Name: Color, White
+  m_Name: Color, Orange
   m_EditorClassIdentifier: VisualPinball.Unity::VisualPinball.Unity.InsertColorPreset
-  ColorName: White
-  Order: 0
-  Swatch: {r: 1, g: 1, b: 1, a: 1}
-  BodyColor: {r: 1, g: 1, b: 1, a: 1}
+  ColorName: Orange
+  Order: 2
+  Swatch: {r: 1, g: 0.35, b: 0, a: 1}
+  Tint: {r: 1, g: 0.34999996, b: 0, a: 1}
   CavityColor: {r: 0.9, g: 0.9, b: 0.9, a: 1}
-  LampEmission: {r: 1367.12024, g: 1367.12024, b: 1367.12024, a: 1}
-  CoverColor: {r: 0.8, g: 0.8, b: 0.8, a: 1}
+  LampEmission: {r: 1315.5309, g: 750.046, b: 0, a: 1}
+  MaxBrightness: 1.11
+  HazeColor: {r: 0.54, g: 0.15, b: 0, a: 1}
