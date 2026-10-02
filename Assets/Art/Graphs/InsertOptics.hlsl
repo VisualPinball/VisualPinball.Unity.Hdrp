@@ -108,12 +108,13 @@ float3 InsertOpticsTowardsLampHue(float3 color, float3 lamp, float amount)
     return InsertOpticsHsvToRgb(hsv);
 }
 
-// One virtual bulb's share of a point: the halo and the bulb image its facet
-// shows (x), how much of the cavity under it a clear body's face looks onto
-// (y), and how far the point sits from it for the spread (z, one without a
-// spread). Position and the refracted view ray are in insert space, the lamp
+// One virtual bulb's share of a point: the halo its facet shows (x), how much
+// of the cavity under it a clear body's face looks onto (y), how far the point
+// sits from it for the spread (z, one without a spread), and the tight image
+// of the bulb itself (w), kept apart from the halo so it can take a colour of
+// its own. Position and the refracted view ray are in insert space, the lamp
 // its position in metres with its radius in w.
-float3 InsertOpticsBulb(float4 lamp, float3 position, float3 ray, float faceGain, float fresnel, float exit,
+float4 InsertOpticsBulb(float4 lamp, float3 position, float3 ray, float faceGain, float fresnel, float exit,
     float responseB, float bulbDefinition, float cavitySpread, float spread)
 {
     float distance = max(position.y - lamp.y, 0.0) / max(-ray.y, 0.12);
@@ -132,8 +133,9 @@ float3 InsertOpticsBulb(float4 lamp, float3 position, float3 ray, float faceGain
     // the broad transmitted component still carries face-to-face contrast.
     // Both are what the facet lets through, none at all once it traps the
     // ray; the bounce is what it throws back and stays.
-    float transmitted = responseB * (1.0 - 0.65 * fresnel)
-        * ((direct * exit + 0.17 * bounced) * faceGain + bulb * exit * lerp(1.0, faceGain, 0.25));
+    float passed = responseB * (1.0 - 0.65 * fresnel);
+    float transmitted = passed * (direct * exit + 0.17 * bounced) * faceGain;
+    float image = passed * bulb * exit * lerp(1.0, faceGain, 0.25);
     // Each face shows the part of the cavity its refracted view ray lands on,
     // spread wide and kept soft, so the ribs shift with the view instead of
     // alternating with the lights.
@@ -155,7 +157,7 @@ float3 InsertOpticsBulb(float4 lamp, float3 position, float3 ray, float faceGain
         float2 away = (position.xz - lamp.xz) / (spread * 0.001);
         leak = rcp(1.0 + dot(away, away));
     }
-    return float3(transmitted, seen, leak);
+    return float4(transmitted, seen, leak, image);
 }
 
 void InsertOptics_float(float3 Position, float3 View, float2 UV,
@@ -167,7 +169,7 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float3 WorldNormal, float3 WorldTangent, float3 WorldBitangent, float Flatten,
     float Clarity, float3 CavityColor, float CavitySpread, float CavityContrast,
     float LampTint, float Spread, float4 LampB, float4 LampC, float4 LampD,
-    float4 DriveB, float4 DriveC, float4 DriveD,
+    float4 DriveB, float4 DriveC, float4 DriveD, float BulbWarmth,
     out float3 BaseColor, out float3 NormalTS, out float3 Emission)
 {
     float3 rawNormal = SAMPLE_TEXTURE2D(OpticalNormal.tex, OpticalNormal.samplerstate, UV).rgb * 2.0 - 1.0;
@@ -268,10 +270,10 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     // own spread; the baked glow, one for the whole body, fades with the
     // nearest bulb, and a clear body's face looks onto whichever cavity its
     // ray lands on.
-    float3 bulbA = InsertOpticsBulb(Lamp, Position, ray, faceGain, fresnel, exit, response.b, BulbDefinition, CavitySpread, Spread);
-    float3 bulbB = LampB.w > 0.0 ? InsertOpticsBulb(LampB, Position, ray, faceGain, fresnel, exit, response.b, BulbDefinition, CavitySpread, Spread) : float3(0.0, 0.0, 0.0);
-    float3 bulbC = LampC.w > 0.0 ? InsertOpticsBulb(LampC, Position, ray, faceGain, fresnel, exit, response.b, BulbDefinition, CavitySpread, Spread) : float3(0.0, 0.0, 0.0);
-    float3 bulbD = LampD.w > 0.0 ? InsertOpticsBulb(LampD, Position, ray, faceGain, fresnel, exit, response.b, BulbDefinition, CavitySpread, Spread) : float3(0.0, 0.0, 0.0);
+    float4 bulbA = InsertOpticsBulb(Lamp, Position, ray, faceGain, fresnel, exit, response.b, BulbDefinition, CavitySpread, Spread);
+    float4 bulbB = LampB.w > 0.0 ? InsertOpticsBulb(LampB, Position, ray, faceGain, fresnel, exit, response.b, BulbDefinition, CavitySpread, Spread) : float4(0.0, 0.0, 0.0, 0.0);
+    float4 bulbC = LampC.w > 0.0 ? InsertOpticsBulb(LampC, Position, ray, faceGain, fresnel, exit, response.b, BulbDefinition, CavitySpread, Spread) : float4(0.0, 0.0, 0.0, 0.0);
+    float4 bulbD = LampD.w > 0.0 ? InsertOpticsBulb(LampD, Position, ray, faceGain, fresnel, exit, response.b, BulbDefinition, CavitySpread, Spread) : float4(0.0, 0.0, 0.0, 0.0);
     // Each bulb is driven on its own, the first by the lamp colour and level,
     // the others by a colour with the level in w: its halo carries its own
     // colour, and the baked glow, one for the whole body, is the plain sum of
@@ -286,6 +288,7 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float3 driveC = max(DriveC.rgb, 0.0) * saturate(DriveC.w);
     float3 driveD = max(DriveD.rgb, 0.0) * saturate(DriveD.w);
     float3 transmitted = bulbA.x * bulbA.z * driveA + bulbB.x * bulbB.z * driveB + bulbC.x * bulbC.z * driveC + bulbD.x * bulbD.z * driveD;
+    float3 image = bulbA.w * bulbA.z * driveA + bulbB.w * bulbB.z * driveB + bulbC.w * bulbC.z * driveC + bulbD.w * bulbD.z * driveD;
     float4 level = float4(max(driveA.r, max(driveA.g, driveA.b)), max(driveB.r, max(driveB.g, driveB.b)),
         max(driveC.r, max(driveC.g, driveC.b)), max(driveD.r, max(driveD.g, driveD.b)));
     float4 reach = float4(bulbA.z, bulbB.z, bulbC.z, bulbD.z);
@@ -304,7 +307,18 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     // The material sets full-intensity brightness and its emission colour; ROM
     // events only change each bulb's normalized level and RGB through the
     // renderer's property block.
-    Emission = max(LampColor, 0.0) * max(Brightness, 0.0) * (glow * glowDrive + LampGain * transmitted) * finish;
+    //
+    // The bulb's own image, seen straight through the plastic, is far brighter
+    // than the glow around it: on a photograph it clips, and a filament's warm
+    // white clips to yellow where the red glow around it stays red. Nothing
+    // the tonemapper does to one colour gets there, so the image takes the
+    // warm white of a filament instead of the emission's colour, by the
+    // warmth, as bright as the emission's brightest channel; the plastic above
+    // still colours it, as it does the glow.
+    float3 emission = max(LampColor, 0.0);
+    float3 filament = max(emission.r, max(emission.g, emission.b)) * float3(1.0, 0.95, 0.3);
+    float3 bulbColor = lerp(emission, filament, saturate(BulbWarmth));
+    Emission = max(Brightness, 0.0) * (emission * (glow * glowDrive + LampGain * transmitted) + bulbColor * LampGain * image) * finish;
     // Darken the unlit plastic without keeping the bulb or spill light on.
     // Fade back to the authored albedo as the ROM raises lamp intensity.
     float bodyBrightness = lerp(saturate(MinBrightness), 1.0, saturate(Level));

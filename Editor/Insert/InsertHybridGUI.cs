@@ -253,6 +253,9 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			Field("_OpticalBulbDefinition", "Bulb Definition",
 				"A tighter image of the bulb inside its soft halo. Zero is the halo alone.",
 				bulb);
+			Field("_OpticalBulbWarmth", "Bulb Warmth",
+				"Colours the bulb's image as a filament's warm white instead of the Lamp Emission, as bright as the emission's brightest channel, so a red insert's bulb clips to yellow as on a photograph while the glow around it stays red. The plastic above still colours it. Zero keeps the emission's colour.",
+				bulb && Above("_OpticalBulbDefinition", 0f));
 			Field("_OpticalIor", "Index of Refraction",
 				"How strongly the facets bend the view towards the lamp. Acrylic is about 1.49. A clear insert's cavity look-through bends the same way.",
 				bulb || CavityView);
