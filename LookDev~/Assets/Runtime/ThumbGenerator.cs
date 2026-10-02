@@ -75,7 +75,7 @@ namespace VisualPinball.Unity.Library
 				}
 
 				_combinations = new List<AssetMaterialCombination>(assets
-					.SelectMany(a => a.Asset.GetCombinations(true, true, false))
+					.SelectMany(a => a.Asset.GetCombinations(true, true)) // invalid combinations are never shown, so don't render them
 				);
 
 				if (newOnly) {
@@ -88,11 +88,12 @@ namespace VisualPinball.Unity.Library
 
 				NumProcessed = 0;
 				TotalProcessing = _combinations.Count;
-				if (_combinations.Count > 0) {
+				var first = NextAsset();
+				if (first != null) {
 					IsProcessing = true;
-					Process(NextAsset());
+					Process(first);
 				} else {
-					Debug.Log("No assets found to process.");
+					Debug.Log("No valid material combinations found to process.");
 				}
 
 			// } else {
