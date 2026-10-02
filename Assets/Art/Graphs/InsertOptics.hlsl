@@ -57,6 +57,13 @@ float InsertGrain(float3 p)
     return lerp(lerp(layer.x, layer.y, t.x), lerp(layer.z, layer.w, t.x), t.y);
 }
 
+// The height of the surface grain, two octaves of the value noise like the
+// bake's, in cells.
+float InsertSurfaceGrainHeight(float3 cells)
+{
+    return InsertGrain(cells) + 0.5 * InsertGrain(cells * 2.07 + 17.3);
+}
+
 float InsertDetailVisibility(float3 p)
 {
     float footprint = max(length(ddx(p)), length(ddy(p)));
@@ -170,6 +177,7 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float Clarity, float3 CavityColor, float CavitySpread, float CavityContrast,
     float LampTint, float Spread, float4 LampB, float4 LampC, float4 LampD,
     float4 DriveB, float4 DriveC, float4 DriveD, float BulbWarmth,
+    float SurfaceGrain, float SurfaceGrainSize,
     out float3 BaseColor, out float3 NormalTS, out float3 Emission)
 {
     float3 rawNormal = SAMPLE_TEXTURE2D(OpticalNormal.tex, OpticalNormal.samplerstate, UV).rgb * 2.0 - 1.0;
@@ -351,6 +359,27 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     // The interpolated frame need not be orthonormal, so this is the frame's
     // proper inverse, not three dot products.
     float3 upTS = TransformWorldToTangent(upWS, float3x3(WorldTangent, WorldBitangent, WorldNormal));
-    NormalTS = normalize(lerp(shading, upTS, saturate(Flatten)) + float3(0.0, 0.0, 1e-5));
+    float3 normalTS = lerp(shading, upTS, saturate(Flatten));
+    // The fine texture of the moulded plastic, in the reflections: a bump of
+    // noise in insert space, as the bake used to put into the normal map,
+    // drawn here instead so that it is as fine at any zoom and on any map
+    // size, and stays continuous over UV seams. Its slope along the tangent
+    // and bitangent, taken as differences a tenth of a cell apart, tilts the
+    // shading normal after the flattening, which is the top it sits on. It
+    // fades out as the cells shrink below a pixel, before it can shimmer.
+    if (SurfaceGrain > 0.0) {
+        float3 cellsPerMetre = 1.0 / max(SurfaceGrainSize * 0.001, 1e-5);
+        float3 grainCells = Position * cellsPerMetre + Seed * float3(3.7, 9.1, 5.3);
+        float3 tangentOS = normalize(TransformWorldToObjectDir(WorldTangent) + float3(1e-6, 0.0, 0.0));
+        float3 bitangentOS = normalize(TransformWorldToObjectDir(WorldBitangent) + float3(0.0, 1e-6, 0.0));
+        const float step = 0.1;
+        float here = InsertSurfaceGrainHeight(grainCells);
+        float alongT = InsertSurfaceGrainHeight(grainCells + tangentOS * step);
+        float alongB = InsertSurfaceGrainHeight(grainCells + bitangentOS * step);
+        float2 slope = float2(alongT - here, alongB - here) / step;
+        float visible = InsertDetailVisibility(grainCells);
+        normalTS.xy -= slope * (0.3 * saturate(SurfaceGrain) * visible);
+    }
+    NormalTS = normalize(normalTS + float3(0.0, 0.0, 1e-5));
 }
 #endif

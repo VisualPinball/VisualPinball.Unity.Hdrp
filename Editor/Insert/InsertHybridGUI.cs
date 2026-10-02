@@ -196,6 +196,11 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				"Turns the shading normal the lights and probes see towards the insert's flat top. Zero keeps the facets, which suits coloured inserts; around 0.85 stops a clear insert alternating bright and dark ribs under a key light. The lamp's optics are not affected.");
 			Field("_OpticalGrain", "Grain",
 				"Fine noise over the plastic, lit and unlit, fixed in insert space. Zero is a smooth finish. Variation Seed picks another pattern.");
+			Field("_SurfaceGrain", "Surface Grain",
+				"The fine texture of the moulded plastic in its reflections, drawn in insert space at any zoom instead of baked into the normal map: keep the bake's Grain Strength at zero with it. Zero is a smooth surface. Variation Seed picks another pattern.");
+			Field("_SurfaceGrainSize", "Surface Grain Size (mm)",
+				"How large the grain's cells are. The bake's grain was 1.5 VPX units, about 0.75 mm.",
+				Above("_SurfaceGrain", 0f));
 		}
 	}
 
