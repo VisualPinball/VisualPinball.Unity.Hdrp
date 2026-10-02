@@ -75,7 +75,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 		// The active global Volume with the highest priority (we read its .profile instance, so we don't
 		// dirty the shared asset).
-		private static Volume FindGlobalVolume()
+		internal static Volume FindGlobalVolume()
 		{
 			var volumes = Object.FindObjectsByType<Volume>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
 			Volume best = null;

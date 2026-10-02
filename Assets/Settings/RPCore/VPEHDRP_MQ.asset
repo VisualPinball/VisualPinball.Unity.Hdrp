@@ -52,7 +52,7 @@ MonoBehaviour:
     supportTransparentDepthPostpass: 0
     colorBufferFormat: 74
     depthBufferFormat: 0
-    supportCustomPass: 0
+    supportCustomPass: 1
     supportVariableRateShading: 1
     customBufferFormat: 12
     supportedLitShaderMode: 2
