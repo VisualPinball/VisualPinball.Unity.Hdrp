@@ -81,7 +81,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			// its inner cone most of that so the edge is soft; a small source, no
 			// volumetrics and no shadows: the cheapest light that does the job.
 			hdLight.SetSpotAngle(147f, 62f);
-			hdLight.shapeRadius = 0.002f;
+			light.shapeRadius = 0.002f;
 			hdLight.affectsVolumetric = false;
 			hdLight.volumetricDimmer = 0f;
 			hdLight.EnableShadows(false);
