@@ -15,7 +15,8 @@ MonoBehaviour:
   ColorName: Yellow
   Order: 4
   Swatch: {r: 0.894117653, g: 0.8873156, b: 0, a: 1}
-  BodyColor: {r: 0.894117653, g: 0.8873156, b: 0, a: 1}
+  Tint: {r: 0.894117653, g: 0.8873156, b: 0, a: 1}
   CavityColor: {r: 0.9, g: 0.9, b: 0.9, a: 1}
   LampEmission: {r: 766.9961, g: 759.4387, b: 188.737259, a: 1}
-  CoverColor: {r: 0.460916281, g: 0.422958523, b: 0, a: 1}
+  MaxBrightness: 1.11
+  HazeColor: {r: 0.460916281, g: 0.422958523, b: 0, a: 1}

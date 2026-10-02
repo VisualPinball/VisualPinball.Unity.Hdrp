@@ -13,9 +13,10 @@ MonoBehaviour:
   m_Name: Color, Red
   m_EditorClassIdentifier: VisualPinball.Unity::VisualPinball.Unity.InsertColorPreset
   ColorName: Red
-  Order: 3
+  Order: 1
   Swatch: {r: 1, g: 0, b: 0, a: 1}
-  BodyColor: {r: 1, g: 0, b: 0, a: 1}
+  Tint: {r: 1, g: 0, b: 0.09165249, a: 1}
   CavityColor: {r: 0.9, g: 0.9, b: 0.9, a: 1}
-  LampEmission: {r: 1024, g: 0, b: 0, a: 1}
-  CoverColor: {r: 0.5417788, g: 0, b: 0, a: 1}
+  LampEmission: {r: 1367.1212, g: 0, b: 0, a: 1}
+  MaxBrightness: 1.11
+  HazeColor: {r: 0.5411765, g: 0, b: 0.008971344, a: 1}
