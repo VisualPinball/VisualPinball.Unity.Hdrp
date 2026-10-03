@@ -15,5 +15,6 @@ MonoBehaviour:
   LampName: Incandescent
   Order: 0
   Color: {r: 1, g: 0.64, b: 0.35, a: 1}
+  Output: 1
   FadeSpeedUp: 0.12
   FadeSpeedDown: 0.2

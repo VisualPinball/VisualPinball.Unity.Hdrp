@@ -15,5 +15,6 @@ MonoBehaviour:
   LampName: Warm White LED
   Order: 1
   Color: {r: 1.0, g: 0.9098039, b: 0.78039217, a: 1}
+  Output: 1.5
   FadeSpeedUp: 0.0
   FadeSpeedDown: 0.0

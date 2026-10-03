@@ -177,7 +177,7 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float Clarity, float3 CavityColor, float CavitySpread, float CavityContrast,
     float LampTint, float Spread, float4 LampB, float4 LampC, float4 LampD,
     float4 DriveB, float4 DriveC, float4 DriveD, float BulbWarmth,
-    float SurfaceGrain, float SurfaceGrainSize,
+    float SurfaceGrain, float SurfaceGrainSize, float Output,
     out float3 BaseColor, out float3 NormalTS, out float3 Emission)
 {
     float3 rawNormal = SAMPLE_TEXTURE2D(OpticalNormal.tex, OpticalNormal.samplerstate, UV).rgb * 2.0 - 1.0;
@@ -291,10 +291,13 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     // where they meet, and a bulb fading in colours every point it reaches in
     // proportion to its level, from the first glimmer on, instead of its
     // colour creeping in from the bulb once it is bright enough to win.
-    float3 driveA = max(DriveColor, 0.0) * saturate(Level);
-    float3 driveB = max(DriveB.rgb, 0.0) * saturate(DriveB.w);
-    float3 driveC = max(DriveC.rgb, 0.0) * saturate(DriveC.w);
-    float3 driveD = max(DriveD.rgb, 0.0) * saturate(DriveD.w);
+    // One kind of bulb under the insert: an LED kit gives more light than
+    // the filaments it replaced, at the same level and colour.
+    float output = max(Output, 0.0);
+    float3 driveA = max(DriveColor, 0.0) * saturate(Level) * output;
+    float3 driveB = max(DriveB.rgb, 0.0) * saturate(DriveB.w) * output;
+    float3 driveC = max(DriveC.rgb, 0.0) * saturate(DriveC.w) * output;
+    float3 driveD = max(DriveD.rgb, 0.0) * saturate(DriveD.w) * output;
     float3 transmitted = bulbA.x * bulbA.z * driveA + bulbB.x * bulbB.z * driveB + bulbC.x * bulbC.z * driveC + bulbD.x * bulbD.z * driveD;
     float3 image = bulbA.w * bulbA.z * driveA + bulbB.w * bulbB.z * driveB + bulbC.w * bulbC.z * driveC + bulbD.w * bulbD.z * driveD;
     float4 level = float4(max(driveA.r, max(driveA.g, driveA.b)), max(driveB.r, max(driveB.g, driveB.b)),
