@@ -177,9 +177,17 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float Clarity, float3 CavityColor, float CavitySpread, float CavityContrast,
     float LampTint, float Spread, float4 LampB, float4 LampC, float4 LampD,
     float4 DriveB, float4 DriveC, float4 DriveD, float BulbWarmth,
-    float SurfaceGrain, float SurfaceGrainSize, float Output,
-    out float3 BaseColor, out float3 NormalTS, out float3 Emission)
+    float SurfaceGrain, float SurfaceGrainSize, float Output, float Smoothness, float Roughness,
+    out float3 BaseColor, out float3 NormalTS, out float3 Emission, out float SurfaceSmoothness)
 {
+    // The insert's own wear, under the clearcoat the cover is: a top that the
+    // ball has sanded is matte in its reflections, grainy, and diffuses what
+    // comes up through it, so the ribs and the lamp's rays go soft into the
+    // glow. The bottom, just above the bulb, is not worn and stays sharp.
+    float wear = saturate(Roughness);
+    SurfaceSmoothness = saturate(Smoothness) * (1.0 - 0.6 * wear);
+    Contrast *= 1.0 - 0.7 * wear;
+    SurfaceGrain = saturate(SurfaceGrain + 0.5 * wear);
     float3 rawNormal = SAMPLE_TEXTURE2D(OpticalNormal.tex, OpticalNormal.samplerstate, UV).rgb * 2.0 - 1.0;
     float3 n = normalize(rawNormal + float3(0, 1e-5, 0));
     float3 response = SAMPLE_TEXTURE2D(Response.tex, Response.samplerstate, UV).rgb;
@@ -329,7 +337,9 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float3 emission = max(LampColor, 0.0);
     float3 filament = max(emission.r, max(emission.g, emission.b)) * float3(1.0, 0.95, 0.3);
     float3 bulbColor = lerp(emission, filament, saturate(BulbWarmth));
-    Emission = max(Brightness, 0.0) * (emission * (glow * glowDrive + LampGain * transmitted) + bulbColor * LampGain * image) * finish;
+    // A worn top scatters the rays and the bulb's image into the glow.
+    float sharp = 1.0 - wear;
+    Emission = max(Brightness, 0.0) * (emission * (glow * glowDrive * (1.0 + 0.5 * wear) + LampGain * transmitted * sharp) + bulbColor * LampGain * image * sharp) * finish;
     // Darken the unlit plastic without keeping the bulb or spill light on.
     // Fade back to the authored albedo as the ROM raises lamp intensity.
     float bodyBrightness = lerp(saturate(MinBrightness), 1.0, saturate(Level));
