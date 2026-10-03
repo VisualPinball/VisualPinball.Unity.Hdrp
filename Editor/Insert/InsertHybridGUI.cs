@@ -375,6 +375,9 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				if (!HasStarburst) {
 					EditorGUILayout.HelpBox("The bake has no starburst, so there are no facets to vary.", MessageType.Info);
 				}
+				Field("_InsertRoughness", "Roughness",
+					"How rough the structure inside the plastic is: the facets, channels and holes the light comes up through. Zero couples the lamp into crisp ribs and rays; one diffuses it, so the ribs soften and the rays and the bulb's image go into the glow. The top's finish is the cover's, not this.",
+					facets);
 				Field("_OpticalContrast", "Facet Contrast",
 					"How differently the two slopes of each rib couple to the lamp. One gives crisp alternating ribs; about a quarter suits clear plastic.",
 					facets);
