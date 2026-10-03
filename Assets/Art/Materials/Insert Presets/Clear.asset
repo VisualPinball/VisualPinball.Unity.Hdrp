@@ -61,7 +61,7 @@ MonoBehaviour:
     Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _InsertLuminosity
     Kind: 0
-    Float: 6
+    Float: 8
     Color: {r: 0, g: 0, b: 0, a: 0}
     Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _OpticalMottleSize
@@ -71,7 +71,7 @@ MonoBehaviour:
     Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _OpticalGrain
     Kind: 0
-    Float: 0.147
+    Float: 0.2
     Color: {r: 0, g: 0, b: 0, a: 0}
     Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _OpticalBulbDefinition
@@ -86,7 +86,7 @@ MonoBehaviour:
     Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _InsertFacetFlatten
     Kind: 0
-    Float: 0.85
+    Float: 0.95
     Color: {r: 0, g: 0, b: 0, a: 0}
     Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _InsertClarity
@@ -106,7 +106,7 @@ MonoBehaviour:
     Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _OpticalSpread
     Kind: 0
-    Float: 0
+    Float: 12
     Color: {r: 0, g: 0, b: 0, a: 0}
     Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _Smoothness
