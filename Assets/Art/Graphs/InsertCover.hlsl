@@ -103,7 +103,7 @@ void InsertCover_float(float2 UV, UnityTexture2D NormalMap, float PlayfieldStren
     float3 LampColor, float LampLevel, float LampTint,
     float3 Position, float4 LampA, float4 LampB, float4 LampC, float4 LampD,
     float4 DriveB, float4 DriveC, float4 DriveD, float Spread,
-    float Ior, float3 Tint, float TintDepth, float Thickness,
+    float Ior, float3 Tint, float TintDepth, float Thickness, float Roughness,
     out float3 NormalTS, out float SurfaceSmoothness, out float Alpha, out float3 BaseColor,
     out float RefractionIndex, out float3 TransmittanceColor, out float AbsorptionDistance, out float SlabThickness)
 {
@@ -112,8 +112,15 @@ void InsertCover_float(float2 UV, UnityTexture2D NormalMap, float PlayfieldStren
 #endif
     float3 normal = UnpackNormal(SAMPLE_TEXTURE2D(NormalMap.tex, NormalMap.samplerstate, UV * NormalMap.scaleTranslate.xy + NormalMap.scaleTranslate.zw));
     NormalTS = normalize(float3(normal.xy * max(PlayfieldStrength * Strength, 0.0), normal.z));
-    SurfaceSmoothness = saturate(Smoothness);
-    Alpha = saturate(Opacity);
+    // The insert's own wear on top of the material's finish: a top that is
+    // scuffed or aged reflects the lights as a blur and veils what is under
+    // it a little. Fully worn is a top whose rays have gone soft but still
+    // show, as the worn inserts in the ball's path do, not milk glass: the
+    // slab's refraction blurs fast as the smoothness drops, so a third of
+    // it is as far as the wear goes, and the haze gains less than a tenth.
+    float roughness = saturate(Roughness);
+    SurfaceSmoothness = saturate(Smoothness) * (1.0 - 0.35 * roughness);
+    Alpha = saturate(Opacity + 0.08 * roughness);
     // The haze's hue and saturation turn to the light's, the bulbs' colours
     // summed, as far as the insert light asks and their light reaches, its
     // value untouched, so a coloured lamp is not milked by a grey veil, a
