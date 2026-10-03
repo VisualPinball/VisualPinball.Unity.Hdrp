@@ -15,5 +15,6 @@ MonoBehaviour:
   LampName: Cool White LED
   Order: 2
   Color: {r: 0.8627451, g: 0.92156863, b: 1.0, a: 1}
+  Output: 1.5
   FadeSpeedUp: 0.0
   FadeSpeedDown: 0.0
