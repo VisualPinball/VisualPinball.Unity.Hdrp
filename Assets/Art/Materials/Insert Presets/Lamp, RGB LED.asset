@@ -15,6 +15,6 @@ MonoBehaviour:
   LampName: RGB LED
   Order: 3
   Color: {r: 1.0, g: 1.0, b: 1.0, a: 1}
-  Output: 1.5
+  Output: 3
   FadeSpeedUp: 0.0
   FadeSpeedDown: 0.0
