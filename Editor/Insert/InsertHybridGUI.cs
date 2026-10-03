@@ -72,22 +72,69 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		{
 			using var scope = new MaterialHeaderScope(_header, (uint)_bit, materialEditor);
 			if (scope.expanded) {
+				// Where the values come from, once per draw: the presets one material follows.
+				_look = materials.Length == 1 ? InsertMaterialPresets.LinkedPreset(materials[0]) : null;
+				_color = materials.Length == 1 ? InsertColorPresets.LinkedPreset(materials[0]) : null;
 				Draw();
 			}
 		}
 
 		protected abstract void Draw();
 
-		/// <summary>Draws a property with the shader's own control: slider, field, colour or HDR colour.</summary>
+		private InsertMaterialPreset _look;
+		private InsertColorPreset _color;
+
+		/// <summary>The properties the Color preset owns; every other visible number is the Look's.</summary>
+		private static readonly string[] ColorOwned = { "_BaseColor", "_InsertCavityColor", "_EmissiveColor", "_InsertLuminosity" };
+
+		/// <summary>
+		/// Draws a property with the shader's own control: slider, field, colour
+		/// or HDR colour. A value a preset owns says so in its tooltip, and
+		/// gets a mark on its label when the material has edited it.
+		/// </summary>
 		protected void Field(string name, string label, string tooltip, bool enabled = true)
 		{
 			var property = FindProperty(name);
 			if (property == null) {
 				return;
 			}
+			var origin = Origin(name, property, out var edited);
+			if (origin != null) {
+				tooltip = origin + " " + tooltip;
+				if (edited) {
+					label += " •";
+				}
+			}
 			using (new EditorGUI.DisabledScope(!enabled)) {
 				materialEditor.ShaderProperty(property, new GUIContent(label, tooltip));
 			}
+		}
+
+		/// <summary>Which preset the property comes from, if one, and whether the material has edited it.</summary>
+		private string Origin(string name, MaterialProperty property, out bool edited)
+		{
+			edited = false;
+			if (System.Array.IndexOf(ColorOwned, name) >= 0) {
+				if (_color == null) {
+					return null;
+				}
+				edited = name switch {
+					"_BaseColor" => property.colorValue != _color.Tint,
+					"_InsertCavityColor" => property.colorValue != _color.CavityColor,
+					"_EmissiveColor" => property.colorValue != _color.LampEmission,
+					"_InsertLuminosity" => !Mathf.Approximately(property.floatValue, _color.MaxBrightness),
+					_ => false,
+				};
+				return edited ? $"Edited here; the Color preset {_color.ColorName} has another value and overwrites this one when it changes." : $"From the Color preset {_color.ColorName}.";
+			}
+			var entry = _look != null ? _look.Find(name) : null;
+			if (entry == null) {
+				return null;
+			}
+			edited = !InsertMaterialPreset.Matches(materials[0], entry);
+			return edited
+				? $"Edited here; the Look preset {_look.name} has {(entry.Kind == InsertMaterialPreset.Kind.Float ? entry.Float.ToString("0.###") : entry.Vector.ToString())} and overwrites this one when it changes."
+				: $"From the Look preset {_look.name}.";
 		}
 
 		protected float Float(string name) => FindProperty(name)?.floatValue ?? 0f;
@@ -148,6 +195,50 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			}
 		}
 
+		/// <summary>
+		/// The look the selected materials follow, to link or unlink them, with
+		/// the way back to it once values were edited, and the way to keep them.
+		/// </summary>
+		protected void LookField()
+		{
+			var links = materials.Select(InsertMaterialPresets.LinkedPreset).Distinct().ToArray();
+			var readOnly = materials.Any(material => InsertBaker.IsReadOnly(AssetDatabase.GetAssetPath(material)));
+			using (new EditorGUI.DisabledScope(readOnly || EditorApplication.isPlaying)) {
+				EditorGUI.showMixedValue = links.Length > 1;
+				EditorGUI.BeginChangeCheck();
+				var picked = (InsertMaterialPreset)EditorGUILayout.ObjectField(new GUIContent("Look Preset",
+					"The look this material follows: every numeric setting below but Max Brightness and the lamps, now and whenever the preset changes. None unlinks it, keeping the values it has. A value marked • was edited here."),
+					links.Length == 1 ? links[0] : null, typeof(InsertMaterialPreset), false);
+				EditorGUI.showMixedValue = false;
+				if (EditorGUI.EndChangeCheck()) {
+					InsertMaterialPresets.LinkAsking(materials, picked, materials.Length == 1, "This material's");
+					GUIUtility.ExitGUI();
+				}
+			}
+			if (readOnly) {
+				EditorGUILayout.HelpBox("This material's package can't be written to, so it can't be linked to a look preset.", MessageType.None);
+			} else if (links.Length == 1 && links[0] != null && materials.Length == 1) {
+				var preset = links[0];
+				var edited = preset.Edited(materials[0]);
+				EditorGUILayout.HelpBox(edited == 0
+					? $"The look comes from {preset.name}; every value marked • below was edited here and goes back to the preset's when it changes."
+					: $"{edited} values differ from {preset.name}, marked • below. They go back to the preset's when it changes: copy them to the preset to keep them, or reset them.", MessageType.Info);
+				using (new EditorGUILayout.HorizontalScope()) {
+					using (new EditorGUI.DisabledScope(edited == 0 || EditorApplication.isPlaying || InsertBaker.IsReadOnly(AssetDatabase.GetAssetPath(preset)))) {
+						if (GUILayout.Button(new GUIContent($"Copy to {preset.name}", "Takes this material's look into the preset, and from there into every material linked to it."))) {
+							InsertMaterialPresets.Capture(preset, materials[0]);
+						}
+					}
+					using (new EditorGUI.DisabledScope(edited == 0 || EditorApplication.isPlaying)) {
+						if (GUILayout.Button(new GUIContent($"Reset to {preset.name}", "Gives this material the preset's values again."))) {
+							Undo.RecordObject(materials[0], "Reset Insert Look");
+							InsertMaterialPresets.Refresh(materials[0]);
+						}
+					}
+				}
+			}
+		}
+
 		protected static void SubHeader(string title)
 		{
 			EditorGUILayout.Space(2f);
@@ -163,6 +254,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		protected override void Draw()
 		{
 			LinkField(false, "Tint, Cavity Color, Lamp Emission and Max Brightness");
+			LookField();
 			if (!HasOptics) {
 				EditorGUILayout.HelpBox("This material has no optical bake. Enable Bake Hybrid Optics on the insert and bake it; until then the lamp and the cavity have no maps to work from.", MessageType.Warning);
 			}
