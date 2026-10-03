@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 724241377b3cbb940835d81a192a6bd1, type: 3}
-  m_Name: Clear
+  m_Name: Clear Plastic
   m_EditorClassIdentifier: VisualPinball.Unity::VisualPinball.Unity.InsertMaterialPreset
   BodyShader: Visual Pinball/Insert Hybrid
   Body:
@@ -57,11 +57,6 @@ MonoBehaviour:
   - Name: _OpticalSeed
     Kind: 0
     Float: 3.32
-    Color: {r: 0, g: 0, b: 0, a: 0}
-    Vector: {x: 0, y: 0, z: 0, w: 0}
-  - Name: _InsertLuminosity
-    Kind: 0
-    Float: 8
     Color: {r: 0, g: 0, b: 0, a: 0}
     Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _OpticalMottleSize
