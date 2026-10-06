@@ -19,11 +19,6 @@ MonoBehaviour:
     Float: 1.586
     Color: {r: 0, g: 0, b: 0, a: 0}
     Vector: {x: 0, y: 0, z: 0, w: 0}
-  - Name: _OpticalWarp
-    Kind: 0
-    Float: 0.88
-    Color: {r: 0, g: 0, b: 0, a: 0}
-    Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _OpticalScatter
     Kind: 0
     Float: 0.68
@@ -67,11 +62,6 @@ MonoBehaviour:
   - Name: _OpticalGrain
     Kind: 0
     Float: 0.147
-    Color: {r: 0, g: 0, b: 0, a: 0}
-    Vector: {x: 0, y: 0, z: 0, w: 0}
-  - Name: _OpticalBulbDefinition
-    Kind: 0
-    Float: 3.7
     Color: {r: 0, g: 0, b: 0, a: 0}
     Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _InsertMinBrightness
