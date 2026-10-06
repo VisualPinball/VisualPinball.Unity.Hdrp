@@ -237,12 +237,12 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					}
 				} else {
 					if (selected.Length > 0 && selected.Length < wearing.Length
-						&& GUILayout.Button(new GUIContent(selected.Length == 1 ? "Edit for This Insert" : $"Edit for {selected.Length} Selected Inserts",
+						&& GUILayout.Button(new GUIContent(selected.Length == 1 ? "Edit for this insert" : $"Edit for {selected.Length} selected inserts",
 							string.Format(tooltip, selected.Length == 1 ? "the selected insert" : "the selected inserts") + " The other inserts wearing it keep it."))) {
 						InsertColorPresets.CopyToProject(selected);
 						Exit(enabled);
 					}
-					if (GUILayout.Button(new GUIContent(wearing.Length == 1 ? "Edit for This Insert" : $"Edit for All {wearing.Length} Inserts",
+					if (GUILayout.Button(new GUIContent(wearing.Length == 1 ? "Edit for this insert" : $"Edit for all {wearing.Length} inserts",
 						string.Format(tooltip, "every insert in the open scenes that wears it") + " They stay alike: changing the copy changes all of them."))) {
 						InsertColorPresets.CopyToProject(wearing);
 						Exit(enabled);
