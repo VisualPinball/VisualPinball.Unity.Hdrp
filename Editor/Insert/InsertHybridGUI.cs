@@ -25,7 +25,7 @@ using VisualPinball.Unity.Editor;
 namespace VisualPinball.Engine.Unity.Hdrp.Editor
 {
 	/// <summary>
-	/// Material inspector of the <c>Visual Pinball/Insert Hybrid</c> shader.
+	/// Material inspector of the <c>Pinball/Insert Hybrid</c> shader.
 	/// </summary>
 	/// <remarks>
 	/// HDRP's own surface and advanced options stay as they are. Between them,

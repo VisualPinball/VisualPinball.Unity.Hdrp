@@ -693,7 +693,7 @@
         },
         "preventRotation": false
     },
-    "m_Path": "Visual Pinball",
+    "m_Path": "Pinball",
     "m_GraphPrecision": 1,
     "m_PreviewMode": 2,
     "m_OutputNode": {

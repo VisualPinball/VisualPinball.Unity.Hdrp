@@ -42,8 +42,8 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		private const string HdrpFabricShaderPrefix = "HDRP/Fabric/";
 		private const string HdrpDecalShaderName = "HDRP/Decal";
 		private const string HdrpUnlitShaderName = "HDRP/Unlit";
-		private const string InsertHybridShaderName = "Visual Pinball/Insert Hybrid";
-		private const string InsertCoverShaderName = "Visual Pinball/Insert Cover";
+		private const string InsertHybridShaderName = "Pinball/Insert Hybrid";
+		private const string InsertCoverShaderName = "Pinball/Insert Cover";
 		private const string VpeMetalShaderGraphPathSuffix = "/Assets/Resources/Graphs/Metal.shadergraph";
 		private const string VpeRubberShaderGraphPathSuffix = "/Assets/Resources/Graphs/Rubber.shadergraph";
 		private const string VpeDmdShaderGraphPathSuffix = "/Assets/Shaders/Srp/Display/DotMatrixDisplayGraph.shadergraph";
