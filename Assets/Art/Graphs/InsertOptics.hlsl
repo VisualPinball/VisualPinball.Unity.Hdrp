@@ -64,10 +64,25 @@ float InsertSurfaceGrainHeight(float3 cells)
     return InsertGrain(cells) + 0.5 * InsertGrain(cells * 2.07 + 17.3);
 }
 
+// Ray tracing stages have no screen-space derivatives, so the detail stays
+// fully visible there.
 float InsertDetailVisibility(float3 p)
 {
+#if defined(SHADER_STAGE_RAY_TRACING)
+    return 1.0;
+#else
     float footprint = max(length(ddx(p)), length(ddy(p)));
     return 1.0 - smoothstep(0.35, 1.0, footprint);
+#endif
+}
+
+float InsertPixelWidth(float x)
+{
+#if defined(SHADER_STAGE_RAY_TRACING)
+    return 0.0;
+#else
+    return fwidth(x);
+#endif
 }
 
 // All positions and directions are in insert local space, in metres. This
@@ -217,7 +232,7 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float3 random = InsertFacetRandom(sector, Seed);
     // Fade the random coefficients across less than one screen pixel at a
     // crease. Their identity comes from the fan, never quantized bake noise.
-    float width = gem ? 0.5 : min(0.45, max(fwidth(coordinate), 0.01));
+    float width = gem ? 0.5 : min(0.45, max(InsertPixelWidth(coordinate), 0.01));
     float part = frac(coordinate);
     float previous = fmod(sector + sectors - 1.0, sectors);
     float next = fmod(sector + 1.0, sectors);
