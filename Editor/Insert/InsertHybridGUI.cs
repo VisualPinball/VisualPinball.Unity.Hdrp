@@ -48,6 +48,20 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			uiBlocks.Insert(index + 1, new LampBlock());
 			uiBlocks.Insert(index + 2, new BakeBlock());
 		}
+
+		/// <summary>
+		/// Unity disables the inspector of a package's material that can't be
+		/// written to, but not of a locked asset library's, whose files can be:
+		/// VPE leaves those alone too, so the inspector is disabled here as well.
+		/// The read-only note in the Color Preset row has the way out.
+		/// </summary>
+		protected override void OnMaterialGUI(MaterialEditor materialEditor, MaterialProperty[] props)
+		{
+			var locked = materialEditor.targets.OfType<Material>().Any(InsertColorPresets.IsReadOnly);
+			using (new EditorGUI.DisabledScope(locked)) {
+				base.OnMaterialGUI(materialEditor, props);
+			}
+		}
 	}
 
 	/// <summary>
@@ -183,16 +197,65 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				}
 			}
 			if (readOnly) {
-				EditorGUILayout.HelpBox("This material's package can't be written to, so it can't be linked to a color preset.", MessageType.None);
+				ReadOnlyField();
 			} else if (links.Length == 1 && links[0] != null) {
 				var preset = links[0];
-				EditorGUILayout.HelpBox($"{what} come from {preset.ColorName}, and changes made to them here are overwritten when the preset changes. Copy them to the preset to keep them.", MessageType.Info);
+				EditorGUILayout.HelpBox(InsertBaker.IsReadOnly(AssetDatabase.GetAssetPath(preset))
+					? $"{what} come from {preset.ColorName}, and changes made to them here are overwritten when the preset changes, a look is applied, or the preset is updated with its package, which can't be changed. To keep them, unlink this material by setting Color Preset to none, or link it to a color preset of your own."
+					: $"{what} come from {preset.ColorName}, and changes made to them here are overwritten when the preset changes. Copy them to the preset to keep them.", MessageType.Info);
 				using (new EditorGUI.DisabledScope(materials.Length != 1 || EditorApplication.isPlaying || InsertBaker.IsReadOnly(AssetDatabase.GetAssetPath(preset)))) {
 					if (GUILayout.Button(new GUIContent($"Copy to {preset.ColorName}", $"Takes this material's {what} into the preset, and from there into every material linked to it."))) {
 						InsertColorPresets.Capture(preset, cover ? null : materials[0], cover ? materials[0] : null);
 					}
 				}
 			}
+		}
+
+		/// <summary>
+		/// What a material of a package that can't be written to, like the
+		/// asset library's, is: Unity shows its inspector disabled. The way to
+		/// change it is a copy in the project, put on the inserts wearing it.
+		/// </summary>
+		private void ReadOnlyField()
+		{
+			var wearing = materials.SelectMany(InsertColorPresets.Wearing).Distinct().ToArray();
+			// The selected inserts that wear it, when the material is shown in their inspector.
+			var selected = wearing.Where(insert => Selection.gameObjects.Contains(insert.gameObject)).ToArray();
+			EditorGUILayout.HelpBox("This material belongs to a package that can't be changed, like the installed asset library, or to a locked asset library, so its values can't be edited here. To change it, edit the inserts that wear it: they then get a copy of it in the project, which keeps following this material, and its color preset, until a value is changed.", MessageType.Info);
+			// The inspector of a read-only asset is disabled; these buttons are the way out of it.
+			var enabled = GUI.enabled;
+			GUI.enabled = !EditorApplication.isPlaying;
+			const string tooltip = "Makes a copy of the material in the project and puts it on {0}, along with copies of their other insert material.";
+			using (new EditorGUILayout.HorizontalScope()) {
+				if (wearing.Length == 0) {
+					if (GUILayout.Button(new GUIContent("Copy to Project", "Makes a copy of the material in the project and highlights it. No insert in the open scenes wears this material."))) {
+						foreach (var material in materials) {
+							EditorGUIUtility.PingObject(InsertColorPresets.ProjectCopy(material));
+						}
+						AssetDatabase.SaveAssets();
+						Exit(enabled);
+					}
+				} else {
+					if (selected.Length > 0 && selected.Length < wearing.Length
+						&& GUILayout.Button(new GUIContent(selected.Length == 1 ? "Edit This Insert" : $"Edit {selected.Length} Selected Inserts",
+							string.Format(tooltip, selected.Length == 1 ? "the selected insert" : "the selected inserts") + " The other inserts wearing it keep it."))) {
+						InsertColorPresets.CopyToProject(selected);
+						Exit(enabled);
+					}
+					if (GUILayout.Button(new GUIContent(wearing.Length == 1 ? "Edit This Insert" : $"Edit All {wearing.Length} Inserts",
+						string.Format(tooltip, "every insert in the open scenes that wears it") + " They stay alike: changing the copy changes all of them."))) {
+						InsertColorPresets.CopyToProject(wearing);
+						Exit(enabled);
+					}
+				}
+			}
+			GUI.enabled = enabled;
+		}
+
+		private static void Exit(bool enabled)
+		{
+			GUI.enabled = enabled;
+			GUIUtility.ExitGUI();
 		}
 
 		/// <summary>
@@ -215,9 +278,8 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					GUIUtility.ExitGUI();
 				}
 			}
-			if (readOnly) {
-				EditorGUILayout.HelpBox("This material's package can't be written to, so it can't be linked to a look preset.", MessageType.None);
-			} else if (links.Length == 1 && links[0] != null && materials.Length == 1) {
+			// A read-only material says so, and how to change it, in its color preset's row.
+			if (!readOnly && links.Length == 1 && links[0] != null && materials.Length == 1) {
 				var preset = links[0];
 				var edited = preset.Edited(materials[0]);
 				EditorGUILayout.HelpBox(edited == 0

@@ -20,6 +20,7 @@ using UnityEditor.Rendering.HighDefinition;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using VisualPinball.Unity;
+using VisualPinball.Unity.Editor;
 
 namespace VisualPinball.Engine.Unity.Hdrp.Editor
 {
@@ -47,6 +48,20 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			uiBlocks.Insert(index, new CoverPlasticBlock());
 			uiBlocks.Insert(index + 1, new HazeBlock());
 			uiBlocks.Insert(index + 2, new CoverSurfaceBlock());
+		}
+
+		/// <summary>
+		/// Unity disables the inspector of a package's material that can't be
+		/// written to, but not of a locked asset library's, whose files can be:
+		/// VPE leaves those alone too, so the inspector is disabled here as well.
+		/// The read-only note in the Color Preset row has the way out.
+		/// </summary>
+		protected override void OnMaterialGUI(MaterialEditor materialEditor, MaterialProperty[] props)
+		{
+			var locked = materialEditor.targets.OfType<Material>().Any(InsertColorPresets.IsReadOnly);
+			using (new EditorGUI.DisabledScope(locked)) {
+				base.OnMaterialGUI(materialEditor, props);
+			}
 		}
 
 		/// <summary>
