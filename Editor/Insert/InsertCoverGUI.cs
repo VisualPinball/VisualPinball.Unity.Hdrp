@@ -24,7 +24,7 @@ using VisualPinball.Unity;
 namespace VisualPinball.Engine.Unity.Hdrp.Editor
 {
 	/// <summary>
-	/// Material inspector of the <c>Visual Pinball/Insert Cover</c> shader: the
+	/// Material inspector of the <c>Pinball/Insert Cover</c> shader: the
 	/// flat clear top that closes an insert at its rim.
 	/// </summary>
 	/// <remarks>

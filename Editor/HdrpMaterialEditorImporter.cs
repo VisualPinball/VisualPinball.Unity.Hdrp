@@ -61,8 +61,8 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				fabricSilkTemplate: NewFabricSilkTemplate(),
 				decalTemplate: NewDecalTemplate(),
 				materialOverrides: FindShaderGraphTemplates(payload),
-				insertHybridTemplate: NewInsertTemplate("Visual Pinball/Insert Hybrid"),
-				insertCoverTemplate: NewInsertTemplate("Visual Pinball/Insert Cover"));
+				insertHybridTemplate: NewInsertTemplate("Pinball/Insert Hybrid"),
+				insertCoverTemplate: NewInsertTemplate("Pinball/Insert Cover"));
 
 			var provider = new AssetTextureProvider(texturesById);
 			var profilesByName = new Dictionary<string, VpeMaterialProfile>(StringComparer.Ordinal);
