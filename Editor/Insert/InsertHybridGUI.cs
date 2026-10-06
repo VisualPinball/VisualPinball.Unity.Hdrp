@@ -327,7 +327,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				lit);
 			if (!lit) {
 				EditorGUILayout.HelpBox(IsClear
-					? "Max Brightness is zero, so the lamp never shows. Only what the clear body's cavity shares with it stays live: the lamp's position and radius, the refraction and the facet strength."
+					? "Max Brightness is zero, so the lamp never shows. Only what the clear body's cavity shares with it stays live: the lamp's position and radius, and the refraction."
 					: "Max Brightness is zero, so the lamp never shows. Nothing below has an effect until it is raised.", MessageType.Info);
 			}
 			// The cavity of a clear insert looks through the same facets at the
@@ -337,7 +337,6 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			// The facets shape the lamp's image and, through Facet Contrast,
 			// the scattered glow on the starburst floor.
 			var facets = HasStarburst && (bulb || scatter);
-			var contrast = facets && Above("_OpticalContrast", 0f);
 
 			SubHeader("Virtual Lamp");
 			// The bulbs' places shape the lamp's image, the glow's colour and
@@ -347,18 +346,9 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			Field("_OpticalLampGain", "Strength",
 				"How much of the lit look is the lamp seen through the facets, against the baked glow below. Zero leaves only the glow.",
 				lit);
-			Field("_OpticalBulbDefinition", "Bulb Definition",
-				"A tighter image of the bulb inside its soft halo. Zero is the halo alone.",
-				bulb);
-			Field("_OpticalBulbWarmth", "Bulb Warmth",
-				"Colours the bulb's image as a filament's warm white instead of the Lamp Emission, as bright as the emission's brightest channel, so a red insert's bulb clips to yellow as on a photograph while the glow around it stays red. The plastic above still colours it. Zero keeps the emission's colour.",
-				bulb && Above("_OpticalBulbDefinition", 0f));
 			Field("_OpticalIor", "Index of Refraction",
 				"How strongly the facets bend the view towards the lamp. Acrylic is about 1.49. A clear insert's cavity look-through bends the same way.",
 				bulb || CavityView);
-			Field("_OpticalWarp", "Optical Facet Strength",
-				"Scales the facets' optical tilt without touching the surface reflections. One is the baked geometry; zero makes the lamp a flat glow. Facet Contrast and a clear body's cavity read the same tilt.",
-				bulb || CavityView || contrast);
 
 			// The spread also bounds how far each bulb's colour reaches into
 			// the tint, lamp or no lamp.
