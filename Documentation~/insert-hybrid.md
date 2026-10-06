@@ -1,6 +1,6 @@
 # Hybrid insert optics
 
-The `Visual Pinball/Insert Hybrid` shader combines a Blender bake with a virtual lamp underneath the insert. It is an opaque HDRP Lit material: reflections and shadows use HDRP, while the apparent transmitted light is emitted by the insert itself. It needs neither a screen-space refraction buffer nor a real light below the playfield to show the lamp.
+The `Pinball/Insert Hybrid` shader combines a Blender bake with a virtual lamp underneath the insert. It is an opaque HDRP Lit material: reflections and shadows use HDRP, while the apparent transmitted light is emitted by the insert itself. It needs neither a screen-space refraction buffer nor a real light below the playfield to show the lamp.
 
 ## Authoring
 
@@ -37,7 +37,7 @@ Existing inserts under a VPE **LightComponent** can still follow that parent whe
 
 ## Clear cover
 
-Assign any material under **Clear Cover → Material** to close the insert at its rim with a flat top in the second material slot. This is the default workflow: the cover uses local 0–1 UVs and the assigned material's settings, with no playfield dependency or material overrides. Clear the Material to remove the top surface. **Add Clear Cover** creates a nearly transparent **Visual Pinball/Insert Cover** material as a starting point; its **Normal Map**, tiling/offset, **Normal Strength**, **Smoothness** and **Opacity** are editable. Custom materials control their own transparency, reflections and shadows.
+Assign any material under **Clear Cover → Material** to close the insert at its rim with a flat top in the second material slot. This is the default workflow: the cover uses local 0–1 UVs and the assigned material's settings, with no playfield dependency or material overrides. Clear the Material to remove the top surface. **Add Clear Cover** creates a nearly transparent **Pinball/Insert Cover** material as a starting point; its **Normal Map**, tiling/offset, **Normal Strength**, **Smoothness** and **Opacity** are editable. Custom materials control their own transparency, reflections and shadows.
 
 Enable **Use Playfield Normals** on an Insert Cover material for continuous surface detail across the playfield and insert. It automatically finds the surface under the enclosing Playfield (or the single Playfield in the same Table), and reads its first material's normal map. Imported boards are selected from readable planar surfaces with normal maps, preferring the largest; **Playfield Override** can select a different surface. The inspector shows the detected renderer, source material and source normal map. Nothing needs to be copied into the cover material manually, and its shared material asset is not modified.
 
