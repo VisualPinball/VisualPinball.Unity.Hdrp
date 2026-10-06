@@ -88,7 +88,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 
 		protected override void Draw()
 		{
-			LinkField(true, "Haze Color");
+			LinkField(true, "Haze Color and Tint");
 			Field("_CoverOpacity", "Opacity",
 				"How much of the haze shows over the body. A hundredth is a clean top with only its reflection; five to ten hundredths a milky veil that softens the ribs like a worn, slightly frosted top. The reflections stay at full strength whatever the value.");
 			Field("_HazeColor", "Haze Color",
