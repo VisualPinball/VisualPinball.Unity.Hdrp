@@ -98,13 +98,15 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		private InsertMaterialPreset _look;
 		private InsertColorPreset _color;
 
-		/// <summary>The properties the Color preset owns; every other visible number is the Look's.</summary>
-		private static readonly string[] ColorOwned = { "_BaseColor", "_InsertCavityColor", "_EmissiveColor", "_InsertLuminosity" };
+		/// <summary>The properties the Color preset owns, the body's and the cover's; every other visible number is the Look's.</summary>
+		private static readonly string[] ColorOwned = { "_BaseColor", "_InsertCavityColor", "_EmissiveColor", "_InsertLuminosity", "_HazeColor", "_CoverTint" };
 
 		/// <summary>
 		/// Draws a property with the shader's own control: slider, field, colour
 		/// or HDR colour. A value a preset owns says so in its tooltip, and
-		/// gets a mark on its label when the material has edited it.
+		/// gets a mark on its label when the material has edited it. A colour
+		/// of a material linked to a Color preset is the preset's to change,
+		/// so it's shown but can't be edited here.
 		/// </summary>
 		protected void Field(string name, string label, string tooltip, bool enabled = true)
 		{
@@ -119,7 +121,8 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					label += " •";
 				}
 			}
-			using (new EditorGUI.DisabledScope(!enabled)) {
+			var linked = System.Array.IndexOf(ColorOwned, name) >= 0 && materials.Any(material => InsertColorPresets.LinkedPreset(material) != null);
+			using (new EditorGUI.DisabledScope(!enabled || linked)) {
 				materialEditor.ShaderProperty(property, new GUIContent(label, tooltip));
 			}
 		}
@@ -137,9 +140,11 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					"_InsertCavityColor" => property.colorValue != _color.CavityColor,
 					"_EmissiveColor" => property.colorValue != _color.LampEmission,
 					"_InsertLuminosity" => !Mathf.Approximately(property.floatValue, _color.MaxBrightness),
+					"_HazeColor" => property.colorValue != _color.HazeColor,
+					"_CoverTint" => property.colorValue != _color.CoverTint,
 					_ => false,
 				};
-				return edited ? $"Edited here; the Color preset {_color.ColorName} has another value and overwrites this one when it changes." : $"From the Color preset {_color.ColorName}.";
+				return edited ? $"The Color preset {_color.ColorName} has another value and puts it here when it changes." : $"From the Color preset {_color.ColorName}.";
 			}
 			var entry = _look != null ? _look.Find(name) : null;
 			if (entry == null) {
@@ -199,55 +204,55 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			if (readOnly) {
 				ReadOnlyField();
 			} else if (links.Length == 1 && links[0] != null) {
+				// A linked material's colours are its preset's: changed there, for all of them, or unlinked first.
 				var preset = links[0];
-				EditorGUILayout.HelpBox(InsertBaker.IsReadOnly(AssetDatabase.GetAssetPath(preset))
-					? $"{what} come from {preset.ColorName}, and changes made to them here are overwritten when the preset changes, a look is applied, or the preset is updated with its package, which can't be changed. To keep them, unlink this material by setting Color Preset to none, or link it to a color preset of your own."
-					: $"{what} come from {preset.ColorName}, and changes made to them here are overwritten when the preset changes. Copy them to the preset to keep them.", MessageType.Info);
-				using (new EditorGUI.DisabledScope(materials.Length != 1 || EditorApplication.isPlaying || InsertBaker.IsReadOnly(AssetDatabase.GetAssetPath(preset)))) {
-					if (GUILayout.Button(new GUIContent($"Copy to {preset.ColorName}", $"Takes this material's {what} into the preset, and from there into every material linked to it."))) {
-						InsertColorPresets.Capture(preset, cover ? null : materials[0], cover ? materials[0] : null);
-					}
+				var readOnlyPreset = InsertBaker.IsReadOnly(AssetDatabase.GetAssetPath(preset));
+				EditorGUILayout.HelpBox(readOnlyPreset
+					? $"{what} come from the color preset {preset.ColorName}, which belongs to a package that can't be changed, so they can't be edited here. To change them, link this material to a color preset of your own, or set Color Preset to none, which keeps the values it has."
+					: $"{what} come from the color preset {preset.ColorName}, so they can't be edited here. Change them in the color preset, for every material linked to it, or set Color Preset to none to change them in this material alone, which keeps the values it has.", MessageType.Info);
+				using (new EditorGUILayout.HorizontalScope()) {
+					GUILayout.FlexibleSpace();
+					InsertPresetGui.EditButton(InsertPresetWindow.Kind.Color, preset);
 				}
+			} else if (links.Any(link => link != null)) {
+				EditorGUILayout.HelpBox($"Some of the selected materials follow a color preset, so their {what} can't be edited here.", MessageType.Info);
 			}
 		}
 
 		/// <summary>
 		/// What a material of a package that can't be written to, like the
 		/// asset library's, is: Unity shows its inspector disabled. The way to
-		/// change it is a copy in the project, put on the inserts wearing it.
+		/// change it is to edit an insert wearing it in the project, which then gets a copy.
 		/// </summary>
 		private void ReadOnlyField()
 		{
 			var wearing = materials.SelectMany(InsertColorPresets.Wearing).Distinct().ToArray();
 			// The selected inserts that wear it, when the material is shown in their inspector.
 			var selected = wearing.Where(insert => Selection.gameObjects.Contains(insert.gameObject)).ToArray();
-			EditorGUILayout.HelpBox("This material belongs to a package that can't be changed, like the installed asset library, or to a locked asset library, so its values can't be edited here. To change it, edit it for the inserts that wear it: they then get a copy of it in the project, which keeps following this material, and its color preset, until a value is changed.", MessageType.Info);
-			// The inspector of a read-only asset is disabled; these buttons are the way out of it.
+			if (wearing.Length > 0) {
+				EditorGUILayout.HelpBox($"This material belongs to a package that can't be changed, like the installed asset library, or to a locked asset library, so its values can't be edited here. To change it, edit {(wearing.Length == 1 ? "the insert that wears it" : "an insert that wears it")} in the project, at the top of its Insert component: it then gets a copy of it, which keeps following this material, and its color preset, until a value is changed.", MessageType.Info);
+				if (selected.Length == 0) {
+					// The inserts are where it's edited from.
+					var enabledForSelect = GUI.enabled;
+					GUI.enabled = true;
+					if (GUILayout.Button(new GUIContent(wearing.Length == 1 ? "Select the insert" : $"Select the {wearing.Length} inserts", "Selects the inserts in the open scenes that wear this material."))) {
+						Selection.objects = wearing.Select(insert => (Object)insert.gameObject).ToArray();
+						Exit(enabledForSelect);
+					}
+					GUI.enabled = enabledForSelect;
+				}
+				return;
+			}
+			EditorGUILayout.HelpBox("This material belongs to a package that can't be changed, like the installed asset library, or to a locked asset library, so its values can't be edited here. No insert in the open scenes wears it; copy it to the project to have one that can be changed.", MessageType.Info);
+			// The inspector of a read-only asset is disabled; this button is the way out of it.
 			var enabled = GUI.enabled;
 			GUI.enabled = !EditorApplication.isPlaying;
-			const string tooltip = "Makes a copy of the material in the project and puts it on {0}, along with copies of their other insert material.";
-			using (new EditorGUILayout.HorizontalScope()) {
-				if (wearing.Length == 0) {
-					if (GUILayout.Button(new GUIContent("Copy to Project", "Makes a copy of the material in the project and highlights it. No insert in the open scenes wears this material."))) {
-						foreach (var material in materials) {
-							EditorGUIUtility.PingObject(InsertColorPresets.ProjectCopy(material));
-						}
-						AssetDatabase.SaveAssets();
-						Exit(enabled);
-					}
-				} else {
-					if (selected.Length > 0 && selected.Length < wearing.Length
-						&& GUILayout.Button(new GUIContent(selected.Length == 1 ? "Edit for this insert" : $"Edit for {selected.Length} selected inserts",
-							string.Format(tooltip, selected.Length == 1 ? "the selected insert" : "the selected inserts") + " The other inserts wearing it keep it."))) {
-						InsertColorPresets.CopyToProject(selected);
-						Exit(enabled);
-					}
-					if (GUILayout.Button(new GUIContent(wearing.Length == 1 ? "Edit for this insert" : $"Edit for all {wearing.Length} inserts",
-						string.Format(tooltip, "every insert in the open scenes that wears it") + " They stay alike: changing the copy changes all of them."))) {
-						InsertColorPresets.CopyToProject(wearing);
-						Exit(enabled);
-					}
+			if (GUILayout.Button(new GUIContent("Copy to Project", "Makes a copy of the material in the project and highlights it. It keeps following this material until a value is changed."))) {
+				foreach (var material in materials) {
+					EditorGUIUtility.PingObject(InsertColorPresets.ProjectCopy(material));
 				}
+				AssetDatabase.SaveAssets();
+				Exit(enabled);
 			}
 			GUI.enabled = enabled;
 		}
