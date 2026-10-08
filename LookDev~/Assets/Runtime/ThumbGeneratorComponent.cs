@@ -67,6 +67,11 @@ namespace VisualPinball.Unity.Library
 			OnScreenshot?.Invoke(this, EventArgs.Empty);
 		}
 
+		private void OnDestroy()
+		{
+			EditorApplication.update -= UpdateFrame;
+		}
+
 		private static void TriggerRender()
 		{
 			EditorApplication.QueuePlayerLoopUpdate();

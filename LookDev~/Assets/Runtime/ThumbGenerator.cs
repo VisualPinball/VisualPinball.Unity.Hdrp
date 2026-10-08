@@ -24,6 +24,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using VisualPinball.Unity.Editor;
+using VisualPinball.Unity.LookDev;
 
 namespace VisualPinball.Unity.Library
 {
@@ -34,6 +35,9 @@ namespace VisualPinball.Unity.Library
 
 		[SerializeReference]
 		public GameObject DefaultEnvironment;
+
+		[Tooltip("Shared playfield preview used for every insert, regardless of its saved environment name.")]
+		public PlayfieldInsertCutout InsertEnvironment;
 
 		public bool IsProcessing { get; private set; }
 		public int TotalProcessing { get; private set; }
@@ -46,6 +50,10 @@ namespace VisualPinball.Unity.Library
 		private AssetMaterialCombination _currentAmc;
 		private Camera _camera;
 		private readonly Dictionary<string, GameObject> _environmentObjects = new();
+		private PlayfieldInsertCutout _previewEnvironment;
+		private InsertComponent _previewInsert;
+		private bool _previewInsertWasActive;
+		private bool _previewEnvironmentWasActive;
 
 		public void StartProcessing(bool newOnly = false, bool selectedOnly = false)
 		{
@@ -90,6 +98,7 @@ namespace VisualPinball.Unity.Library
 				TotalProcessing = _combinations.Count;
 				var first = NextAsset();
 				if (first != null) {
+					SaveInsertPreview();
 					IsProcessing = true;
 					Process(first);
 				} else {
@@ -105,6 +114,49 @@ namespace VisualPinball.Unity.Library
 		{
 			_combinations?.Clear();
 			IsProcessing = false;
+			DestroyCurrentObject();
+			RestoreInsertPreview();
+		}
+
+		private void SaveInsertPreview()
+		{
+			_previewEnvironment = InsertEnvironment;
+			_previewInsert = InsertEnvironment != null ? InsertEnvironment.Insert : null;
+			_previewEnvironmentWasActive = InsertEnvironment != null && InsertEnvironment.gameObject.activeSelf;
+			if (_previewInsert != null) {
+				_previewInsertWasActive = _previewInsert.gameObject.activeSelf;
+				_previewInsert.gameObject.SetActive(false);
+			}
+		}
+
+		private void RestoreInsertPreview()
+		{
+			if (_previewEnvironment != null) {
+				_previewEnvironment.Insert = _previewInsert;
+				if (_previewEnvironmentWasActive) {
+					ToggleEnvironment(_previewEnvironment.gameObject);
+				}
+				if (_previewInsert != null) {
+					_previewInsert.gameObject.SetActive(_previewInsertWasActive);
+				}
+				if (_previewEnvironment.isActiveAndEnabled) {
+					_previewEnvironment.Rebuild();
+				}
+			}
+			_previewEnvironment = null;
+			_previewInsert = null;
+		}
+
+		private void DestroyCurrentObject()
+		{
+			if (_currentTbc != null) {
+				_currentTbc.OnScreenshot -= DoneProcessing;
+			}
+			if (_currentGo != null) {
+				DestroyImmediate(_currentGo);
+			}
+			_currentTbc = null;
+			_currentGo = null;
 		}
 
 		/// <summary>
@@ -177,6 +229,19 @@ namespace VisualPinball.Unity.Library
 			a.ApplyObjectPos(_currentGo);
 			a.ApplyMaterial(_currentGo);
 
+			var insert = _currentGo.GetComponentInChildren<InsertComponent>(true);
+			if (insert != null && InsertEnvironment != null) {
+				InsertEnvironment.Insert = insert;
+				ToggleEnvironment(InsertEnvironment.gameObject);
+				InsertEnvironment.Rebuild();
+				if (InsertEnvironment.Error != null) {
+					var error = InsertEnvironment.Error;
+					StopProcessing();
+					Debug.LogError($"Cannot render insert thumbnail: {error}");
+					return;
+				}
+			}
+
 			// launch generation
 			Debug.Log($"Processing {_currentGo!.name}");
 			_currentTbc = _currentGo!.AddComponent<ThumbGeneratorComponent>();
@@ -199,8 +264,7 @@ namespace VisualPinball.Unity.Library
 
 		private void DoneProcessing(object sender, EventArgs e)
 		{
-			_currentTbc!.OnScreenshot -= DoneProcessing;
-			DestroyImmediate(_currentGo);
+			DestroyCurrentObject();
 			EditorWindow.GetWindow<AssetBrowser>().RefreshThumb(_currentAmc.Asset);
 
 			var next = NextAsset();
@@ -210,6 +274,7 @@ namespace VisualPinball.Unity.Library
 				AssetLibrary.DefaultThumbCameraPreset.ApplyTo(_camera.transform);
 				Debug.Log("All done!");
 				IsProcessing = false;
+				RestoreInsertPreview();
 			}
 		}
 

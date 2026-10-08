@@ -26,6 +26,7 @@ namespace VisualPinball.Unity.Library.Editor
 		private ThumbGenerator _generator;
 		private SerializedProperty _assetLibraryProperty;
 		private SerializedProperty _defaultEnvironmentProperty;
+		private SerializedProperty _insertEnvironmentProperty;
 
 		private void OnEnable()
 		{
@@ -33,6 +34,7 @@ namespace VisualPinball.Unity.Library.Editor
 
 			_assetLibraryProperty = serializedObject.FindProperty(nameof(ThumbGenerator.AssetLibrary));
 			_defaultEnvironmentProperty = serializedObject.FindProperty(nameof(ThumbGenerator.DefaultEnvironment));
+			_insertEnvironmentProperty = serializedObject.FindProperty(nameof(ThumbGenerator.InsertEnvironment));
 		}
 
 		public override void OnInspectorGUI()
@@ -41,6 +43,7 @@ namespace VisualPinball.Unity.Library.Editor
 			
 			EditorGUILayout.PropertyField(_assetLibraryProperty);
 			EditorGUILayout.PropertyField(_defaultEnvironmentProperty);
+			EditorGUILayout.PropertyField(_insertEnvironmentProperty);
 			
 			serializedObject.ApplyModifiedProperties();
 
