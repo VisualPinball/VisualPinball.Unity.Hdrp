@@ -629,6 +629,7 @@ GameObject:
   - component: {fileID: 74999403}
   - component: {fileID: 74999405}
   - component: {fileID: 74999404}
+  - component: {fileID: 74999406}
   m_Layer: 0
   m_Name: Playfield - Insert - Circle - 1in
   m_TagString: Untagged
@@ -5825,6 +5826,7 @@ GameObject:
   - component: {fileID: 559358907}
   - component: {fileID: 559358909}
   - component: {fileID: 559358908}
+  - component: {fileID: 559358910}
   m_Layer: 0
   m_Name: Playfield - Kicker 1.25in, Beveled
   m_TagString: Untagged
@@ -6989,6 +6991,7 @@ GameObject:
   - component: {fileID: 664790484}
   - component: {fileID: 664790486}
   - component: {fileID: 664790485}
+  - component: {fileID: 664790487}
   m_Layer: 0
   m_Name: Playfield - Insert - Circle - 0.75in
   m_TagString: Untagged
@@ -10164,6 +10167,7 @@ GameObject:
   - component: {fileID: 873099948}
   - component: {fileID: 873099950}
   - component: {fileID: 873099949}
+  - component: {fileID: 873099951}
   m_Layer: 0
   m_Name: Playfield - Insert - Triangle - 2in
   m_TagString: Untagged
@@ -10448,6 +10452,7 @@ GameObject:
   - component: {fileID: 928303761}
   - component: {fileID: 928303763}
   - component: {fileID: 928303762}
+  - component: {fileID: 928303764}
   m_Layer: 0
   m_Name: Playfield - Solid, Large
   m_TagString: Untagged
@@ -11125,6 +11130,7 @@ GameObject:
   - component: {fileID: 958769936}
   - component: {fileID: 958769938}
   - component: {fileID: 958769937}
+  - component: {fileID: 958769939}
   m_Layer: 0
   m_Name: Playfield - Insert - Rectangle - 1.5x0.75in
   m_TagString: Untagged
@@ -11216,6 +11222,7 @@ GameObject:
   - component: {fileID: 968085888}
   - component: {fileID: 968085890}
   - component: {fileID: 968085889}
+  - component: {fileID: 968085891}
   m_Layer: 0
   m_Name: Playfield - Insert - Triangle - 1.1875in
   m_TagString: Untagged
@@ -11500,6 +11507,7 @@ GameObject:
   - component: {fileID: 1009362981}
   - component: {fileID: 1009362983}
   - component: {fileID: 1009362982}
+  - component: {fileID: 1009362984}
   m_Layer: 0
   m_Name: Playfield - Solid
   m_TagString: Untagged
@@ -13203,6 +13211,7 @@ GameObject:
   - component: {fileID: 1133547297}
   - component: {fileID: 1133547299}
   - component: {fileID: 1133547298}
+  - component: {fileID: 1133547300}
   m_Layer: 0
   m_Name: Playfield - Insert - Rectangle - 2.25x1.125in
   m_TagString: Untagged
@@ -20897,6 +20906,7 @@ GameObject:
   - component: {fileID: 1624720662}
   - component: {fileID: 1624720664}
   - component: {fileID: 1624720663}
+  - component: {fileID: 1624720665}
   m_Layer: 0
   m_Name: Playfield - Kicker 1.25in
   m_TagString: Untagged
@@ -21463,6 +21473,7 @@ GameObject:
   - component: {fileID: 1641683688}
   - component: {fileID: 1641683690}
   - component: {fileID: 1641683689}
+  - component: {fileID: 1641683691}
   m_Layer: 0
   m_Name: Playfield - Insert - Triangle - 1.5in
   m_TagString: Untagged
@@ -27956,6 +27967,7 @@ GameObject:
   - component: {fileID: 1977335215}
   - component: {fileID: 1977335217}
   - component: {fileID: 1977335216}
+  - component: {fileID: 1977335218}
   m_Layer: 0
   m_Name: Playfield - Target 0.65in
   m_TagString: Untagged
@@ -29442,6 +29454,7 @@ GameObject:
   - component: {fileID: 2062407217}
   - component: {fileID: 2062407219}
   - component: {fileID: 2062407218}
+  - component: {fileID: 2062407220}
   m_Layer: 0
   m_Name: Playfield - Insert - Circle - 1.1875in
   m_TagString: Untagged
@@ -33924,6 +33937,7 @@ GameObject:
   - component: {fileID: 517289093}
   - component: {fileID: 517289092}
   - component: {fileID: 517289091}
+  - component: {fileID: 517289094}
   m_Layer: 0
   m_Name: Playfield - Inserts
   m_TagString: Untagged
@@ -34051,3 +34065,367 @@ SceneRoots:
   - {fileID: 272836184}
   - {fileID: 1416925846}
   - {fileID: 412553323}
+--- !u!114 &74999406
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 74999402}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7390cd1bbd9b18440927b4b5783d0508, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: VisualPinball.Unity::VisualPinball.Unity.PlayfieldComponent
+  _editorLayer: 0
+  _editorLayerName: 
+  _editorLayerVisibility: 1
+  GlassHeight: 0
+  Left: -202.06631
+  Right: 321.0521
+  Top: -331.744
+  Bottom: 191.3742
+  AngleTiltMax: 6
+  AngleTiltMin: 6
+  RenderSlope: 3.6
+  PlayfieldDetailLevel: 10
+  _playfieldImage: 
+  _playfieldMaterial: 
+--- !u!114 &517289094
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 517289089}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7390cd1bbd9b18440927b4b5783d0508, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: VisualPinball.Unity::VisualPinball.Unity.PlayfieldComponent
+  _editorLayer: 0
+  _editorLayerName: 
+  _editorLayerVisibility: 1
+  GlassHeight: 0
+  Left: -202.06631
+  Right: 321.0521
+  Top: -331.744
+  Bottom: 191.3742
+  AngleTiltMax: 6
+  AngleTiltMin: 6
+  RenderSlope: 3.6
+  PlayfieldDetailLevel: 10
+  _playfieldImage: 
+  _playfieldMaterial: 
+--- !u!114 &559358910
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 559358906}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7390cd1bbd9b18440927b4b5783d0508, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: VisualPinball.Unity::VisualPinball.Unity.PlayfieldComponent
+  _editorLayer: 0
+  _editorLayerName: 
+  _editorLayerVisibility: 1
+  GlassHeight: 0
+  Left: -202.06631
+  Right: 321.0521
+  Top: -331.744
+  Bottom: 191.3742
+  AngleTiltMax: 6
+  AngleTiltMin: 6
+  RenderSlope: 3.6
+  PlayfieldDetailLevel: 10
+  _playfieldImage: 
+  _playfieldMaterial: 
+--- !u!114 &664790487
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 664790483}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7390cd1bbd9b18440927b4b5783d0508, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: VisualPinball.Unity::VisualPinball.Unity.PlayfieldComponent
+  _editorLayer: 0
+  _editorLayerName: 
+  _editorLayerVisibility: 1
+  GlassHeight: 0
+  Left: -202.06631
+  Right: 321.0521
+  Top: -331.744
+  Bottom: 191.3742
+  AngleTiltMax: 6
+  AngleTiltMin: 6
+  RenderSlope: 3.6
+  PlayfieldDetailLevel: 10
+  _playfieldImage: 
+  _playfieldMaterial: 
+--- !u!114 &873099951
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 873099947}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7390cd1bbd9b18440927b4b5783d0508, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: VisualPinball.Unity::VisualPinball.Unity.PlayfieldComponent
+  _editorLayer: 0
+  _editorLayerName: 
+  _editorLayerVisibility: 1
+  GlassHeight: 0
+  Left: -202.06631
+  Right: 321.0521
+  Top: -331.744
+  Bottom: 191.3742
+  AngleTiltMax: 6
+  AngleTiltMin: 6
+  RenderSlope: 3.6
+  PlayfieldDetailLevel: 10
+  _playfieldImage: 
+  _playfieldMaterial: 
+--- !u!114 &928303764
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 928303760}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7390cd1bbd9b18440927b4b5783d0508, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: VisualPinball.Unity::VisualPinball.Unity.PlayfieldComponent
+  _editorLayer: 0
+  _editorLayerName: 
+  _editorLayerVisibility: 1
+  GlassHeight: 0
+  Left: -725.1842
+  Right: 1498.0676
+  Top: -1639.539
+  Bottom: 583.7128
+  AngleTiltMax: 6
+  AngleTiltMin: 6
+  RenderSlope: 3.6
+  PlayfieldDetailLevel: 10
+  _playfieldImage: 
+  _playfieldMaterial: 
+--- !u!114 &958769939
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 958769935}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7390cd1bbd9b18440927b4b5783d0508, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: VisualPinball.Unity::VisualPinball.Unity.PlayfieldComponent
+  _editorLayer: 0
+  _editorLayerName: 
+  _editorLayerVisibility: 1
+  GlassHeight: 0
+  Left: -202.06631
+  Right: 321.0521
+  Top: -331.744
+  Bottom: 191.3742
+  AngleTiltMax: 6
+  AngleTiltMin: 6
+  RenderSlope: 3.6
+  PlayfieldDetailLevel: 10
+  _playfieldImage: 
+  _playfieldMaterial: 
+--- !u!114 &968085891
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 968085887}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7390cd1bbd9b18440927b4b5783d0508, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: VisualPinball.Unity::VisualPinball.Unity.PlayfieldComponent
+  _editorLayer: 0
+  _editorLayerName: 
+  _editorLayerVisibility: 1
+  GlassHeight: 0
+  Left: -202.06631
+  Right: 321.0521
+  Top: -331.744
+  Bottom: 191.3742
+  AngleTiltMax: 6
+  AngleTiltMin: 6
+  RenderSlope: 3.6
+  PlayfieldDetailLevel: 10
+  _playfieldImage: 
+  _playfieldMaterial: 
+--- !u!114 &1009362984
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1009362980}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7390cd1bbd9b18440927b4b5783d0508, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: VisualPinball.Unity::VisualPinball.Unity.PlayfieldComponent
+  _editorLayer: 0
+  _editorLayerName: 
+  _editorLayerVisibility: 1
+  GlassHeight: 0
+  Left: -202.06631
+  Right: 321.0521
+  Top: -331.744
+  Bottom: 191.3742
+  AngleTiltMax: 6
+  AngleTiltMin: 6
+  RenderSlope: 3.6
+  PlayfieldDetailLevel: 10
+  _playfieldImage: 
+  _playfieldMaterial: 
+--- !u!114 &1133547300
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1133547296}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7390cd1bbd9b18440927b4b5783d0508, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: VisualPinball.Unity::VisualPinball.Unity.PlayfieldComponent
+  _editorLayer: 0
+  _editorLayerName: 
+  _editorLayerVisibility: 1
+  GlassHeight: 0
+  Left: -202.06631
+  Right: 321.0521
+  Top: -331.744
+  Bottom: 191.3742
+  AngleTiltMax: 6
+  AngleTiltMin: 6
+  RenderSlope: 3.6
+  PlayfieldDetailLevel: 10
+  _playfieldImage: 
+  _playfieldMaterial: 
+--- !u!114 &1624720665
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1624720661}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7390cd1bbd9b18440927b4b5783d0508, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: VisualPinball.Unity::VisualPinball.Unity.PlayfieldComponent
+  _editorLayer: 0
+  _editorLayerName: 
+  _editorLayerVisibility: 1
+  GlassHeight: 0
+  Left: -202.06631
+  Right: 321.0521
+  Top: -331.744
+  Bottom: 191.3742
+  AngleTiltMax: 6
+  AngleTiltMin: 6
+  RenderSlope: 3.6
+  PlayfieldDetailLevel: 10
+  _playfieldImage: 
+  _playfieldMaterial: 
+--- !u!114 &1641683691
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1641683687}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7390cd1bbd9b18440927b4b5783d0508, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: VisualPinball.Unity::VisualPinball.Unity.PlayfieldComponent
+  _editorLayer: 0
+  _editorLayerName: 
+  _editorLayerVisibility: 1
+  GlassHeight: 0
+  Left: -202.06631
+  Right: 321.0521
+  Top: -331.744
+  Bottom: 191.3742
+  AngleTiltMax: 6
+  AngleTiltMin: 6
+  RenderSlope: 3.6
+  PlayfieldDetailLevel: 10
+  _playfieldImage: 
+  _playfieldMaterial: 
+--- !u!114 &1977335218
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1977335214}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7390cd1bbd9b18440927b4b5783d0508, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: VisualPinball.Unity::VisualPinball.Unity.PlayfieldComponent
+  _editorLayer: 0
+  _editorLayerName: 
+  _editorLayerVisibility: 1
+  GlassHeight: 0
+  Left: -202.06631
+  Right: 321.0521
+  Top: -331.744
+  Bottom: 191.3742
+  AngleTiltMax: 6
+  AngleTiltMin: 6
+  RenderSlope: 3.6
+  PlayfieldDetailLevel: 10
+  _playfieldImage: 
+  _playfieldMaterial: 
+--- !u!114 &2062407220
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2062407216}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7390cd1bbd9b18440927b4b5783d0508, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: VisualPinball.Unity::VisualPinball.Unity.PlayfieldComponent
+  _editorLayer: 0
+  _editorLayerName: 
+  _editorLayerVisibility: 1
+  GlassHeight: 0
+  Left: -202.06631
+  Right: 321.0521
+  Top: -331.744
+  Bottom: 191.3742
+  AngleTiltMax: 6
+  AngleTiltMin: 6
+  RenderSlope: 3.6
+  PlayfieldDetailLevel: 10
+  _playfieldImage: 
+  _playfieldMaterial: 
