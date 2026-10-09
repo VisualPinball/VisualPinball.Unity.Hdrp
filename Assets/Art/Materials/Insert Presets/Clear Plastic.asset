@@ -21,12 +21,12 @@ MonoBehaviour:
     Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _OpticalScatter
     Kind: 0
-    Float: 0.5
+    Float: 1.2
     Color: {r: 0, g: 0, b: 0, a: 0}
     Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _OpticalEdgeGlow
     Kind: 0
-    Float: 0.5
+    Float: 0.22
     Color: {r: 0, g: 0, b: 0, a: 0}
     Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _OpticalLampGain
@@ -36,7 +36,7 @@ MonoBehaviour:
     Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _NormalStrength
     Kind: 0
-    Float: 0.15
+    Float: 1
     Color: {r: 0, g: 0, b: 0, a: 0}
     Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _OpticalContrast
@@ -61,7 +61,7 @@ MonoBehaviour:
     Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _OpticalGrain
     Kind: 0
-    Float: 0.2
+    Float: 0.6
     Color: {r: 0, g: 0, b: 0, a: 0}
     Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _InsertMinBrightness
@@ -71,7 +71,7 @@ MonoBehaviour:
     Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _InsertFacetFlatten
     Kind: 0
-    Float: 0.95
+    Float: 0.2
     Color: {r: 0, g: 0, b: 0, a: 0}
     Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _InsertClarity
@@ -81,22 +81,62 @@ MonoBehaviour:
     Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _InsertCavitySpread
     Kind: 0
-    Float: 4
+    Float: 2.5
     Color: {r: 0, g: 0, b: 0, a: 0}
     Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _InsertCavityContrast
     Kind: 0
-    Float: 0.3
+    Float: 0.9
     Color: {r: 0, g: 0, b: 0, a: 0}
     Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _OpticalSpread
     Kind: 0
-    Float: 12
+    Float: 0
+    Color: {r: 0, g: 0, b: 0, a: 0}
+    Vector: {x: 0, y: 0, z: 0, w: 0}
+  - Name: _SurfaceGrain
+    Kind: 0
+    Float: 0
+    Color: {r: 0, g: 0, b: 0, a: 0}
+    Vector: {x: 0, y: 0, z: 0, w: 0}
+  - Name: _SurfaceGrainSize
+    Kind: 0
+    Float: 0.75
+    Color: {r: 0, g: 0, b: 0, a: 0}
+    Vector: {x: 0, y: 0, z: 0, w: 0}
+  - Name: _InsertRoughness
+    Kind: 0
+    Float: 0
+    Color: {r: 0, g: 0, b: 0, a: 0}
+    Vector: {x: 0, y: 0, z: 0, w: 0}
+  - Name: _OpticalFlecks
+    Kind: 0
+    Float: 0.841
+    Color: {r: 0, g: 0, b: 0, a: 0}
+    Vector: {x: 0, y: 0, z: 0, w: 0}
+  - Name: _OpticalFleckSize
+    Kind: 0
+    Float: 0.2
+    Color: {r: 0, g: 0, b: 0, a: 0}
+    Vector: {x: 0, y: 0, z: 0, w: 0}
+  - Name: _InsertRoomReturn
+    Kind: 0
+    Float: 0.775
+    Color: {r: 0, g: 0, b: 0, a: 0}
+    Vector: {x: 0, y: 0, z: 0, w: 0}
+  - Name: _InsertRoomBlur
+    Kind: 0
+    Float: 3
+    Color: {r: 0, g: 0, b: 0, a: 0}
+    Vector: {x: 0, y: 0, z: 0, w: 0}
+  - Name: _InsertRoomReturnEV
+    Kind: 0
+    Float: 0
     Color: {r: 0, g: 0, b: 0, a: 0}
     Vector: {x: 0, y: 0, z: 0, w: 0}
   - Name: _Smoothness
     Kind: 0
-    Float: 0.3
+    Float: 0.65
     Color: {r: 0, g: 0, b: 0, a: 0}
     Vector: {x: 0, y: 0, z: 0, w: 0}
   CoverShader:

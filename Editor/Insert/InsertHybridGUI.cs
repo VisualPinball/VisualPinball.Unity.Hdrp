@@ -340,6 +340,15 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				Field("_InsertCavityContrast", "Cavity Contrast",
 					"How much darker a starburst face gets when its view lands past the cavity. Keep it low for the soft ribs of real clear plastic.",
 					IsClear && HasStarburst);
+				Field("_InsertRoomReturn", "Room Return",
+					"How much of the room a clear body returns through its grooves: light that came in through the top is thrown across a groove and back out, so the ribs show the sky's reflection above the table, more from a low view, and ribs leaning one way return a different part of it than those leaning the other. A lit insert still returns it, coloured by the bulbs that are on, the more the brighter they are. Zero shows only the cavity.",
+					IsClear && HasStarburst);
+				Field("_InsertRoomBlur", "Room Blur",
+					"How blurred the returned room is, in mips of the sky's reflection: a moulded groove is never a clean mirror.",
+					IsClear && HasStarburst && Above("_InsertRoomReturn", 0f));
+				Field("_InsertRoomReturnEV", "Room Return Exposure (EV)",
+					"Lifts or lowers the returned room in stops. Zero takes the sky as it is; a table whose sky has no lit ceiling over it may want a stop or two more.",
+					IsClear && HasStarburst && Above("_InsertRoomReturn", 0f));
 				Field("_InsertMinBrightness", "Min Brightness",
 					"How much of the tint shows under room light with the lamp off. Low keeps a red insert dark until it is lit; it fades to one as the lamp comes up. Only the tinted share of the body uses it.",
 					IsTinted);
@@ -360,6 +369,11 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			Field("_SurfaceGrainSize", "Surface Grain Size (mm)",
 				"How large the grain's cells are. The bake's grain was 1.5 VPX units, about 0.75 mm.",
 				Above("_SurfaceGrain", 0f));
+			Field("_OpticalFlecks", "Flecks",
+				"Bright dashes along the ribs, lit and unlit: the nicks and flash a moulded insert's ridges carry, which catch the room light. Zero is a clean moulding. Variation Seed picks another pattern.");
+			Field("_OpticalFleckSize", "Fleck Size (mm)",
+				"How large the flecks are across a rib; along it they run four times as long.",
+				Above("_OpticalFlecks", 0f));
 		}
 	}
 
@@ -414,8 +428,8 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				"How much of the lit look is the lamp seen through the facets, against the baked glow below. Zero leaves only the glow.",
 				lit);
 			Field("_OpticalIor", "Index of Refraction",
-				"How strongly the facets bend the view towards the lamp. Acrylic is about 1.49. A clear insert's cavity look-through bends the same way.",
-				bulb || CavityView);
+				"How strongly the facets bend the view towards the lamp. Acrylic is about 1.49. A clear insert's cavity look-through and the room it returns bend the same way.",
+				bulb || CavityView || Above("_InsertRoomReturn", 0f));
 
 			// The spread also bounds how far each bulb's colour reaches into
 			// the tint, lamp or no lamp.
@@ -445,10 +459,10 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					"Spacing of the mottle's cells. Smaller is finer. It fades out once the cells are smaller than a pixel.",
 					facets && Above("_OpticalVariation", 0f));
 			}
-			// The seed also scatters the grain, which is there lamp or no lamp.
+			// The seed also scatters the grain and the flecks, which are there lamp or no lamp.
 			Field("_OpticalSeed", "Variation Seed",
-				"Another pattern for the mottle, the rib-to-rib differences and the grain.",
-				Above("_OpticalGrain", 0f) || (facets && Above("_OpticalVariation", 0f)));
+				"Another pattern for the mottle, the rib-to-rib differences, the grain and the flecks.",
+				Above("_OpticalGrain", 0f) || Above("_OpticalFlecks", 0f) || (facets && Above("_OpticalVariation", 0f)));
 		}
 
 		private static float Round(float millimetres) => Mathf.Round(millimetres * 100f) / 100f;
