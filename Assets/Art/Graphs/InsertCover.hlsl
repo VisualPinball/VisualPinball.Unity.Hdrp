@@ -121,7 +121,28 @@ void InsertCover_float(float2 UV, UnityTexture2D NormalMap, float PlayfieldStren
     // blue with the mixes between, and lamps that are off leave the haze its
     // own colour, as bright as ever.
     float4 mixed = InsertCoverLampMix(Position.xz, LampA, LampB, LampC, LampD, LampColor, LampLevel, DriveB, DriveC, DriveD, Spread);
-    BaseColor = InsertCoverTowardsLampHue(max(HazeColor, 0.0), mixed.rgb, saturate(LampTint) * saturate(mixed.w));
+    float3 untinted = max(HazeColor, 0.0);
+    BaseColor = InsertCoverTowardsLampHue(untinted, mixed.rgb, saturate(LampTint) * saturate(mixed.w));
+    // Turning a grey haze to a colour keeps its value, not its brightness: a
+    // red as light as the grey was has a fifth of its luminance, so a veil
+    // over the body went darker as the lamp came up, where the lamp itself
+    // had little to add yet. While the lamp is weak the haze keeps enough of
+    // its grey to hold three fifths of its brightness, pink rather than dark
+    // red, and gives it up as the lamp's own glow takes the body over.
+    float3 lumWeights = float3(0.2126, 0.7152, 0.0722);
+    float lumBefore = dot(untinted, lumWeights);
+    float lumAfter = dot(BaseColor, lumWeights);
+    // The bulbs' effective drive, as the body counts it: colour times level.
+    float litNow = max(max(LampColor.r, max(LampColor.g, LampColor.b)) * saturate(LampLevel),
+        max(LampB.w > 0.0 ? max(DriveB.r, max(DriveB.g, DriveB.b)) * saturate(DriveB.w) : 0.0,
+        max(LampC.w > 0.0 ? max(DriveC.r, max(DriveC.g, DriveC.b)) * saturate(DriveC.w) : 0.0,
+            LampD.w > 0.0 ? max(DriveD.r, max(DriveD.g, DriveD.b)) * saturate(DriveD.w) : 0.0)));
+    // A clear cover only: a coloured cover is its colour already.
+    float clearCover = smoothstep(0.7, 0.95, min(Tint.r, min(Tint.g, Tint.b)));
+    float floorLum = 0.6 * lumBefore * (1.0 - smoothstep(0.1, 0.5, litNow)) * clearCover;
+    if (lumAfter < floorLum && lumBefore > lumAfter + 1e-5) {
+        BaseColor = lerp(BaseColor, untinted, saturate((floorLum - lumAfter) / (lumBefore - lumAfter)));
+    }
     // The slab: its index, the colour the light has taken once it has come
     // the tint depth through it, and its thickness, both given in millimetres
     // and wanted in metres. The insert writes the thickness for its own depth.

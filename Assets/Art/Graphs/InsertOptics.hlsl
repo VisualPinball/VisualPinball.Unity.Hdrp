@@ -184,6 +184,38 @@ float4 InsertOpticsBulb(float4 lamp, float3 position, float3 ray, float faceGain
     return float4(transmitted, seen, leak, image);
 }
 
+// What a facet reflects of the light inside the plastic, seen from the dense
+// side: Schlick on the angle in the air beyond it, and all of it once the
+// facet traps the ray.
+float InsertInternalReflectance(float cosInside, float eta, float reflectance0)
+{
+    float sinOutside = eta * sqrt(saturate(1.0 - cosInside * cosInside));
+    if (sinOutside >= 1.0) {
+        return 1.0;
+    }
+    float cosOutside = sqrt(saturate(1.0 - sinOutside * sinOutside));
+    return reflectance0 + (1.0 - reflectance0) * pow(1.0 - cosOutside, 5.0);
+}
+
+// Whether a ray inside the plastic, pointing up, gets out through the flat
+// top: not past the critical angle, faded over the last tenth so nothing
+// jumps as the eye moves.
+float InsertEscapes(float3 ray, float eta)
+{
+    float sinOutside2 = eta * eta * (1.0 - ray.y * ray.y);
+    return step(0.0, ray.y) * (1.0 - smoothstep(0.8, 1.0, sinOutside2));
+}
+
+// The room, as a ray leaving through the top sees it: bent out of the
+// plastic, turned to world space, and read from the sky's reflection cubemap
+// at a blurred mip, which is what a moulded, slightly rough groove returns.
+float3 InsertRoom(float3 ray, float eta, float blur)
+{
+    float3 outside = refract(ray, float3(0.0, -1.0, 0.0), eta);
+    float3 world = TransformObjectToWorldDir(outside + float3(0.0, 1e-5, 0.0));
+    return SampleSkyTexture(world, blur, 0).rgb;
+}
+
 void InsertOptics_float(float3 Position, float3 View, float2 UV,
     UnityTexture2D OpticalNormal, UnityTexture2D Response, UnityTexture2D SurfaceNormal,
     float4 Lamp, float Ior, float Scatter, float EdgeGlow, float LampGain,
@@ -195,6 +227,7 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float LampTint, float Spread, float4 LampB, float4 LampC, float4 LampD,
     float4 DriveB, float4 DriveC, float4 DriveD,
     float SurfaceGrain, float SurfaceGrainSize, float Output, float Roughness,
+    float Flecks, float FleckSize, float RoomReturn, float RoomBlur, float RoomReturnEV,
     out float3 BaseColor, out float3 NormalTS, out float3 Emission)
 {
     // How rough the structure inside the plastic is: smooth facets and
@@ -247,6 +280,48 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     float3 grainPosition = Position * 4000.0 + Seed * float3(13.1, 17.7, 11.3);
     float grain = (InsertGrain(grainPosition) - 0.5) * InsertDetailVisibility(grainPosition);
     float finish = 1.0 + grain * Grain;
+    // The flecks of a moulded insert: the ridges between the facets never
+    // come out of the mould clean, and under room light every nick and
+    // every bit of flash along them catches the light as a bright dash,
+    // stretched along the rib it sits on, while the faces between stay
+    // plain. Sparse cells of the cloudy noise, drawn long along the ribs
+    // and gathered to the creases. Each is a small tilted face in the
+    // plastic: its slope tilts the shading normal, so a fleck lights up
+    // when a light or the room reflects off it and goes quiet when none
+    // does, and only a little of it brightens the plastic flat, lit and
+    // unlit, so the dashes are there in any light. Zero leaves a clean
+    // moulding.
+    float2 fleckSlope = float2(0.0, 0.0);
+    if (Flecks > 0.0) {
+        float2 radial = Position.xz - Starburst.xy;
+        radial *= rsqrt(max(dot(radial, radial), 1e-10));
+        float2 along = ringed ? float2(-radial.y, radial.x)
+            : ribbed ? normalize(float2(-Starburst.y, Starburst.x) + float2(1e-6, 0.0))
+            : gem ? float2(1.0, 0.0) : radial;
+        float2 across = float2(-along.y, along.x);
+        float size = max(FleckSize * 0.001, 1e-5);
+        // Across a radial rib the position has no component of its own, so
+        // the facet's index moves each rib to cells of its own.
+        float3 fleckCells = float3(dot(Position.xz, along) / (size * 4.0), Position.y / size, dot(Position.xz, across) / size + sector * 3.7)
+            + Seed * float3(5.1, 2.3, 8.7);
+        float crease = 1.0 - smoothstep(0.0, 0.4, min(part, 1.0 - part));
+        float weight = lerp(0.5, 1.0, crease) * floorMask * InsertDetailVisibility(fleckCells);
+        // The value noise, not the cloudy cellular one: the three samples
+        // here cost a fraction of the cellular's twenty-seven cells each,
+        // and thresholded they give the same dashes.
+        float here = smoothstep(0.42, 0.6, InsertGrain(fleckCells));
+        // The slope of the dashes along the tangent and bitangent the normal
+        // map is read in, a tenth of a cell apart, in the stretched cells.
+        float3 tangentOS = normalize(TransformWorldToObjectDir(WorldTangent) + float3(1e-6, 0.0, 0.0));
+        float3 bitangentOS = normalize(TransformWorldToObjectDir(WorldBitangent) + float3(0.0, 1e-6, 0.0));
+        const float stepCells = 0.1;
+        float3 alongT = stepCells * float3(dot(tangentOS.xz, along) * 0.25, tangentOS.y, dot(tangentOS.xz, across));
+        float3 alongB = stepCells * float3(dot(bitangentOS.xz, along) * 0.25, bitangentOS.y, dot(bitangentOS.xz, across));
+        float heightT = smoothstep(0.42, 0.6, InsertGrain(fleckCells + alongT));
+        float heightB = smoothstep(0.42, 0.6, InsertGrain(fleckCells + alongB));
+        fleckSlope = float2(heightT - here, heightB - here) / stepCells * weight;
+        finish *= 1.0 + 0.35 * here * weight * saturate(Flecks);
+    }
     // The facets bend the ray as the bake found them. Flattening steep walls
     // keeps this deliberately artistic ray pointed down.
     n = normalize(float3(n.x, max(abs(n.y), 0.25), n.z));
@@ -360,11 +435,125 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     // body less than it darkens the tinted one.
     float3 clearBody = CavityColor * (0.6 + 0.4 * response.r) * lerp(0.6, cavityView, floorMask);
     BaseColor = lerp(tintedBody, Tint * clearBody, saturate(Clarity)) * finish;
+    // Light that came in through the top and went down to a groove does not
+    // all leave into the cavity: the facet throws part of it, or under total
+    // internal reflection all of it, across to the facet next door, which
+    // throws it back up and out through the top, the way a corner reflector
+    // returns a beam. So a clear insert in a room shows the room above it in
+    // its ribs, brighter from a low view where the top reflects more, and the
+    // ribs leaning one way return a different part of the room than those
+    // leaning the other, exchanging their brightness as the eye moves round:
+    // the movement under the top that tells clear plastic from paint. The
+    // path is the view ray refracted in at the top, reflected off the facet
+    // the bake found and, where that does not get it out, off a mirrored
+    // neighbour, each reflection weighed by the plastic's own Fresnel, then
+    // out through the top into the sky's reflection cubemap. That radiance
+    // has been through the optics already, so it goes out as emission and
+    // takes the place of as much of the diffuse cavity as it weighs; a lamp
+    // that is on, from a tenth of full up, has the body to itself.
+    float returning = 0.0;
+    if (RoomReturn > 0.0 && Clarity > 0.0) {
+        float3 facet = normalize(rawNormal + float3(0.0, 1e-5, 0.0));
+        facet.y = abs(facet.y);
+        // The rib runs radially from the wheel's centre, across its own
+        // direction for ribs, round the centre for rings; the neighbouring
+        // facet is this one mirrored across the rib, its lean along the rib
+        // kept. A moulded facet is never quite flat: a slight bend across it,
+        // a degree and a half from one crease to the other, lets a broad
+        // highlight sweep within a stripe instead of switching whole.
+        float2 radialDir = Position.xz - Starburst.xy;
+        radialDir *= rsqrt(max(dot(radialDir, radialDir), 1e-10));
+        float2 ribDir = ringed ? float2(-radialDir.y, radialDir.x)
+            : ribbed ? normalize(float2(-Starburst.y, Starburst.x) + float2(1e-6, 0.0))
+            : gem ? float2(1.0, 0.0) : radialDir;
+        float3 along = float3(ribDir.x, 0.0, ribDir.y);
+        // The bend dies out at the creases so nothing jumps there.
+        float bend = (part - 0.5) * 0.0524 * smoothstep(0.0, 0.25, min(part, 1.0 - part));
+        float3 bent = facet * cos(bend) + cross(along, facet) * sin(bend) + along * dot(along, facet) * (1.0 - cos(bend));
+        float3 across = float3(-along.z, 0.0, along.x);
+        float3 neighbour = normalize(bent - 2.0 * dot(bent, across) * across);
+        float3 first = reflect(inside, bent);
+        float3 second = reflect(first, neighbour);
+        float reflectFirst = InsertInternalReflectance(saturate(dot(-inside, bent)), eta, reflectance0);
+        float towardsNeighbour = dot(-first, neighbour);
+        float reflectSecond = InsertInternalReflectance(saturate(towardsNeighbour), eta, reflectance0);
+        float escapesFirst = InsertEscapes(first, eta);
+        float escapesSecond = InsertEscapes(second, eta) * smoothstep(0.0, 0.15, towardsNeighbour);
+        float outFirst = 1.0 - InsertInternalReflectance(saturate(first.y), eta, reflectance0);
+        float outSecond = 1.0 - InsertInternalReflectance(saturate(second.y), eta, reflectance0);
+        float weightFirst = escapesFirst * reflectFirst * outFirst;
+        float weightSecond = (1.0 - escapesFirst) * escapesSecond * reflectFirst * reflectSecond * outSecond;
+        // The room comes back whether the lamp is on or off, as it does on
+        // the real thing: a lit insert still reflects the room above it. But
+        // inside a body flooded with the lamp's colour a white reflection
+        // reads wrong, so the returned room takes the colour of the bulbs
+        // that are on, the more the brighter they are, and a bulb barely on
+        // leaves it white rather than glowing coloured. Only bulbs that exist
+        // count: a bulb switched off keeps its last drive.
+        float lit = max(level.x, max(LampB.w > 0.0 ? level.y : 0.0, max(LampC.w > 0.0 ? level.z : 0.0, LampD.w > 0.0 ? level.w : 0.0)));
+        // The bulb colour is first lifted to the luminance of white, capped so
+        // a saturated bulb does not blow out, and the tint then runs from
+        // white to that: blending first and lifting after kept the white half
+        // of a half-made tint and snapped to the colour only at the end.
+        float3 lampTint = chroma * min(rcp(max(dot(chroma, float3(0.2126, 0.7152, 0.0722)), 0.05)), 4.0);
+        float3 roomTint = lerp(float3(1.0, 1.0, 1.0), lampTint, smoothstep(0.02, 0.3, lit));
+        // The return switches from one facet's path to its neighbour's at the
+        // crease, texel by texel; faded over a couple of screen pixels either
+        // side, as the facet coefficients are, the switch no longer stairs.
+        float creaseFade = smoothstep(0.0, 2.5 * width, min(part, 1.0 - part));
+        float share = saturate(RoomReturn) * saturate(Clarity) * floorMask * flatExit * creaseFade;
+        returning = share * (weightFirst + weightSecond);
+        // The lamp's own light takes the same paths: what a facet throws back
+        // of the room it throws back of the lamp below, so the returning
+        // facets stay lighter than their neighbours however bright the lamp
+        // gets, instead of drowning in it, and in the tonemapper's shoulder
+        // they go the lighter, paler colour a brighter lamp does. The lamp
+        // is lifted before the room is added, so the room is not.
+        Emission *= 1.0 + returning * saturate(lit);
+        BaseColor *= 1.0 - returning;
+        // The sky is read only where something comes back, and never into
+        // the lightmap: reflected sky is no light source of the insert's own.
+#if !defined(SHADERPASS) || !defined(SHADERPASS_LIGHT_TRANSPORT) || (SHADERPASS != SHADERPASS_LIGHT_TRANSPORT)
+        if (returning > 0.0) {
+            float3 room = weightFirst * InsertRoom(first, eta, RoomBlur) + weightSecond * InsertRoom(second, eta, RoomBlur);
+            Emission += share * exp2(RoomReturnEV) * room * roomTint;
+        }
+#endif
+    }
     // A grey body under a coloured lamp milks its colour. Tinted with the lamp,
     // the body's hue and saturation turn to the light's, the bulbs' colours
     // summed as the glow sums them, as far as their light reaches, its value
     // untouched, so nothing of the lamps stays once they are off.
+    float3 untinted = BaseColor;
     BaseColor = InsertOpticsTowardsLampHue(BaseColor, chroma, saturate(LampTint) * saturate(tinted));
+    // Turning a grey to a colour keeps its value, not its brightness: a red
+    // as light as the grey was has a fifth of its luminance, so the plastic
+    // went darker as the lamp came up, where the lamp itself had little to
+    // add yet. The room light the plastic scatters does not go away for the
+    // lamp colouring it, so the luminance the albedo lost comes back as
+    // emission in the lamp's colour, scaled by the sky's average brightness
+    // over the table, lifted as the returned room is.
+    // An albedo can be no brighter than its colour allows, a pure red a
+    // fifth of a grey, so while the lamp is weak the plastic keeps enough of
+    // its grey to hold three fifths of its brightness, pink rather than dark
+    // red, and gives it up as the lamp's own glow takes the body over.
+    float3 lumWeights = float3(0.2126, 0.7152, 0.0722);
+    float lumBefore = dot(untinted, lumWeights);
+    float lumAfter = dot(BaseColor, lumWeights);
+    float litNow = max(level.x, max(LampB.w > 0.0 ? level.y : 0.0, max(LampC.w > 0.0 ? level.z : 0.0, LampD.w > 0.0 ? level.w : 0.0)));
+    // Clear plastic only: a tinted body is its colour already, lit or not.
+    float floorLum = 0.6 * lumBefore * (1.0 - smoothstep(0.1, 0.5, litNow)) * saturate(Clarity);
+    if (lumAfter < floorLum && lumBefore > lumAfter + 1e-5) {
+        BaseColor = lerp(BaseColor, untinted, saturate((floorLum - lumAfter) / (lumBefore - lumAfter)));
+    }
+    float lost = max(lumBefore - dot(BaseColor, lumWeights), 0.0) * saturate(Clarity) * saturate(RoomReturn);
+#if !defined(SHADERPASS) || !defined(SHADERPASS_LIGHT_TRANSPORT) || (SHADERPASS != SHADERPASS_LIGHT_TRANSPORT)
+    if (lost > 0.0) {
+        float3 lifted = chroma * min(rcp(max(dot(chroma, lumWeights), 0.05)), 4.0);
+        float3 ambient = SampleSkyTexture(TransformObjectToWorldNormal(float3(0.0, 1.0, 0.0)), 6.0, 0).rgb;
+        Emission += lifted * lost * dot(ambient, lumWeights) * exp2(RoomReturnEV);
+    }
+#endif
     float4 packedNormal = SAMPLE_TEXTURE2D(SurfaceNormal.tex, SurfaceNormal.samplerstate, UV);
     float3 surface = UnpackNormal(packedNormal);
     float3 shading = normalize(float3(surface.xy * NormalStrength, lerp(1.0, surface.z, saturate(NormalStrength))));
@@ -378,6 +567,11 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     // proper inverse, not three dot products.
     float3 upTS = TransformWorldToTangent(upWS, float3x3(WorldTangent, WorldBitangent, WorldNormal));
     float3 normalTS = lerp(shading, upTS, saturate(Flatten));
+    // A facet that returns the room is a mirror inside the plastic to the
+    // scene's lights as well: to them it keeps its own relief whatever the
+    // flattening, so a spot or the sun glints off it where the sky alone,
+    // which carries none of the table's lights, would not. The diffuse stays.
+    normalTS = lerp(normalTS, shading, saturate(returning));
     // The fine texture of the moulded plastic, in the reflections: a bump of
     // noise in insert space, as the bake used to put into the normal map,
     // drawn here instead so that it is as fine at any zoom and on any map
@@ -398,6 +592,8 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
         float visible = InsertDetailVisibility(grainCells);
         normalTS.xy -= slope * (0.3 * saturate(SurfaceGrain) * visible);
     }
+    // The flecks' tilt, after the flattening, on the top they are cut into.
+    normalTS.xy -= fleckSlope * (0.25 * saturate(Flecks));
     NormalTS = normalize(normalTS + float3(0.0, 0.0, 1e-5));
 }
 #endif
