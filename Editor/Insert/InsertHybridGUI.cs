@@ -452,17 +452,18 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				Field("_OpticalContrast", "Facet Contrast",
 					"How differently the two slopes of each rib couple to the lamp. One gives crisp alternating ribs; about a quarter suits clear plastic.",
 					facets);
-				Field("_OpticalVariation", "Mottle Amount",
-					"Cloudy variation across the ribs, and small differences from rib to rib.",
-					facets);
-				Field("_OpticalMottleSize", "Mottle Size (mm)",
-					"Spacing of the mottle's cells. Smaller is finer. It fades out once the cells are smaller than a pixel.",
-					facets && Above("_OpticalVariation", 0f));
 			}
+			// The mottle clouds the plastic under room light, lamp or no lamp,
+			// facets or none; only its rib-to-rib share needs both.
+			Field("_OpticalVariation", "Mottle Amount",
+				"Cloudy variation in the plastic: blotches lighter and darker than the rest under room light, and small differences from rib to rib.");
+			Field("_OpticalMottleSize", "Mottle Size (mm)",
+				"Spacing of the mottle's cells. Smaller is finer. It fades out once the cells are smaller than a pixel.",
+				Above("_OpticalVariation", 0f));
 			// The seed also scatters the grain and the flecks, which are there lamp or no lamp.
 			Field("_OpticalSeed", "Variation Seed",
 				"Another pattern for the mottle, the rib-to-rib differences, the grain and the flecks.",
-				Above("_OpticalGrain", 0f) || Above("_OpticalFlecks", 0f) || (facets && Above("_OpticalVariation", 0f)));
+				Above("_OpticalGrain", 0f) || Above("_OpticalFlecks", 0f) || Above("_OpticalVariation", 0f));
 		}
 
 		private static float Round(float millimetres) => Mathf.Round(millimetres * 100f) / 100f;
