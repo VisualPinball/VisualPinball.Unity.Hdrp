@@ -140,7 +140,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			};
 		}
 
-		private static Material BuildInsertShaderMaterial(string name, VpeInsertShaderProfile profile,
+		private Material BuildInsertShaderMaterial(string name, VpeInsertShaderProfile profile,
 			Material template, IVpeTextureProvider textures)
 		{
 			if (!template || profile == null) { return null; }
@@ -156,6 +156,15 @@ namespace VisualPinball.Engine.Unity.Hdrp
 					case "vector": material.SetVector(property.Name, property.VectorValue); break;
 					case "texture":
 						var textureRef = property.Texture;
+						// The surface normals ship as plain RGB like every other source normal, and
+						// both insert shaders unpack them as HDRP normal maps: repacked the same way.
+						// The optical maps are data and stay as they are.
+						if (property.Name is "_NormalMap" or "_CoverNormalMap" && textureRef != null && !string.IsNullOrEmpty(textureRef.TextureId)) {
+							SetNormalMap(material, property.Name, new VpeNormalMapRef {
+								TextureId = textureRef.TextureId, Offset = textureRef.Offset, Scale = textureRef.Scale,
+							}, textures, null);
+							break;
+						}
 						var texture = textureRef == null ? null : textures?.Get(textureRef.TextureId);
 						material.SetTexture(property.Name, texture);
 						if (textureRef != null) {
@@ -165,6 +174,9 @@ namespace VisualPinball.Engine.Unity.Hdrp
 						break;
 				}
 			}
+			// The keywords come with the template: rebuilt from the restored values, so a cover
+			// without refraction doesn't keep the template's.
+			HDMaterial.ValidateMaterial(material);
 			return material;
 		}
 

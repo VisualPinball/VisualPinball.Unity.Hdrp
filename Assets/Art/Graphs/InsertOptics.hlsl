@@ -498,7 +498,12 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     Emission = max(Brightness, 0.0) * emission * (glow * glowDrive * (1.0 + 0.5 * wear) + LampGain * (transmitted + image) * sharp) * finish;
     // Darken the unlit plastic without keeping the bulb or spill light on.
     // Fade back to the authored albedo as the ROM raises lamp intensity.
-    float bodyBrightness = lerp(saturate(MinBrightness), 1.0, saturate(Level));
+    // Any bulb that is on lights the plastic, not only the first: a multi-bulb
+    // insert with its first bulb off and another on is as bright as with the
+    // first on. Only bulbs that exist count.
+    float bulbsUp = max(saturate(Level), max(LampB.w > 0.0 ? saturate(DriveB.w) : 0.0,
+        max(LampC.w > 0.0 ? saturate(DriveC.w) : 0.0, LampD.w > 0.0 ? saturate(DriveD.w) : 0.0)));
+    float bodyBrightness = lerp(saturate(MinBrightness), 1.0, bulbsUp);
     float cavity = 0.35 + 0.65 * response.r;
     float3 tintedBody = Tint * cavity * bodyBrightness;
     // Clear plastic absorbs nothing: an off clear insert shows the bright lamp

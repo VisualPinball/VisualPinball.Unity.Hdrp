@@ -57,6 +57,10 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		private static readonly int ResultId = Shader.PropertyToID("_AutoFocusResult");
 		private static readonly int ParamsId = Shader.PropertyToID("_AutoFocusParams");
 
+		// One camera drives a volume's depth of field: two would overwrite each other's focus,
+		// and one switching off would switch it off for the other.
+		private static readonly System.Collections.Generic.Dictionary<DepthOfField, AutoFocusComponent> Owners = new();
+
 		private Camera _camera;
 		private DepthOfField _dof;
 		private DepthProbePass _pass;
@@ -103,6 +107,12 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			if (!profile.TryGet(out _dof)) {
 				_dof = profile.Add<DepthOfField>();
 			}
+			if (Owners.TryGetValue(_dof, out var owner) && owner != null && owner != this && owner.isActiveAndEnabled) {
+				Debug.LogWarning($"[AutoFocus] {owner.name} already drives the depth of field of {volume.name}; {name} leaves it alone. Give it a volume of its own.", this);
+				_dof = null;
+				return;
+			}
+			Owners[_dof] = this;
 			// stays off until the first measurement arrives, otherwise we'd blur with a stale focus distance.
 			_dof.active = true;
 			_dof.focusMode.Override(DepthOfFieldMode.Off);
@@ -132,7 +142,10 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			_resultBuffer = null;
 
 			if (_dof != null) {
-				_dof.focusMode.Override(DepthOfFieldMode.Off);
+				if (Owners.TryGetValue(_dof, out var owner) && owner == this) {
+					Owners.Remove(_dof);
+					_dof.focusMode.Override(DepthOfFieldMode.Off);
+				}
 				_dof = null;
 			}
 		}
