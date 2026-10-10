@@ -96,7 +96,9 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				return;
 			}
 
-			var volume = PostProcessVolume != null ? PostProcessVolume : HdrpGraphicsApplier.FindGlobalVolume();
+			// only a volume on one of the camera's volume layers changes what it renders
+			var volumeLayers = _camera.TryGetComponent<HDAdditionalCameraData>(out var cameraData) ? (int)cameraData.volumeLayerMask : ~0;
+			var volume = PostProcessVolume != null ? PostProcessVolume : HdrpGraphicsApplier.FindGlobalVolume(volumeLayers);
 			if (volume == null) {
 				Debug.LogWarning($"[AutoFocus] No post process volume found for {name}, cannot focus.", this);
 				return;
