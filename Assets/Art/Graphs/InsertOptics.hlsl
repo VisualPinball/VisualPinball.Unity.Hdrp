@@ -216,6 +216,82 @@ float3 InsertRoom(float3 ray, float eta, float blur)
     return SampleSkyTexture(world, blur, 0).rgb;
 }
 
+// The sky's average brightness round the insert: its most blurred mip
+// straight up and to the four sides, the hemisphere a groove returns.
+float InsertSkyAverage()
+{
+    float3 lum = float3(0.2126, 0.7152, 0.0722);
+    float sum = dot(SampleSkyTexture(float3(0.0, 1.0, 0.0), 6.0, 0).rgb, lum)
+        + dot(SampleSkyTexture(float3(1.0, 0.0, 0.0), 6.0, 0).rgb, lum)
+        + dot(SampleSkyTexture(float3(-1.0, 0.0, 0.0), 6.0, 0).rgb, lum)
+        + dot(SampleSkyTexture(float3(0.0, 0.0, 1.0), 6.0, 0).rgb, lum)
+        + dot(SampleSkyTexture(float3(0.0, 0.0, -1.0), 6.0, 0).rgb, lum);
+    return max(sum * 0.2, 1e-6);
+}
+
+// How much of the room a ray going down into a groove brings back out
+// through the top, and, where the sky may be read, the room it brings. The
+// groove is the facet the ray meets first and its mirrored neighbour. After
+// each facet the ray goes on to the other one if it heads into it, which is
+// when it climbs more slowly than that facet rises; otherwise it goes up to
+// the top, where what gets out is the room seen that way and the rest comes
+// back down, under total internal reflection all of it, onto whichever
+// facet it heads into. A groove near a right angle returns the ray off the
+// two facets, a corner reflector; a shallower one throws it up to the top,
+// which sends it down onto the other facet, and that one out. Each facet
+// takes its Fresnel share; four facets are as far as it goes. Where the ray
+// comes down from the top as squarely onto one facet as onto the other, the
+// choice between them would flip the rest of its path from one side of the
+// room to the other within a facet: what comes back after such a choice is
+// faded in as the choice firms up, so nothing steps. The room is
+// the sky over its average brightness: how much brighter or darker it is
+// that way than all round. Where the sky isn't read, it is the same all round.
+float InsertRoomPaths(float3 ray, float3 bent, float3 neighbour, float eta, float reflectance0, float blur, bool readRoom, out float3 room)
+{
+    room = float3(0.0, 0.0, 0.0);
+    float back = 0.0;
+    float carried = 1.0;
+    // How firmly the path's facet choices were made, fading what follows a near tie.
+    float firm = 1.0;
+    float3 d = ray;
+    bool onBent = true;
+    for (int i = 0; i < 4; i++) {
+        float3 facet = onBent ? bent : neighbour;
+        float3 other = onBent ? neighbour : bent;
+        carried *= InsertInternalReflectance(saturate(dot(-d, facet)), eta, reflectance0);
+        d = reflect(d, facet);
+        if (dot(-d, other) > 0.0) {
+            onBent = !onBent;
+            continue;
+        }
+        if (d.y <= 0.0) {
+            break;
+        }
+        float escaping = InsertEscapes(d, eta) * (1.0 - InsertInternalReflectance(saturate(d.y), eta, reflectance0));
+        float leaving = carried * escaping;
+        carried -= leaving;
+        leaving *= firm;
+        back += leaving;
+        if (readRoom && leaving > 0.0) {
+            room += leaving * InsertRoom(d, eta, blur);
+        } else if (!readRoom) {
+            room += leaving;
+        }
+        d.y = -d.y;
+        float towardsBent = dot(-d, bent);
+        float towardsNeighbour = dot(-d, neighbour);
+        if (max(towardsBent, towardsNeighbour) <= 0.0) {
+            break;
+        }
+        onBent = towardsBent >= towardsNeighbour;
+        firm *= smoothstep(0.0, 0.05, abs(towardsBent - towardsNeighbour));
+    }
+    if (readRoom && back > 0.0) {
+        room /= InsertSkyAverage();
+    }
+    return back;
+}
+
 void InsertOptics_float(float3 Position, float3 View, float2 UV,
     UnityTexture2D OpticalNormal, UnityTexture2D Response, UnityTexture2D SurfaceNormal,
     float4 Lamp, float Ior, float Scatter, float EdgeGlow, float LampGain,
@@ -445,12 +521,14 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     // leaning the other, exchanging their brightness as the eye moves round:
     // the movement under the top that tells clear plastic from paint. The
     // path is the view ray refracted in at the top, reflected off the facet
-    // the bake found and, where that does not get it out, off a mirrored
-    // neighbour, each reflection weighed by the plastic's own Fresnel, then
-    // out through the top into the sky's reflection cubemap. That radiance
-    // has been through the optics already, so it goes out as emission and
-    // takes the place of as much of the diffuse cavity as it weighs; a lamp
-    // that is on, from a tenth of full up, has the body to itself.
+    // the bake found, its mirrored neighbour and the top as the groove's
+    // angle sends it, each reflection weighed by the plastic's own Fresnel,
+    // then out through the top into the sky's reflection cubemap. What comes
+    // back takes the place of as much of the diffuse cavity as it weighs, in
+    // the albedo: the room is only as bright as the light that falls on the
+    // insert, a directional light, the probes or the sky's own, so the sky
+    // gives the room its shape, brighter one way and darker another, and the
+    // scene's lighting its brightness, in a dark room as in a bright one.
     float returning = 0.0;
     if (RoomReturn > 0.0 && Clarity > 0.0) {
         float3 facet = normalize(rawNormal + float3(0.0, 1e-5, 0.0));
@@ -472,17 +550,23 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
         float3 bent = facet * cos(bend) + cross(along, facet) * sin(bend) + along * dot(along, facet) * (1.0 - cos(bend));
         float3 across = float3(-along.z, 0.0, along.x);
         float3 neighbour = normalize(bent - 2.0 * dot(bent, across) * across);
-        float3 first = reflect(inside, bent);
-        float3 second = reflect(first, neighbour);
-        float reflectFirst = InsertInternalReflectance(saturate(dot(-inside, bent)), eta, reflectance0);
-        float towardsNeighbour = dot(-first, neighbour);
-        float reflectSecond = InsertInternalReflectance(saturate(towardsNeighbour), eta, reflectance0);
-        float escapesFirst = InsertEscapes(first, eta);
-        float escapesSecond = InsertEscapes(second, eta) * smoothstep(0.0, 0.15, towardsNeighbour);
-        float outFirst = 1.0 - InsertInternalReflectance(saturate(first.y), eta, reflectance0);
-        float outSecond = 1.0 - InsertInternalReflectance(saturate(second.y), eta, reflectance0);
-        float weightFirst = escapesFirst * reflectFirst * outFirst;
-        float weightSecond = (1.0 - escapesFirst) * escapesSecond * reflectFirst * reflectSecond * outSecond;
+        // The lightmap pass doesn't read the sky; to it the room is the same
+        // all round.
+#if !defined(SHADERPASS) || !defined(SHADERPASS_LIGHT_TRANSPORT) || (SHADERPASS != SHADERPASS_LIGHT_TRANSPORT)
+        bool readRoom = true;
+#else
+        bool readRoom = false;
+#endif
+        // The return switches from one facet's path to its neighbour's at the
+        // crease, texel by texel; faded over a couple of screen pixels either
+        // side, as the facet coefficients are, the switch no longer stairs.
+        float creaseFade = smoothstep(0.0, 2.5 * width, min(part, 1.0 - part));
+        float share = saturate(RoomReturn) * saturate(Clarity) * floorMask * flatExit * creaseFade;
+        float3 room = float3(0.0, 0.0, 0.0);
+        float back = 0.0;
+        if (share > 0.0) {
+            back = InsertRoomPaths(inside, bent, neighbour, eta, reflectance0, RoomBlur, readRoom, room);
+        }
         // The room comes back whether the lamp is on or off, as it does on
         // the real thing: a lit insert still reflects the room above it. But
         // inside a body flooded with the lamp's colour a white reflection
@@ -497,28 +581,15 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
         // of a half-made tint and snapped to the colour only at the end.
         float3 lampTint = chroma * min(rcp(max(dot(chroma, float3(0.2126, 0.7152, 0.0722)), 0.05)), 4.0);
         float3 roomTint = lerp(float3(1.0, 1.0, 1.0), lampTint, smoothstep(0.02, 0.3, lit));
-        // The return switches from one facet's path to its neighbour's at the
-        // crease, texel by texel; faded over a couple of screen pixels either
-        // side, as the facet coefficients are, the switch no longer stairs.
-        float creaseFade = smoothstep(0.0, 2.5 * width, min(part, 1.0 - part));
-        float share = saturate(RoomReturn) * saturate(Clarity) * floorMask * flatExit * creaseFade;
-        returning = share * (weightFirst + weightSecond);
+        returning = share * back;
         // The lamp's own light takes the same paths: what a facet throws back
         // of the room it throws back of the lamp below, so the returning
         // facets stay lighter than their neighbours however bright the lamp
         // gets, instead of drowning in it, and in the tonemapper's shoulder
-        // they go the lighter, paler colour a brighter lamp does. The lamp
-        // is lifted before the room is added, so the room is not.
+        // they go the lighter, paler colour a brighter lamp does.
         Emission *= 1.0 + returning * saturate(lit);
-        BaseColor *= 1.0 - returning;
-        // The sky is read only where something comes back, and never into
-        // the lightmap: reflected sky is no light source of the insert's own.
-#if !defined(SHADERPASS) || !defined(SHADERPASS_LIGHT_TRANSPORT) || (SHADERPASS != SHADERPASS_LIGHT_TRANSPORT)
-        if (returning > 0.0) {
-            float3 room = weightFirst * InsertRoom(first, eta, RoomBlur) + weightSecond * InsertRoom(second, eta, RoomBlur);
-            Emission += share * exp2(RoomReturnEV) * room * roomTint;
-        }
-#endif
+        // An albedo can't pass one, however bright the room is that way.
+        BaseColor = saturate(BaseColor * (1.0 - returning) + share * exp2(RoomReturnEV) * room * roomTint);
     }
     // A grey body under a coloured lamp milks its colour. Tinted with the lamp,
     // the body's hue and saturation turn to the light's, the bulbs' colours
@@ -530,9 +601,10 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     // as light as the grey was has a fifth of its luminance, so the plastic
     // went darker as the lamp came up, where the lamp itself had little to
     // add yet. The room light the plastic scatters does not go away for the
-    // lamp colouring it, so the luminance the albedo lost comes back as
-    // emission in the lamp's colour, scaled by the sky's average brightness
-    // over the table, lifted as the returned room is.
+    // lamp colouring it, so the luminance the albedo lost comes back in the
+    // albedo, its hue kept and its value raised, as far as the hue lets it:
+    // lit by whatever lights the insert, as the returned room is, and lifted
+    // as the returned room is.
     // An albedo can be no brighter than its colour allows, a pure red a
     // fifth of a grey, so while the lamp is weak the plastic keeps enough of
     // its grey to hold three fifths of its brightness, pink rather than dark
@@ -547,13 +619,11 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
         BaseColor = lerp(BaseColor, untinted, saturate((floorLum - lumAfter) / (lumBefore - lumAfter)));
     }
     float lost = max(lumBefore - dot(BaseColor, lumWeights), 0.0) * saturate(Clarity) * saturate(RoomReturn);
-#if !defined(SHADERPASS) || !defined(SHADERPASS_LIGHT_TRANSPORT) || (SHADERPASS != SHADERPASS_LIGHT_TRANSPORT)
     if (lost > 0.0) {
-        float3 lifted = chroma * min(rcp(max(dot(chroma, lumWeights), 0.05)), 4.0);
-        float3 ambient = SampleSkyTexture(TransformObjectToWorldNormal(float3(0.0, 1.0, 0.0)), 6.0, 0).rgb;
-        Emission += lifted * lost * dot(ambient, lumWeights) * exp2(RoomReturnEV);
+        float lum = max(dot(BaseColor, lumWeights), 1e-5);
+        float peak = max(BaseColor.r, max(BaseColor.g, BaseColor.b));
+        BaseColor *= max(min((lum + lost * exp2(RoomReturnEV)) / lum, rcp(max(peak, 1e-5))), 1.0);
     }
-#endif
     float4 packedNormal = SAMPLE_TEXTURE2D(SurfaceNormal.tex, SurfaceNormal.samplerstate, UV);
     float3 surface = UnpackNormal(packedNormal);
     float3 shading = normalize(float3(surface.xy * NormalStrength, lerp(1.0, surface.z, saturate(NormalStrength))));
