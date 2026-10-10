@@ -463,7 +463,23 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			// The seed also scatters the grain and the flecks, which are there lamp or no lamp.
 			Field("_OpticalSeed", "Variation Seed",
 				"Another pattern for the mottle, the rib-to-rib differences, the grain and the flecks.",
-				Above("_OpticalGrain", 0f) || Above("_OpticalFlecks", 0f) || Above("_OpticalVariation", 0f));
+				Above("_OpticalGrain", 0f) || Above("_SurfaceGrain", 0f) || Above("_OpticalFlecks", 0f) || Above("_OpticalVariation", 0f));
+		}
+
+		/// <summary>The bulbs that are off below a higher one that is on.</summary>
+		private static System.Collections.Generic.IEnumerable<int> Gaps(Material material, MaterialProperty[] lamps)
+		{
+			var highest = 0;
+			for (var i = 1; i < lamps.Length; i++) {
+				if (lamps[i] != null && material.GetVector(LampNames[i]).w > 0f) {
+					highest = i;
+				}
+			}
+			for (var i = 1; i < highest; i++) {
+				if (material.GetVector(LampNames[i]).w <= 0f) {
+					yield return i;
+				}
+			}
 		}
 
 		private static float Round(float millimetres) => Mathf.Round(millimetres * 100f) / 100f;
@@ -478,18 +494,18 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			var materials = lamps[0].targets.OfType<Material>().ToArray();
 			// A bulb is on while it has a radius. A revert or reset can leave a
 			// lower bulb off under a higher one that is on, which the shader
-			// still lights: the lower one is switched back on, so what the
-			// inspector shows is what the shader draws.
-			foreach (var material in materials) {
-				var highest = 0;
-				for (var i = 1; i < lamps.Length; i++) {
-					if (lamps[i] != null && material.GetVector(LampNames[i]).w > 0f) {
-						highest = i;
-					}
-				}
-				for (var i = 1; i < highest; i++) {
-					if (material.GetVector(LampNames[i]).w <= 0f) {
-						SwitchOn(material, i);
+			// still lights: the inspector says so and offers to switch the lower
+			// ones back on, as an edit of its own, on materials that can be edited.
+			var gaps = materials.Where(material => Gaps(material, lamps).Any()).ToArray();
+			if (gaps.Length > 0) {
+				EditorGUILayout.HelpBox("A bulb is off below one that is on; the shader still lights it, the count below doesn't show it.", MessageType.Warning);
+				var editable = gaps.All(material => !InsertBaker.IsReadOnly(AssetDatabase.GetAssetPath(material)) && !InsertColorPresets.IsReadOnly(material));
+				if (editable && GUILayout.Button("Switch the Bulbs Below On")) {
+					Undo.RecordObjects(gaps, "Switch Insert Bulbs On");
+					foreach (var material in gaps) {
+						foreach (var i in Gaps(material, lamps).ToArray()) {
+							SwitchOn(material, i);
+						}
 					}
 				}
 			}
