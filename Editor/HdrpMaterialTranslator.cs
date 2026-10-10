@@ -119,7 +119,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 					if (bake == null) { continue; }
 					ctx.CaptureEditorTexture(bake.NormalMap, VpeColorSpaces.Linear);
 					ctx.CaptureEditorTexture(bake.OpticalNormalMap, VpeColorSpaces.Linear, true);
-					ctx.CaptureEditorTexture(bake.OpticalResponseMap, VpeColorSpaces.Linear, true);
+					ctx.CaptureEditorTexture(bake.OpticalResponseMap, ResponseColorSpace(bake.OpticalResponseMap), true);
 				}
 			}
 			ctx.MarkEditorOnlyTextures(runtimeTextures);
@@ -266,7 +266,8 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 						var optical = name is "_OpticalNormalMap" or "_OpticalResponseMap";
 						var linear = optical || name is "_NormalMap" or "_CoverNormalMap";
 						property.Texture = ctx.CaptureSideChannelTextureRef(material, name,
-							linear ? VpeColorSpaces.Linear : VpeColorSpaces.SRgb);
+							name == "_OpticalResponseMap" ? ResponseColorSpace(material.GetTexture(name))
+							: linear ? VpeColorSpaces.Linear : VpeColorSpaces.SRgb);
 						if (optical) { ctx.RequireUncompressed(material.GetTexture(name) as Texture2D); }
 						break;
 					default:
@@ -281,6 +282,15 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				DoubleSidedGi = material.doubleSidedGI,
 			};
 		}
+
+		/// <summary>
+		/// The optical response is baked with the sRGB curve since it went to eight bits, which
+		/// its importer takes off again; older bakes are linear sixteen bits.
+		/// </summary>
+		private static string ResponseColorSpace(Texture texture)
+			=> texture != null && UnityEngine.Experimental.Rendering.GraphicsFormatUtility.IsSRGBFormat(texture.graphicsFormat)
+				? VpeColorSpaces.SRgb
+				: VpeColorSpaces.Linear;
 
 		private static VpeMaterialProfile TranslateHdrpLit(Material material, CaptureContext ctx)
 		{
