@@ -135,6 +135,8 @@ namespace VisualPinball.Unity.Library
 				_previewEnvironment.Insert = _previewInsert;
 				if (_previewEnvironmentWasActive) {
 					ToggleEnvironment(_previewEnvironment.gameObject);
+				} else {
+					_previewEnvironment.gameObject.SetActive(false);
 				}
 				if (_previewInsert != null) {
 					_previewInsert.gameObject.SetActive(_previewInsertWasActive);
