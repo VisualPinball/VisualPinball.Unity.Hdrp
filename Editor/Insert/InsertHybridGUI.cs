@@ -359,7 +359,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				"How sharp the reflections of the lights and probes are on the body. With a clear cover on the insert, the cover carries the glossy top and the body can be duller.");
 			Field("_NormalStrength", "Surface Normal Strength",
 				"How much of the baked surface normal map shapes those reflections: rounded edges, bevels and grain. Keep it low; the facets are in the mesh already.",
-				HasTexture("_NormalMap") && Below("_InsertFacetFlatten", 1f));
+				HasTexture("_NormalMap") && (Below("_InsertFacetFlatten", 1f) || IsClear && HasStarburst && Above("_InsertRoomReturn", 0f)));
 			Field("_InsertFacetFlatten", "Facet Flatten",
 				"Turns the shading normal the lights and probes see towards the insert's flat top. Zero keeps the facets, which suits coloured inserts; around 0.85 stops a clear insert alternating bright and dark ribs under a key light. The lamp's optics are not affected.");
 			Field("_OpticalGrain", "Grain",
