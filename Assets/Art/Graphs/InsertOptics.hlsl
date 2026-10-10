@@ -511,6 +511,14 @@ void InsertOptics_float(float3 Position, float3 View, float2 UV,
     // body less than it darkens the tinted one.
     float3 clearBody = CavityColor * (0.6 + 0.4 * response.r) * lerp(0.6, cavityView, floorMask);
     BaseColor = lerp(tintedBody, Tint * clearBody, saturate(Clarity)) * finish;
+    // Moulded plastic is never evenly clear: under room light it is cloudy,
+    // blotches of it lighter and darker than the rest, up to two fifths
+    // either way at full Variation. The cellular noise averages its
+    // neighbours, so it is widened to its full range first. A blotch
+    // brightens no further than the albedo's brightest channel can go.
+    float mottleGain = 1.0 + Variation * 0.8 * clamp(mottle * 1.4, -0.5, 0.5);
+    float bodyPeak = max(BaseColor.r, max(BaseColor.g, BaseColor.b));
+    BaseColor *= min(mottleGain, max(1.0, rcp(max(bodyPeak, 1e-5))));
     // Light that came in through the top and went down to a groove does not
     // all leave into the cavity: the facet throws part of it, or under total
     // internal reflection all of it, across to the facet next door, which
