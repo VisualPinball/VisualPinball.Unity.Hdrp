@@ -32,23 +32,47 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
 		private static void Register() => VpeGraphics.Register(new HdrpGraphicsApplier());
 
+		// the user's choice, kept so the camera can be reapplied when the cabinet view restricts it (-1 = none yet)
+		private static int _antiAliasing = -1;
+
 		public void Apply(VpeGraphicsSettings settings)
 		{
-			ApplyCameraAntialiasing(settings.AntiAliasing);
+			_antiAliasing = Mathf.Clamp(settings.AntiAliasing, 0, 3);
+			ApplyCameraAntialiasing(Camera.main);
 			ApplyVolume(settings);
 		}
 
-		private static void ApplyCameraAntialiasing(int aa)
+		/// <summary>
+		/// The chosen anti-aliasing, or what the camera's window projection allows instead. Without a choice
+		/// from the host, <paramref name="unconfigured"/> stands in for it.
+		/// </summary>
+		internal static void ApplyCameraAntialiasing(Camera cam, HDAdditionalCameraData.AntialiasingMode? unconfigured = null)
 		{
-			var cam = Camera.main;
 			if (cam == null) {
 				return;
 			}
 			var hd = cam.GetComponent<HDAdditionalCameraData>();
-			if (hd != null) {
-				hd.antialiasing = (HDAdditionalCameraData.AntialiasingMode)Mathf.Clamp(aa, 0, 3);
+			if (hd == null) {
+				return;
 			}
+			var requested = _antiAliasing >= 0 ? (VpeAntiAliasing)_antiAliasing : ToVpe(unconfigured ?? hd.antialiasing);
+			hd.antialiasing = ToHdrp(WindowProjection.EffectiveAntiAliasing(cam, requested));
 		}
+
+		// HDRP orders its modes None, FXAA, TAA, SMAA; VPE's are None, FXAA, SMAA, TAA.
+		private static HDAdditionalCameraData.AntialiasingMode ToHdrp(VpeAntiAliasing aa) => aa switch {
+			VpeAntiAliasing.Fxaa => HDAdditionalCameraData.AntialiasingMode.FastApproximateAntialiasing,
+			VpeAntiAliasing.Smaa => HDAdditionalCameraData.AntialiasingMode.SubpixelMorphologicalAntiAliasing,
+			VpeAntiAliasing.Taa => HDAdditionalCameraData.AntialiasingMode.TemporalAntialiasing,
+			_ => HDAdditionalCameraData.AntialiasingMode.None,
+		};
+
+		private static VpeAntiAliasing ToVpe(HDAdditionalCameraData.AntialiasingMode aa) => aa switch {
+			HDAdditionalCameraData.AntialiasingMode.FastApproximateAntialiasing => VpeAntiAliasing.Fxaa,
+			HDAdditionalCameraData.AntialiasingMode.SubpixelMorphologicalAntiAliasing => VpeAntiAliasing.Smaa,
+			HDAdditionalCameraData.AntialiasingMode.TemporalAntialiasing => VpeAntiAliasing.Taa,
+			_ => VpeAntiAliasing.None,
+		};
 
 		private static void ApplyVolume(VpeGraphicsSettings s)
 		{
