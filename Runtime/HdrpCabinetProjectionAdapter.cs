@@ -22,7 +22,7 @@ using VisualPinball.Unity;
 namespace VisualPinball.Engine.Unity.Hdrp
 {
 	/// <summary>
-	/// Lets HDRP render a camera through a cabinet window projection (an off-centre frustum).
+	/// Lets HDRP render a camera through a cabinet projection (an off-centre frustum).
 	/// </summary>
 	///
 	/// <remarks>
@@ -41,10 +41,10 @@ namespace VisualPinball.Engine.Unity.Hdrp
 	/// the screen. Until that is patched, TAA falls back to SMAA while the projection is active.
 	/// </para>
 	/// </remarks>
-	public sealed class HdrpWindowProjectionAdapter : IWindowProjectionAdapter
+	public sealed class HdrpCabinetProjectionAdapter : ICabinetProjectionAdapter
 	{
 		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-		private static void Register() => WindowProjection.Register(new HdrpWindowProjectionAdapter());
+		private static void Register() => CabinetProjection.Register(new HdrpCabinetProjectionAdapter());
 
 		private sealed class State
 		{
@@ -74,13 +74,13 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			HdrpGraphicsApplier.ApplyCameraAntialiasing(camera, state.AntiAliasing);
 		}
 
-		public void ApplyMetadata(Camera camera, in WindowProjectionResult projection)
+		public void ApplyMetadata(Camera camera, in CabinetProjectionResult projection)
 		{
 			camera.fieldOfView = projection.EnclosingFieldOfView;
 			camera.aspect = projection.EnclosingAspect;
 		}
 
-		public void ProjectionChanged(Camera camera, in WindowProjectionResult projection, bool discontinuous)
+		public void ProjectionChanged(Camera camera, in CabinetProjectionResult projection, bool discontinuous)
 		{
 			if (_states.TryGetValue(camera, out var state)) {
 				state.Projection = projection.Projection;
