@@ -43,7 +43,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		}
 
 		/// <summary>
-		/// The chosen anti-aliasing, or what the camera's window projection allows instead. Without a choice
+		/// The chosen anti-aliasing, or what the camera's cabinet projection allows instead. Without a choice
 		/// from the host, <paramref name="unconfigured"/> stands in for it.
 		/// </summary>
 		internal static void ApplyCameraAntialiasing(Camera cam, HDAdditionalCameraData.AntialiasingMode? unconfigured = null)
@@ -56,7 +56,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				return;
 			}
 			var requested = _antiAliasing >= 0 ? (VpeAntiAliasing)_antiAliasing : ToVpe(unconfigured ?? hd.antialiasing);
-			hd.antialiasing = ToHdrp(WindowProjection.EffectiveAntiAliasing(cam, requested));
+			hd.antialiasing = ToHdrp(CabinetProjection.EffectiveAntiAliasing(cam, requested));
 		}
 
 		// HDRP orders its modes None, FXAA, TAA, SMAA; VPE's are None, FXAA, SMAA, TAA.
