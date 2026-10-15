@@ -41,6 +41,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 	public sealed class HdrpMaterialResolver : IVpeMaterialResolver, IVpeMaterialResolverDiagnostics
 	{
 		private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+		private static readonly LogOncePerKey<string> TemplateFallbackLog = new();
 		private const bool VerboseResolverLogs = false;
 		private readonly Material _litOpaqueTemplate;
 		private readonly Material _litTransparentTemplate;
@@ -447,10 +448,9 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			var setAssetVector = SetDiffusionProfileHashOnly(material, profile);
 			var key = $"{profileName ?? "<unnamed>"}|{profile.name}";
 			if (VerboseResolverLogs && _loggedDiffusionAssignments.Add(key)) {
-				Debug.Log(
-					$"HdrpMaterialResolver: assigned diffusion profile '{profile.name}' to '{profileName}' " +
-					$"(v1 payload does not serialize diffusion profile binding; hash-only runtime assignment, " +
-					$"assetVector={(setAssetVector ? "set" : "missing")}).");
+				Logger.Debug(
+					"Assigned diffusion profile {DiffusionProfile} to {Profile} (v1 payload does not serialize the diffusion profile binding; hash-only runtime assignment, assetVector={AssetVector}).",
+					profile.name, profileName, setAssetVector ? "set" : "missing");
 			}
 		}
 
@@ -491,7 +491,10 @@ namespace VisualPinball.Engine.Unity.Hdrp
 						hashAsFloat = BitConverter.ToSingle(BitConverter.GetBytes(hash), 0);
 					}
 				}
-			} catch {
+			} catch (Exception e) {
+				// reads HDRP internals through reflection, so an HDRP update can break it; cached
+				// per profile, so this logs once per profile
+				Logger.Warn(e, "Could not read the hash of diffusion profile {DiffusionProfile}, materials using it get no subsurface scattering.", profile.name);
 				hashAsFloat = 0f;
 			}
 
@@ -712,8 +715,11 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			// if HDRP renames a pass across major versions.
 			try {
 				material.SetShaderPassEnabled(passName, enabled);
-			} catch {
+			} catch (Exception e) {
 				// Intentionally ignore; pass name not available in this shader version.
+				if (Logger.IsDebugEnabled) {
+					Logger.Debug(e, "Shader pass {Pass} is not available on material {Material}.", passName, material ? material.name : "<null>");
+				}
 			}
 		}
 
@@ -949,7 +955,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			var prePass = material.GetShaderPassEnabled("TransparentDepthPrepass");
 			var postPass = material.GetShaderPassEnabled("TransparentDepthPostpass");
 			var kws = string.Join(",", material.shaderKeywords);
-			Debug.Log(
+			Logger.Debug(
 				$"HdrpMaterialResolver first sample [{surfaceType}|{refractionModel}] '{profileName}' on template '{templateName}':\n" +
 				$"  baseColor={baseColor} queue={material.renderQueue} shader={material.shader.name}\n" +
 				$"  _SurfaceType={surfType} _MaterialID={matId} _RefractionModel={refMode} _Ior={ior} _Thickness={thickness} _TransmissionEnable={tx}\n" +
@@ -969,14 +975,17 @@ namespace VisualPinball.Engine.Unity.Hdrp
 						if (translucent) {
 							return translucent;
 						}
-						Debug.LogWarning(
-							$"HdrpMaterialResolver: '{profileName}' requests transmission/refraction ({lit.RefractionModel}) " +
-							"but no translucent template is configured. Falling back to simple transparent.");
+						if (Logger.IsDebugEnabled && TemplateFallbackLog.ShouldLog("translucent|" + profileName)) {
+							Logger.Debug("Profile {Profile} requests transmission/refraction ({RefractionModel}), but no translucent template is configured. Falling back to simple transparent.",
+								profileName, lit.RefractionModel);
+						}
 					}
 					if (_litTransparentTemplate) {
 						return _litTransparentTemplate;
 					}
-					Debug.LogWarning($"HdrpMaterialResolver: '{profileName}' transparent but no transparent template; using opaque.");
+					if (Logger.IsDebugEnabled && TemplateFallbackLog.ShouldLog("transparent|" + profileName)) {
+						Logger.Debug("Profile {Profile} is transparent, but there is no transparent template. Using opaque.", profileName);
+					}
 					return _litOpaqueTemplate;
 
 				case VpeSurfaceTypes.AlphaTest:
@@ -984,7 +993,9 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 				default:
 					if (!_litOpaqueTemplate) {
-						Debug.LogWarning($"HdrpMaterialResolver: no lit-opaque template configured; profile '{profileName}' not applied.");
+						if (Logger.IsDebugEnabled && TemplateFallbackLog.ShouldLog("opaque|" + profileName)) {
+							Logger.Debug("No lit-opaque template configured, profile {Profile} not applied.", profileName);
+						}
 					}
 					return _litOpaqueTemplate;
 			}
@@ -1093,8 +1104,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			var props = importedMaterial ? importedMaterial.GetTexturePropertyNames() : System.Array.Empty<string>();
 			var propDump = props != null && props.Length > 0 ? string.Join(", ", props) : "<none>";
 			Logger.Warn(
-				$"HdrpMaterialResolver: failed to resolve imported _BaseColorMap for profile '{profileName}' " +
-				$"from source material '{importedName}' (shader='{shaderName}', mainTexture={(hasMainTex ? "yes" : "no")}, textureProps=[{propDump}]).");
+				"Failed to resolve the imported _BaseColorMap for profile {Profile} from source material {Material} (shader {Shader}, mainTexture={HasMainTexture}, texture properties [{Properties:l}]).",
+				profileName, importedName, shaderName, hasMainTex ? "yes" : "no", propDump);
 		}
 
 		private static void LogApronBaseAssignment(string profileName, Material importedMaterial, Texture assignedTexture, bool fromImported)
@@ -1128,7 +1139,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				sourceProps = matched.ToArray();
 			}
 			var src = sourceProps.Length > 0 ? string.Join(", ", sourceProps) : "<unknown>";
-			Logger.Warn(
+			Logger.Debug(
 				$"HdrpMaterialResolver apron base assignment: profile='{profileName}', imported='{importedName}', " +
 				$"shader='{shaderName}', texture='{textureName}', fromImported={fromImported}, sourceProps=[{src}]");
 		}
@@ -1143,7 +1154,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				return;
 			}
 			if (!imported) {
-				Logger.Warn($"HdrpMaterialResolver apron imported material is null for profile '{profileName}'.");
+				Logger.Debug("Apron imported material is null for profile {Profile}.", profileName);
 				return;
 			}
 
@@ -1164,7 +1175,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				rows.Add($"{p}={(t ? t.name : "<null>")}");
 			}
 			var dump = rows.Count > 0 ? string.Join(", ", rows) : "<none>";
-			Logger.Warn(
+			Logger.Debug(
 				$"HdrpMaterialResolver apron imported material: profile='{profileName}', imported='{imported.name}', " +
 				$"shader='{shader}', mainTexture={(imported.mainTexture ? imported.mainTexture.name : "<null>")}, textures=[{dump}]");
 		}
@@ -1320,7 +1331,11 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 			try {
 				return material.mainTexture;
-			} catch {
+			} catch (Exception e) {
+				// probing: the shader may have no main texture
+				if (Logger.IsDebugEnabled) {
+					Logger.Debug(e, "Material {Material} has no readable main texture.", material.name);
+				}
 				return null;
 			}
 		}
@@ -1402,7 +1417,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			if (!shader) {
 				if (!_loggedMissingNormalRepackShader) {
 					_loggedMissingNormalRepackShader = true;
-					Logger.Warn($"HdrpMaterialResolver: failed to load Resources/{NormalRepackShaderResourcePath}. Falling back to CPU normal repack.");
+					Logger.Warn("Failed to load the shader Resources/{Path:l}. Falling back to CPU normal repack.", NormalRepackShaderResourcePath);
 				}
 				return null;
 			}
@@ -1450,7 +1465,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 					try {
 						repacked.Compress(highQuality: true);
 					} catch (Exception e) {
-						Logger.Warn(e, $"HdrpMaterialResolver: failed compressing normal map '{repacked.name}'. Keeping uncompressed texture.");
+						Logger.Warn(e, "Failed compressing normal map {Texture}. Keeping the uncompressed texture.", repacked.name);
 					}
 				}
 				repacked.Apply(true, true);
