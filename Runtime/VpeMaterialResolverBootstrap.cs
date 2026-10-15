@@ -15,8 +15,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 using System.Collections.Generic;
+using NLog;
 using UnityEngine;
 using VisualPinball.Unity;
+using Logger = NLog.Logger;
 
 namespace VisualPinball.Engine.Unity.Hdrp
 {
@@ -26,6 +28,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 	// combination is what the build compiler keeps on HDRP/Lit.
 	public static class VpeMaterialResolverBootstrap
 	{
+		private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
 		private const string LitOpaqueTemplatePath = "Materials/VpeLitOpaqueTemplate";
 		private const string LitTransparentTemplatePath = "Materials/VpeLitTransparentTemplate";
 		private const string LitTranslucentThinTemplatePath = "Materials/VpeLitTranslucentThinTemplate";
@@ -58,58 +62,26 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			RegisterMaterialOverride(materialOverrides, "RubberDirt White", RubberDirtWhiteOverridePath);
 			RegisterMaterialOverride(materialOverrides, "Dot Matrix Display (SRP)", DotMatrixDisplayOverridePath);
 			if (!litOpaque) {
-				Debug.LogError(
-					$"VpeMaterialResolverBootstrap: could not load '{LitOpaqueTemplatePath}' from Resources. " +
-					"Imported tables will fall back to the glTF-imported materials.");
+				// the templates ship with this package, so a missing one is a packaging bug
+				Logger.Error("Could not load the material template {Path:l} from Resources. Imported tables will fall back to the glTF-imported materials.",
+					LitOpaqueTemplatePath);
 				return;
 			}
-			if (!litTransparent) {
-				Debug.LogWarning(
-					$"VpeMaterialResolverBootstrap: could not load '{LitTransparentTemplatePath}' from Resources. " +
-					"Transparent surfaces will fall back to the opaque template.");
+			WarnIfMissing(litTransparent, LitTransparentTemplatePath, "Transparent surfaces will fall back to the opaque template.");
+			WarnIfMissing(litTranslucentThin, LitTranslucentThinTemplatePath, "Thin translucent (ramp plastics) will fall back to plain transparent.");
+			WarnIfMissing(litTranslucentPlanar, LitTranslucentPlanarTemplatePath, "Planar translucent (inserts, hard plastics) will fall back to plain transparent.");
+			WarnIfMissing(litTranslucentSphere, LitTranslucentSphereTemplatePath, "Sphere translucent (posts, rounded plastics) will fall back to planar/thin.");
+			WarnIfMissing(fabricSilk, FabricSilkTemplatePath, "vpe.fabric.silk profiles will fall back to glTF-imported materials.");
+			WarnIfMissing(decalTemplate, DecalTemplatePath, "vpe.decal profiles will fall back to glTF-imported materials.");
+			WarnIfMissing(insertHybrid, InsertHybridTemplatePath, "Insert bodies will use their glTF materials.");
+			WarnIfMissing(insertCover, InsertCoverTemplatePath, "Insert covers will use their glTF materials.");
+			if (Logger.IsDebugEnabled) {
+				Logger.Debug(
+					"Material templates loaded: opaque={Opaque}, transparent={Transparent}, translucent-thin={Thin}, translucent-planar={Planar}, " +
+					"translucent-sphere={Sphere}, fabric-silk={Silk}, decal={Decal}, insert-hybrid={InsertHybrid}, insert-cover={InsertCover}, {Overrides} override(s).",
+					litOpaque.name, NameOf(litTransparent), NameOf(litTranslucentThin), NameOf(litTranslucentPlanar), NameOf(litTranslucentSphere),
+					NameOf(fabricSilk), NameOf(decalTemplate), NameOf(insertHybrid), NameOf(insertCover), materialOverrides.Count);
 			}
-			if (!litTranslucentThin) {
-				Debug.LogWarning(
-					$"VpeMaterialResolverBootstrap: could not load '{LitTranslucentThinTemplatePath}' from Resources. " +
-					"Thin translucent (ramp plastics) will fall back to plain transparent.");
-			}
-			if (!litTranslucentPlanar) {
-				Debug.LogWarning(
-					$"VpeMaterialResolverBootstrap: could not load '{LitTranslucentPlanarTemplatePath}' from Resources. " +
-					"Planar translucent (inserts, hard plastics) will fall back to plain transparent.");
-			}
-			if (!litTranslucentSphere) {
-				Debug.LogWarning(
-					$"VpeMaterialResolverBootstrap: could not load '{LitTranslucentSphereTemplatePath}' from Resources. " +
-					"Sphere translucent (posts, rounded plastics) will fall back to planar/thin.");
-			}
-			if (!fabricSilk) {
-				Debug.LogWarning(
-					$"VpeMaterialResolverBootstrap: could not load '{FabricSilkTemplatePath}' from Resources. " +
-					"vpe.fabric.silk profiles will fall back to glTF-imported materials.");
-			}
-			if (!decalTemplate) {
-				Debug.LogWarning(
-					$"VpeMaterialResolverBootstrap: could not load '{DecalTemplatePath}' from Resources. " +
-					"vpe.decal profiles will fall back to glTF-imported materials.");
-			}
-			if (!insertHybrid) {
-				Debug.LogWarning($"VpeMaterialResolverBootstrap: could not load '{InsertHybridTemplatePath}' from Resources. Insert bodies will use their glTF materials.");
-			}
-			if (!insertCover) {
-				Debug.LogWarning($"VpeMaterialResolverBootstrap: could not load '{InsertCoverTemplatePath}' from Resources. Insert covers will use their glTF materials.");
-			}
-			Debug.Log(
-				$"VpeMaterialResolverBootstrap: templates loaded. " +
-				$"opaque={litOpaque.name}, " +
-				$"transparent={(litTransparent ? litTransparent.name : "<missing>")}, " +
-				$"translucent-thin={(litTranslucentThin ? litTranslucentThin.name : "<missing>")}, " +
-				$"translucent-planar={(litTranslucentPlanar ? litTranslucentPlanar.name : "<missing>")}, " +
-				$"translucent-sphere={(litTranslucentSphere ? litTranslucentSphere.name : "<missing>")}, " +
-				$"fabric-silk={(fabricSilk ? fabricSilk.name : "<missing>")}, " +
-				$"decal={(decalTemplate ? decalTemplate.name : "<missing>")}, " +
-				$"insert-hybrid={(insertHybrid ? insertHybrid.name : "<missing>")}, " +
-				$"insert-cover={(insertCover ? insertCover.name : "<missing>")}.");
 			VpeMaterialResolver.Register(new HdrpMaterialResolver(
 				litOpaque,
 				litTransparent,
@@ -123,6 +95,15 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				insertCover
 			));
 		}
+
+		private static void WarnIfMissing(Material template, string path, string consequence)
+		{
+			if (!template) {
+				Logger.Warn("Could not load the material template {Path:l} from Resources. {Consequence:l}", path, consequence);
+			}
+		}
+
+		private static string NameOf(Material material) => material ? material.name : "<missing>";
 
 		private static void RegisterMaterialOverride(Dictionary<string, Material> overrides, string profileName, string resourcePath)
 		{

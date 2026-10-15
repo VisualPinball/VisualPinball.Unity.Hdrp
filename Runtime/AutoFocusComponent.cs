@@ -14,10 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+using NLog;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.HighDefinition;
+using Logger = NLog.Logger;
 
 namespace VisualPinball.Engine.Unity.Hdrp
 {
@@ -39,6 +41,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 	[DisallowMultipleComponent]
 	public class AutoFocusComponent : MonoBehaviour
 	{
+		private static readonly Logger Logger = LogManager.GetCurrentClassLogger();
+
 		[Tooltip("The volume whose depth of field is driven. If empty, the active global volume with the highest priority is used.")]
 		public Volume PostProcessVolume;
 
@@ -92,7 +96,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		{
 			_camera = GetComponent<Camera>();
 			if (DepthProbeShader == null) {
-				Debug.LogWarning($"[AutoFocus] No depth probe shader assigned on {name}, cannot focus.", this);
+				Logger.Warn("[AutoFocus] No depth probe shader assigned on {Camera}, cannot focus.", name);
 				return;
 			}
 
@@ -100,7 +104,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			var volumeLayers = _camera.TryGetComponent<HDAdditionalCameraData>(out var cameraData) ? (int)cameraData.volumeLayerMask : ~0;
 			var volume = PostProcessVolume != null ? PostProcessVolume : HdrpGraphicsApplier.FindGlobalVolume(volumeLayers);
 			if (volume == null) {
-				Debug.LogWarning($"[AutoFocus] No post process volume found for {name}, cannot focus.", this);
+				Logger.Warn("[AutoFocus] No post process volume found for {Camera}, cannot focus.", name);
 				return;
 			}
 
@@ -110,7 +114,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				_dof = profile.Add<DepthOfField>();
 			}
 			if (Owners.TryGetValue(_dof, out var owner) && owner != null && owner != this && owner.isActiveAndEnabled) {
-				Debug.LogWarning($"[AutoFocus] {owner.name} already drives the depth of field of {volume.name}; {name} leaves it alone. Give it a volume of its own.", this);
+				Logger.Warn("[AutoFocus] {Owner} already drives the depth of field of {Volume}, {Camera} leaves it alone. Give it a volume of its own.", owner.name, volume.name, name);
 				_dof = null;
 				return;
 			}
@@ -159,7 +163,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		private void EnableCustomPasses()
 		{
 			if (GraphicsSettings.currentRenderPipeline is HDRenderPipelineAsset asset && !asset.currentPlatformRenderPipelineSettings.supportCustomPass) {
-				Debug.LogWarning($"[AutoFocus] Custom passes are disabled in the HDRP asset \"{asset.name}\", auto focus won't work. Enable Rendering > Custom Pass in the asset.", this);
+				Logger.Warn("[AutoFocus] Custom passes are disabled in the HDRP asset {Asset}, auto focus won't work. Enable Rendering > Custom Pass in the asset.", asset.name);
 			}
 			var hdCamera = GetComponent<HDAdditionalCameraData>();
 			if (hdCamera == null) {
@@ -178,7 +182,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			}
 			if (!_hasMeasurement) {
 				if (!_warnedNoMeasurement && Time.unscaledTime - _enabledTime > 3f) {
-					Debug.LogWarning($"[AutoFocus] No depth measured on {name} yet, is the custom pass running? Check that Custom Pass is enabled in the HDRP asset.", this);
+					Logger.Warn("[AutoFocus] No depth measured on {Camera} yet, is the custom pass running? Check that Custom Pass is enabled in the HDRP asset.", name);
 					_warnedNoMeasurement = true;
 				}
 				return;
@@ -203,7 +207,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			if (ctx.hdCamera.msaaEnabled) {
 				// the depth buffer is multisampled and can't be loaded as a plain texture.
 				if (!_warnedMsaa) {
-					Debug.LogWarning("[AutoFocus] MSAA is enabled on the camera, auto focus is not supported.", this);
+					Logger.Warn("[AutoFocus] MSAA is enabled on camera {Camera}, auto focus is not supported.", name);
 					_warnedMsaa = true;
 				}
 				return;
