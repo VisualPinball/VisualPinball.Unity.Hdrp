@@ -476,11 +476,18 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				return cached;
 			}
 
+			// Reads HDRP internals through reflection, so an HDRP update can break it, by throwing
+			// or by renaming what's read. Cached per profile, so either logs once per profile.
 			float hashAsFloat = 0f;
+			string problem = null;
 			try {
-				if (_diffusionProfileField != null && _diffusionHashField != null) {
+				if (_diffusionProfileField == null || _diffusionHashField == null) {
+					problem = "HDRP's internal profile or hash field wasn't found";
+				} else {
 					var profileStruct = _diffusionProfileField.GetValue(profile);
-					if (profileStruct != null) {
+					if (profileStruct == null) {
+						problem = "the profile has no settings";
+					} else {
 						var rawHash = _diffusionHashField.GetValue(profileStruct);
 						uint hash = rawHash switch {
 							uint u => u,
@@ -488,14 +495,19 @@ namespace VisualPinball.Engine.Unity.Hdrp
 							long l => unchecked((uint)l),
 							_ => 0u,
 						};
-						hashAsFloat = BitConverter.ToSingle(BitConverter.GetBytes(hash), 0);
+						if (hash == 0) {
+							problem = "its hash is 0 or of an unknown type";
+						} else {
+							hashAsFloat = BitConverter.ToSingle(BitConverter.GetBytes(hash), 0);
+						}
 					}
 				}
 			} catch (Exception e) {
-				// reads HDRP internals through reflection, so an HDRP update can break it; cached
-				// per profile, so this logs once per profile
 				Logger.Warn(e, "Could not read the hash of diffusion profile {DiffusionProfile}, materials using it get no subsurface scattering.", profile.name);
 				hashAsFloat = 0f;
+			}
+			if (problem != null) {
+				Logger.Warn("Could not read the hash of diffusion profile {DiffusionProfile} ({Reason:l}), materials using it get no subsurface scattering.", profile.name, problem);
 			}
 
 			_diffusionProfileHashByInstance[id] = hashAsFloat;
