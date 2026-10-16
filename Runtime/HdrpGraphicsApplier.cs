@@ -94,7 +94,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			if (profile.TryGet<GlobalIllumination>(out var gi)) {
 				var on = s.ScreenSpaceGlobalIllumination || s.RayTracedGlobalIllumination;
 				gi.active = on;
-				// the component does nothing until its own switch is on, and profiles ship with it off
+				// the component does nothing until its own switch is on, and profiles can have it off
 				gi.enable.Override(on);
 				gi.tracing.value = s.RayTracedGlobalIllumination ? RayCastingMode.RayTracing : RayCastingMode.RayMarching;
 			}
