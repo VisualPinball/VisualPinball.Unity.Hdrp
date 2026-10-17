@@ -110,7 +110,7 @@ MonoBehaviour:
         m_Bits: 0
       supportFabricConvolution: 0
       maxDirectionalLightsOnScreen: 4
-      maxPunctualLightsOnScreen: 64
+      maxPunctualLightsOnScreen: 512
       maxAreaLightsOnScreen: 8
       maxCubeReflectionOnScreen: 32
       maxPlanarReflectionOnScreen: 4
