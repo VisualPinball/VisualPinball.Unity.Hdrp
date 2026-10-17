@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.HighDefinition;
@@ -23,12 +24,14 @@ namespace VisualPinball.Engine.Unity.Hdrp
 {
 	/// <summary>
 	/// Applies the host app's <see cref="VpeGraphicsSettings"/> to HDRP at runtime: camera anti-aliasing
-	/// and the live Volume effects (SSR, SSAO, SSGI/RT-GI, Bloom). Registered before any scene loads, the
-	/// same pattern as <c>HdrpMaterialResolver</c>. Engine-level settings (resolution, vsync, quality level)
-	/// are applied host-side and don't pass through here.
+	/// and the live Volume effects (SSR/RT reflections, SSAO, SSGI/RT-GI, recursive ray tracing, Bloom).
+	/// Registered before any scene loads, the same pattern as <c>HdrpMaterialResolver</c>. Engine-level
+	/// settings (resolution, vsync, quality level) are applied host-side and don't pass through here.
 	/// </summary>
 	public sealed class HdrpGraphicsApplier : IVpeGraphicsApplier
 	{
+		private static readonly NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
+
 		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
 		private static void Register() => VpeGraphics.Register(new HdrpGraphicsApplier());
 
@@ -76,28 +79,212 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 		private static void ApplyVolume(VpeGraphicsSettings s)
 		{
-			var volume = FindGlobalVolume();
-			var profile = volume != null ? volume.profile : null;
-			if (profile == null) {
+			// All active global volumes blend, and the table's and the player's can share a priority, so
+			// the settings go to every one of them that has the effect, not just the one that happens to
+			// win the tie (which made the result depend on load order).
+			ReleaseOrphanedProfiles();
+			var volumes = FindGlobalVolumes();
+			if (volumes.Count == 0) {
 				return;
 			}
-			if (profile.TryGet<ScreenSpaceReflection>(out var ssr)) {
-				ssr.active = s.ScreenSpaceReflections;
-				ssr.tracing.value = s.RayTracedReflections ? RayCastingMode.RayTracing : RayCastingMode.RayMarching;
+			var primary = PrimaryVolume(volumes);
+
+			// ray-traced effects only where the active pipeline asset (the Ray Tracing quality level) can trace
+			var rayTracing = IsRayTracingAvailable();
+			var rtReflections = s.RayTracedReflections && rayTracing;
+			var rtGlobalIllumination = s.RayTracedGlobalIllumination && rayTracing;
+			var recursive = s.RayTracedRecursiveRendering && rayTracing;
+
+			// a table's profile may lack the component a ray-traced effect runs on
+			var primaryProfile = ProfileOf(primary);
+			if (rtReflections && !volumes.Exists(v => ProfileOf(v).Has<ScreenSpaceReflection>())) {
+				primaryProfile.Add<ScreenSpaceReflection>();
 			}
-			if (profile.TryGet<ScreenSpaceAmbientOcclusion>(out var ao)) {
-				ao.active = s.AmbientOcclusion;
+			if (rtGlobalIllumination && !volumes.Exists(v => ProfileOf(v).Has<GlobalIllumination>())) {
+				primaryProfile.Add<GlobalIllumination>();
 			}
-			if (profile.TryGet<Bloom>(out var bloom)) {
-				bloom.active = s.Bloom;
+			if (recursive && !volumes.Exists(v => ProfileOf(v).Has<RecursiveRendering>())) {
+				primaryProfile.Add<RecursiveRendering>();
 			}
-			if (profile.TryGet<GlobalIllumination>(out var gi)) {
-				var on = s.ScreenSpaceGlobalIllumination || s.RayTracedGlobalIllumination;
-				gi.active = on;
-				// the component does nothing until its own switch is on, and profiles can have it off
-				gi.enable.Override(on);
-				gi.tracing.value = s.RayTracedGlobalIllumination ? RayCastingMode.RayTracing : RayCastingMode.RayMarching;
+
+			foreach (var volume in volumes) {
+				var profile = ProfileOf(volume);
+				if (profile.TryGet<ScreenSpaceReflection>(out var ssr)) {
+					var on = s.ScreenSpaceReflections || rtReflections;
+					ssr.active = on;
+					ssr.enabled.Override(on);
+					ssr.tracing.Override(rtReflections ? RayCastingMode.RayTracing : RayCastingMode.RayMarching);
+				}
+				if (profile.TryGet<ScreenSpaceAmbientOcclusion>(out var ao)) {
+					ao.active = s.AmbientOcclusion;
+					// the player build strips the visibility rays ray-traced AO needs (RayTracingPassStripper)
+					ao.rayTracing.Override(false);
+				}
+				if (profile.TryGet<SubSurfaceScattering>(out var sss)) {
+					// same for ray-traced subsurface scattering
+					sss.rayTracing.Override(false);
+				}
+				if (profile.TryGet<PathTracing>(out var pathTracing)) {
+					// and path tracing
+					pathTracing.enable.Override(false);
+				}
+				if (profile.TryGet<Bloom>(out var bloom)) {
+					bloom.active = s.Bloom;
+				}
+				if (profile.TryGet<GlobalIllumination>(out var gi)) {
+					var on = s.ScreenSpaceGlobalIllumination || rtGlobalIllumination;
+					gi.active = on;
+					// the component does nothing until its own switch is on, and profiles can have it off
+					gi.enable.Override(on);
+					gi.tracing.Override(rtGlobalIllumination ? RayCastingMode.RayTracing : RayCastingMode.RayMarching);
+				}
+				if (profile.TryGet<RecursiveRendering>(out var rr)) {
+					rr.active = recursive;
+					rr.enable.Override(recursive);
+					// one mask for all of them, since which materials can be flagged depends on it
+					rr.layerMask.Override(~0);
+				}
 			}
+			ApplyRecursiveMaterials(recursive);
+			if (rayTracing) {
+				// ray-traced shadows and contact shadows trace the visibility rays the build strips
+				foreach (var light in Object.FindObjectsByType<HDAdditionalLightData>(FindObjectsInactive.Include)) {
+					light.useRayTracedShadows = false;
+					light.rayTraceContactShadow = false;
+				}
+			}
+
+			Logger.Info("Ray tracing {State} (GPU support: {Gpu}, pipeline asset: {Asset}, volumes: {Volumes}); reflections {Reflections}, GI {Gi}, recursive {Recursive}.",
+				rayTracing ? "available" : "unavailable", SystemInfo.supportsRayTracing,
+				GraphicsSettings.currentRenderPipeline != null ? GraphicsSettings.currentRenderPipeline.name : "none",
+				string.Join(", ", volumes.ConvertAll(v => v.name)), rtReflections, rtGlobalIllumination, recursive);
+		}
+
+		// Profiles we instantiated (Volume.profile clones the shared one on first access), so they and their
+		// components can be destroyed once their volume is gone; nothing unloads them otherwise.
+		private static readonly Dictionary<Volume, VolumeProfile> OwnedProfiles = new Dictionary<Volume, VolumeProfile>();
+
+		private static VolumeProfile ProfileOf(Volume volume)
+		{
+			if (OwnedProfiles.TryGetValue(volume, out var owned)) {
+				return owned;
+			}
+			if (volume.HasInstantiatedProfile()) {
+				return volume.profile; // someone else's clone
+			}
+			var profile = volume.profile;
+			OwnedProfiles[volume] = profile;
+			return profile;
+		}
+
+		private static void ReleaseOrphanedProfiles()
+		{
+			var orphaned = new List<Volume>();
+			foreach (var entry in OwnedProfiles) {
+				if (entry.Key == null) {
+					orphaned.Add(entry.Key);
+					if (entry.Value != null) {
+						foreach (var component in entry.Value.components) {
+							Object.Destroy(component);
+						}
+						Object.Destroy(entry.Value);
+					}
+				}
+			}
+			foreach (var volume in orphaned) {
+				OwnedProfiles.Remove(volume);
+			}
+		}
+
+		// The active global volumes with a profile.
+		private static List<Volume> FindGlobalVolumes()
+		{
+			var result = new List<Volume>();
+			foreach (var v in Object.FindObjectsByType<Volume>(FindObjectsInactive.Exclude)) {
+				if (v.isGlobal && v.enabled && v.gameObject.activeInHierarchy && (v.sharedProfile != null || v.HasInstantiatedProfile())) {
+					result.Add(v);
+				}
+			}
+			return result;
+		}
+
+		// Where missing components go: the highest priority, and on a tie the one with the effects.
+		private static Volume PrimaryVolume(List<Volume> volumes)
+		{
+			Volume best = null;
+			var bestScore = 0;
+			foreach (var v in volumes) {
+				var p = ProfileOf(v);
+				var score = (p.Has<ScreenSpaceReflection>() ? 1 : 0) + (p.Has<GlobalIllumination>() ? 1 : 0);
+				if (best == null || v.priority > best.priority || (Mathf.Approximately(v.priority, best.priority) && score > bestScore)) {
+					best = v;
+					bestScore = score;
+				}
+			}
+			return best;
+		}
+
+		/// <summary>
+		/// Whether the active pipeline asset supports ray tracing on this GPU. Reads the asset rather than
+		/// the running pipeline, since a quality-level swap only rebuilds the pipeline on the next frame.
+		/// </summary>
+		internal static bool IsRayTracingAvailable()
+			=> SystemInfo.supportsRayTracing
+				&& GraphicsSettings.currentRenderPipeline is HDRenderPipelineAsset hdrp
+				&& hdrp.currentPlatformRenderPipelineSettings.supportRayTracing;
+
+		// Recursive rendering only draws materials flagged for it: HDRP checks the _RayTracing property and
+		// renders the material's RayTracingPrepass pass (which the editor's material validation normally
+		// toggles). We flag the clear, refractive materials, the ones whose screen-space refraction gets it
+		// most wrong, and restore the ones we flagged when it's turned off. Insert covers keep their own optics.
+		private const string RayTracingProperty = "_RayTracing";
+		private const string RayTracingPrepassPass = "RayTracingPrepass";
+		private static readonly HashSet<Material> RecursiveMaterials = new HashSet<Material>();
+
+		private static void ApplyRecursiveMaterials(bool on)
+		{
+			// restore what we flagged before, then decide again (renderers may have changed)
+			foreach (var material in RecursiveMaterials) {
+				if (material != null) {
+					SetRecursive(material, false);
+				}
+			}
+			RecursiveMaterials.Clear();
+			if (!on) {
+				return;
+			}
+			// A flagged material isn't rasterized anymore, so a renderer outside the acceleration structure
+			// would disappear: such a renderer's materials are left alone.
+			var candidates = new HashSet<Material>();
+			var excluded = new HashSet<Material>();
+			var renderers = Object.FindObjectsByType<Renderer>(FindObjectsInactive.Include);
+			foreach (var renderer in renderers) {
+				var traced = renderer.rayTracingMode != UnityEngine.Experimental.Rendering.RayTracingMode.Off;
+				foreach (var material in renderer.sharedMaterials) {
+					if (IsRecursiveCandidate(material)) {
+						(traced ? candidates : excluded).Add(material);
+					}
+				}
+			}
+			foreach (var material in candidates) {
+				if (!excluded.Contains(material) && RecursiveMaterials.Add(material)) {
+					SetRecursive(material, true);
+				}
+			}
+			Logger.Info("Recursive ray tracing on {Count} material(s).", RecursiveMaterials.Count);
+		}
+
+		private static bool IsRecursiveCandidate(Material material)
+			=> material != null && material.shader != null
+				&& material.HasProperty(RayTracingProperty) && material.GetFloat(RayTracingProperty) < 0.5f
+				&& material.HasProperty("_RefractionModel") && material.GetFloat("_RefractionModel") > 0.5f
+				&& (material.IsKeywordEnabled("_SURFACE_TYPE_TRANSPARENT") || material.renderQueue > (int)RenderQueue.GeometryLast)
+				&& material.shader.name.IndexOf("Insert", System.StringComparison.OrdinalIgnoreCase) < 0;
+
+		private static void SetRecursive(Material material, bool on)
+		{
+			material.SetFloat(RayTracingProperty, on ? 1f : 0f);
+			material.SetShaderPassEnabled(RayTracingPrepassPass, on);
 		}
 
 		// The active global Volume with the highest priority (we read its .profile instance, so we don't
