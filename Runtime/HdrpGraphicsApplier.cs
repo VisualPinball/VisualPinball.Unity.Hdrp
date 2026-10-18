@@ -100,7 +100,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		private static bool ApplyCameraUpscaler(Camera cam, HDAdditionalCameraData hd)
 		{
 			var upscaler = _upscaler;
-			if (!IsUpscalerSupported(upscaler) || CabinetProjection.EffectiveAntiAliasing(cam, VpeAntiAliasing.Taa) != VpeAntiAliasing.Taa) {
+			if (!IsUpscalerSupported(upscaler) || !AssetOffers(upscaler) || CabinetProjection.EffectiveAntiAliasing(cam, VpeAntiAliasing.Taa) != VpeAntiAliasing.Taa) {
 				upscaler = VpeUpscaler.Off;
 			}
 			hd.allowDynamicResolution = upscaler != VpeUpscaler.Off;
@@ -117,6 +117,21 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			hd.fidelityFX2SuperResolutionUseCustomAttributes = true;
 			hd.fidelityFX2SuperResolutionUseOptimalSettings = true;
 			return upscaler != VpeUpscaler.Off;
+		}
+
+		// HDRP only runs an upscaler the active pipeline asset lists, with its dynamic resolution on; without that,
+		// asking the camera for one would still turn its own anti-aliasing off.
+		private static bool AssetOffers(VpeUpscaler upscaler)
+		{
+			if (upscaler == VpeUpscaler.Off) {
+				return true;
+			}
+			if (GraphicsSettings.currentRenderPipeline is not HDRenderPipelineAsset asset) {
+				return false;
+			}
+			var drs = asset.currentPlatformRenderPipelineSettings.dynamicResolutionSettings;
+			var name = upscaler == VpeUpscaler.Dlss ? "DLSS" : "FSR2";
+			return drs.enabled && drs.advancedUpscalerNames != null && drs.advancedUpscalerNames.Contains(name);
 		}
 
 		// NVIDIA's DLSSQuality: MaximumPerformance 0, Balanced 1, MaximumQuality 2, UltraPerformance 3.
@@ -148,7 +163,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			// the settings go to every one of them that has the effect, not just the one that happens to
 			// win the tie (which made the result depend on load order).
 			ReleaseOrphanedProfiles();
-			var volumes = FindGlobalVolumes();
+			var volumes = FindGlobalVolumes(Camera.main);
 			if (volumes.Count == 0) {
 				return;
 			}
@@ -262,11 +277,15 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		}
 
 		// The active global volumes with a profile.
-		private static List<Volume> FindGlobalVolumes()
+		// Only the volumes the camera sees: a zero-weight one, or one on a layer the camera leaves out, would
+		// otherwise count as already having an effect and keep it from being added where it shows.
+		private static List<Volume> FindGlobalVolumes(Camera cam)
 		{
+			var mask = cam != null && cam.TryGetComponent<HDAdditionalCameraData>(out var hd) ? (int)hd.volumeLayerMask : ~0;
 			var result = new List<Volume>();
 			foreach (var v in Object.FindObjectsByType<Volume>(FindObjectsInactive.Exclude)) {
-				if (v.isGlobal && v.enabled && v.gameObject.activeInHierarchy && (v.sharedProfile != null || v.HasInstantiatedProfile())) {
+				if (v.isGlobal && v.enabled && v.gameObject.activeInHierarchy && v.weight > 0f && (mask & (1 << v.gameObject.layer)) != 0
+					&& (v.sharedProfile != null || v.HasInstantiatedProfile())) {
 					result.Add(v);
 				}
 			}
