@@ -33,17 +33,46 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		private static readonly NLog.Logger Logger = NLog.LogManager.GetCurrentClassLogger();
 
 		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-		private static void Register() => VpeGraphics.Register(new HdrpGraphicsApplier());
+		private static void Register()
+		{
+			VpeGraphics.Register(new HdrpGraphicsApplier());
+			VpeGraphics.UpscalerSupport = IsUpscalerSupported;
+			VpeGraphics.RenderScaleSource = RenderScale;
+		}
+
+		// HDRP resets the active DynamicResolutionHandler after each render, so read the main camera's own size
+		private static float RenderScale()
+		{
+			var cam = Camera.main;
+			if (cam == null || cam.pixelWidth <= 0) {
+				return 1f;
+			}
+			var hd = HDCamera.GetOrCreate(cam);
+			return hd.actualWidth > 0 ? Mathf.Min(1f, hd.actualWidth / (float)cam.pixelWidth) : 1f;
+		}
 
 		// the user's choice, kept so the camera can be reapplied when the cabinet view restricts it (-1 = none yet)
 		private static int _antiAliasing = -1;
+		private static VpeUpscaler _upscaler = VpeUpscaler.Off;
+		private static VpeUpscalerQuality _upscalerQuality = VpeUpscalerQuality.Quality;
 
 		public void Apply(VpeGraphicsSettings settings)
 		{
 			_antiAliasing = Mathf.Clamp(settings.AntiAliasing, 0, 3);
+			_upscaler = (VpeUpscaler)Mathf.Clamp(settings.Upscaler, 0, 2);
+			_upscalerQuality = (VpeUpscalerQuality)Mathf.Clamp(settings.UpscalerQuality, 0, 3);
 			ApplyCameraAntialiasing(Camera.main);
 			ApplyVolume(settings);
+			Logger.Info("Upscaling {Upscaler} {Quality} (DLSS detected: {Dlss}, FSR 2 detected: {Fsr2})",
+				_upscaler, _upscalerQuality, HDDynamicResolutionPlatformCapabilities.DLSSDetected, HDDynamicResolutionPlatformCapabilities.FSR2Detected);
 		}
+
+		// DLSS needs the NVIDIA plugin and an RTX GPU, FSR 2 a DX12 or Vulkan device; HDRP detects both.
+		private static bool IsUpscalerSupported(VpeUpscaler upscaler) => upscaler switch {
+			VpeUpscaler.Dlss => HDDynamicResolutionPlatformCapabilities.DLSSDetected,
+			VpeUpscaler.Fsr2 => HDDynamicResolutionPlatformCapabilities.FSR2Detected,
+			_ => true,
+		};
 
 		/// <summary>
 		/// The chosen anti-aliasing, or what the camera's cabinet projection allows instead. Without a choice
@@ -59,8 +88,44 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				return;
 			}
 			var requested = _antiAliasing >= 0 ? (VpeAntiAliasing)_antiAliasing : ToVpe(unconfigured ?? hd.antialiasing);
-			hd.antialiasing = ToHdrp(CabinetProjection.EffectiveAntiAliasing(cam, requested));
+			// an upscaler does the anti-aliasing itself; HDRP would still run FXAA after it (it jitters regardless)
+			hd.antialiasing = ApplyCameraUpscaler(cam, hd)
+				? HDAdditionalCameraData.AntialiasingMode.None
+				: ToHdrp(CabinetProjection.EffectiveAntiAliasing(cam, requested));
 		}
+
+		// The upscalers are temporal like TAA: where the cabinet projection rules out TAA, they're off too.
+		// The pipeline assets list DLSS and FSR 2; the camera's flags pick one, at the scale its mode implies.
+		// Returns whether one is active.
+		private static bool ApplyCameraUpscaler(Camera cam, HDAdditionalCameraData hd)
+		{
+			var upscaler = _upscaler;
+			if (!IsUpscalerSupported(upscaler) || CabinetProjection.EffectiveAntiAliasing(cam, VpeAntiAliasing.Taa) != VpeAntiAliasing.Taa) {
+				upscaler = VpeUpscaler.Off;
+			}
+			hd.allowDynamicResolution = upscaler != VpeUpscaler.Off;
+
+			hd.allowDeepLearningSuperSampling = upscaler == VpeUpscaler.Dlss;
+			hd.deepLearningSuperSamplingUseCustomQualitySettings = true;
+			hd.deepLearningSuperSamplingQuality = DlssQuality(_upscalerQuality);
+			hd.deepLearningSuperSamplingUseCustomAttributes = true;
+			hd.deepLearningSuperSamplingUseOptimalSettings = true;
+
+			hd.allowFidelityFX2SuperResolution = upscaler == VpeUpscaler.Fsr2;
+			hd.fidelityFX2SuperResolutionUseCustomQualitySettings = true;
+			hd.fidelityFX2SuperResolutionQuality = (uint)_upscalerQuality; // AMD FSR2Quality has the same order
+			hd.fidelityFX2SuperResolutionUseCustomAttributes = true;
+			hd.fidelityFX2SuperResolutionUseOptimalSettings = true;
+			return upscaler != VpeUpscaler.Off;
+		}
+
+		// NVIDIA's DLSSQuality: MaximumPerformance 0, Balanced 1, MaximumQuality 2, UltraPerformance 3.
+		private static uint DlssQuality(VpeUpscalerQuality quality) => quality switch {
+			VpeUpscalerQuality.Quality => 2,
+			VpeUpscalerQuality.Balanced => 1,
+			VpeUpscalerQuality.Performance => 0,
+			_ => 3,
+		};
 
 		// HDRP orders its modes None, FXAA, TAA, SMAA; VPE's are None, FXAA, SMAA, TAA.
 		private static HDAdditionalCameraData.AntialiasingMode ToHdrp(VpeAntiAliasing aa) => aa switch {
