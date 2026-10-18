@@ -42,8 +42,8 @@ namespace VisualPinball.Unity.LookDev
 		public InsertComponent Insert;
 
 		[Min(0f)]
-		[Tooltip("Outward offset of the cut in millimeters, along the outline normals. Prevents the insert and plywood walls from sharing a surface.")]
-		public float ClearanceMm = 0.05f;
+		[Tooltip("Outward offset of the cut in millimeters, along the outline normals. Prevents the insert and plywood walls from sharing a surface; keep it tiny, since the lit plywood wall shows down any wider gap as a bright rim.")]
+		public float ClearanceMm = 0.02f;
 
 		[Min(0)]
 		[Tooltip("Existing material slot used for the walls inside the hole (1 is plywood on Playfield - Solid).")]
@@ -132,31 +132,31 @@ namespace VisualPinball.Unity.LookDev
 			_dirty = false;
 			_filter = GetComponent<MeshFilter>();
 			try {
-				if (Insert == null) {
-					Restore();
-					Error = null;
-					return;
-				}
 				if (SourcePlayfield == null || SourcePlayfield.sharedMesh == null) {
 					throw new InvalidOperationException("Assign Playfield - Solid as the source playfield.");
 				}
 				if (SourcePlayfield == _filter) {
 					throw new InvalidOperationException("Use a separate preview object, with Playfield - Solid assigned as Source Playfield.");
 				}
-				if (Insert.Outline == null) {
-					Insert.RebuildMesh();
-				}
-				if (Insert.Outline == null) {
-					throw new InvalidOperationException("The insert has no generated outline.");
-				}
-				var outline = new Vector3[Insert.Outline.Points.Count];
-				for (var i = 0; i < outline.Length; i++) {
-					outline[i] = Insert.transform.TransformPoint(InsertMeshGenerator.ToLocal(Insert.Outline.Points[i].Position));
-				}
 				var source = SourcePlayfield.sharedMesh;
-				var mesh = PlayfieldCutoutMesh.Cut(source, SourcePlayfield.transform.localToWorldMatrix, outline,
-					WallMaterialIndex, WallUvScale, transform.localToWorldMatrix, ClearanceMm * 0.001f);
-				mesh.name = source.name + " (Insert Cutout Preview)";
+				Mesh mesh;
+				if (Insert == null) {
+					mesh = PlayfieldCutoutMesh.Copy(source, SourcePlayfield.transform.localToWorldMatrix, transform.localToWorldMatrix);
+				} else {
+					if (Insert.Outline == null) {
+						Insert.RebuildMesh();
+					}
+					if (Insert.Outline == null) {
+						throw new InvalidOperationException("The insert has no generated outline.");
+					}
+					var outline = new Vector3[Insert.Outline.Points.Count];
+					for (var i = 0; i < outline.Length; i++) {
+						outline[i] = Insert.transform.TransformPoint(InsertMeshGenerator.ToLocal(Insert.Outline.Points[i].Position));
+					}
+					mesh = PlayfieldCutoutMesh.Cut(source, SourcePlayfield.transform.localToWorldMatrix, outline,
+						WallMaterialIndex, WallUvScale, transform.localToWorldMatrix, ClearanceMm * 0.001f);
+				}
+				mesh.name = source.name + (Insert != null ? " (Insert Cutout Preview)" : " (Playfield Preview)");
 				mesh.hideFlags = HideFlags.HideAndDontSave;
 				Restore();
 				_preview = mesh;

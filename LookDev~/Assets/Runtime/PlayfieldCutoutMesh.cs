@@ -35,6 +35,10 @@ namespace VisualPinball.Unity.LookDev
 	{
 		private const float Epsilon = 0.0000001f;
 
+		/// <summary>Copies the uncut solid into the preview's local space, retaining its surface attributes and material slots.</summary>
+		public static Mesh Copy(Mesh source, Matrix4x4 localToWorld, Matrix4x4 outputLocalToWorld)
+			=> Write(Read(source, localToWorld), source, outputLocalToWorld);
+
 		public static Mesh Cut(Mesh source, Matrix4x4 localToWorld, IReadOnlyList<Vector3> worldOutline,
 			int wallMaterialIndex = 1, float wallUvScale = 1f, Matrix4x4? outputLocalToWorld = null, float clearanceMeters = 0f)
 		{
