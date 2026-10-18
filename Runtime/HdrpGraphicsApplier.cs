@@ -165,6 +165,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			ReleaseOrphanedProfiles();
 			var volumes = FindGlobalVolumes(Camera.main);
 			if (volumes.Count == 0) {
+				// no volume runs the recursive rendering, so no glass may stay flagged for it (it wouldn't draw)
+				ApplyRecursiveMaterials(false);
 				return;
 			}
 			var primary = PrimaryVolume(volumes);
