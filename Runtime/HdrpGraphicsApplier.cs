@@ -59,7 +59,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		public void Apply(VpeGraphicsSettings settings)
 		{
 			_antiAliasing = Mathf.Clamp(settings.AntiAliasing, 0, 3);
-			_upscaler = (VpeUpscaler)Mathf.Clamp(settings.Upscaler, 0, 2);
+			_upscaler = (VpeUpscaler)settings.Upscaler;
 			_upscalerQuality = (VpeUpscalerQuality)Mathf.Clamp(settings.UpscalerQuality, 0, 3);
 			ApplyCameraAntialiasing(Camera.main);
 			ApplyVolume(settings);
@@ -71,7 +71,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		private static bool IsUpscalerSupported(VpeUpscaler upscaler) => upscaler switch {
 			VpeUpscaler.Dlss => HDDynamicResolutionPlatformCapabilities.DLSSDetected,
 			VpeUpscaler.Fsr2 => HDDynamicResolutionPlatformCapabilities.FSR2Detected,
-			_ => true,
+			VpeUpscaler.Off => true,
+			_ => false,
 		};
 
 		/// <summary>
