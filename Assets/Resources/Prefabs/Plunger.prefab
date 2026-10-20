@@ -12,8 +12,8 @@ GameObject:
   - component: {fileID: 8461769246571476234}
   - component: {fileID: 4360165373544367127}
   - component: {fileID: 5176043116475604806}
-  - component: {fileID: 758323825446027854}
-  - component: {fileID: 6875191637992584632}
+  - component: {fileID: 7079419742644474224}
+  - component: {fileID: 1036705701344747640}
   m_Layer: 0
   m_Name: Plunger
   m_TagString: Untagged
@@ -95,46 +95,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _emitter: {fileID: 0}
---- !u!114 &758323825446027854
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3492958815385962431}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b1b4677b6b0e8bc419afb6cd7a22cf3a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  SoundAsset: {fileID: 0}
-  MultiPlayMode: 0
-  Volume: 1
-  Priority: 2
-  CalloutMaxQueueTime: -1
-  StartWhen: 0
-  StopWhen: 0
-  CoilName: c_pull
---- !u!114 &6875191637992584632
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3492958815385962431}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b1b4677b6b0e8bc419afb6cd7a22cf3a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  SoundAsset: {fileID: 0}
-  MultiPlayMode: 0
-  Volume: 1
-  Priority: 2
-  CalloutMaxQueueTime: -1
-  StartWhen: 0
-  StopWhen: 0
-  CoilName: c_pull
 --- !u!1 &3501041183407321805
 GameObject:
   m_ObjectHideFlags: 0
@@ -254,3 +214,43 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 7745742471233074297}
   m_Mesh: {fileID: 0}
+--- !u!114 &7079419742644474224
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3492958815385962431}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b1b4677b6b0e8bc419afb6cd7a22cf3a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: VisualPinball.Unity::VisualPinball.Unity.CoilSoundComponent
+  SoundAsset: {fileID: 11400000, guid: b2c1062eef5c8824c81e19f9163c9d19, type: 2}
+  MultiPlayMode: 0
+  Volume: 1
+  Priority: 2
+  CalloutMaxQueueTime: -1
+  StartWhen: 0
+  StopWhen: 0
+  CoilName: c_pull
+--- !u!114 &1036705701344747640
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3492958815385962431}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b1b4677b6b0e8bc419afb6cd7a22cf3a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: VisualPinball.Unity::VisualPinball.Unity.CoilSoundComponent
+  SoundAsset: {fileID: 11400000, guid: 91432e51495cc3548a472d6bd509e6a7, type: 2}
+  MultiPlayMode: 0
+  Volume: 0.8
+  Priority: 2
+  CalloutMaxQueueTime: -1
+  StartWhen: 0
+  StopWhen: 0
+  CoilName: c_autofire
