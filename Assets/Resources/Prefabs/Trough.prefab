@@ -10,8 +10,6 @@ GameObject:
   m_Component:
   - component: {fileID: 1547207884189045889}
   - component: {fileID: 7359774814775038696}
-  - component: {fileID: 4964707666747543329}
-  - component: {fileID: 2596899900856616474}
   m_Layer: 0
   m_Name: Trough
   m_TagString: Untagged
@@ -69,39 +67,3 @@ MonoBehaviour:
   RollTime: 300
   TransitionTime: 50
   KickTime: 100
---- !u!114 &4964707666747543329
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6315943650588709701}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8636086609386b04ea0fb6c9091f243b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  _soundAsset: {fileID: 11400000, guid: 249faf8343847964c8a56371a8c737b1, type: 2}
-  _interrupt: 0
-  _volume: 1
-  _startWhen: 0
-  _stopWhen: 0
-  _switchName: ball_switch_6
---- !u!114 &2596899900856616474
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6315943650588709701}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b1b4677b6b0e8bc419afb6cd7a22cf3a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  _soundAsset: {fileID: 11400000, guid: 793216df1889fdd4e93ea22639af1b78, type: 2}
-  _interrupt: 0
-  _volume: 1
-  _startWhen: 0
-  _stopWhen: 0
-  _coilName: eject_coil
