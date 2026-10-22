@@ -178,7 +178,22 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			// The keywords come with the template: rebuilt from the restored values, so a cover
 			// without refraction doesn't keep the template's.
 			HDMaterial.ValidateMaterial(material);
+			InsertTracedKeyword(material);
 			return material;
+		}
+
+		/// <summary>
+		/// The insert's opt-in Traced mode travels as its toggle's value; nothing
+		/// at runtime turns that back into the keyword.
+		/// </summary>
+		private static void InsertTracedKeyword(Material material)
+		{
+			if (!material.HasProperty("_INSERT_TRACED")) { return; }
+			if (material.GetFloat("_INSERT_TRACED") > 0.5f) {
+				material.EnableKeyword("_INSERT_TRACED");
+			} else {
+				material.DisableKeyword("_INSERT_TRACED");
+			}
 		}
 
 		private Material BuildShaderGraphMaterial(VpeMaterialProfile profile, VpeShaderGraphProfile shaderGraph)
