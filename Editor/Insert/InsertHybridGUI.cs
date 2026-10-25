@@ -47,6 +47,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			uiBlocks.Insert(index, new PlasticBlock());
 			uiBlocks.Insert(index + 1, new LampBlock());
 			uiBlocks.Insert(index + 2, new BakeBlock());
+			uiBlocks.Insert(index + 3, new TracedModeBlock());
 		}
 
 		/// <summary>
@@ -707,6 +708,41 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			var property = FindProperty(name);
 			if (property != null) {
 				materialEditor.TexturePropertySingleLine(label, property);
+			}
+		}
+	}
+
+	/// <summary>
+	/// The opt-in Traced mode: the body's glow from an offline render of the
+	/// insert instead of the optical response map, the bulb still refracted
+	/// live. Everything above stays in charge of colour and brightness. The
+	/// controls and their words are <see cref="InsertTracedFields"/>, shared
+	/// with URP.
+	/// </summary>
+	internal sealed class TracedModeBlock : InsertBlock
+	{
+		public TracedModeBlock() : base(ExpandableBit.User3, InsertTracedFields.Title) { }
+
+		protected override void Draw()
+		{
+			Field(InsertTracedFields.Keyword, InsertTracedFields.KeywordLabel.text, InsertTracedFields.KeywordLabel.tooltip);
+			var on = materials.All(material => material.IsKeywordEnabled(InsertTracedFields.Keyword));
+			if (!on) {
+				return;
+			}
+			EditorGUILayout.HelpBox(InsertTracedFields.Note, MessageType.None);
+			foreach (var section in InsertTracedFields.Sections) {
+				SubHeader(section.Title);
+				foreach (var entry in section.Entries) {
+					if (entry.IsTexture) {
+						var property = FindProperty(entry.Name);
+						if (property != null) {
+							materialEditor.TexturePropertySingleLine(entry.Label, property);
+						}
+					} else {
+						Field(entry.Name, entry.Label.text, entry.Label.tooltip);
+					}
+				}
 			}
 		}
 	}
