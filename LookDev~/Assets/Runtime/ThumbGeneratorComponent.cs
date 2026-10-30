@@ -38,7 +38,9 @@ namespace VisualPinball.Unity.Library
 
 		private const int NumPreFrames = 120;
 		private const int NumPostFrames = 20;
+		private const double ScreenshotTimeout = 10; // seconds
 		private int _frame;
+		private double _waitStart = -1;
 
 		public event EventHandler OnScreenshot;
 
@@ -57,8 +59,9 @@ namespace VisualPinball.Unity.Library
 			if (_frame == NumPreFrames) {
 				Screenshot();
 			}
-			if (_frame == NumPreFrames + NumPostFrames - 1) {
-				Resize(ThumbnailGuid);
+			if (_frame == NumPreFrames + NumPostFrames - 1 && !TryResize()) {
+				TriggerRender();
+				return;
 			}
 			if (_frame++ < NumPreFrames + NumPostFrames) {
 				TriggerRender();
@@ -96,12 +99,37 @@ namespace VisualPinball.Unity.Library
 		{
 			try {
 				var path = @$"{ThumbnailRoot}/{guid}_large.png";
+				File.Delete(path); // so a leftover isn't taken for this one
 				ScreenCapture.CaptureScreenshot(path, 2);
 				Debug.Log($"Screenshot for \"{Prefab.name}\" saved at {path}");
 
 			} catch (Exception e) {
 				Debug.LogError(e);
 			}
+		}
+
+		/// <summary>
+		/// Resizes the screenshot once it's there. Returns false while still waiting for it.
+		/// </summary>
+		private bool TryResize()
+		{
+			if (!File.Exists(Path.GetFullPath($"{ThumbnailRoot}/{ThumbnailGuid}_large.png"))) {
+				// the screenshot is only written when the game view renders, which a background editor may not do
+				if (_waitStart < 0) {
+					_waitStart = EditorApplication.timeSinceStartup;
+				}
+				if (EditorApplication.timeSinceStartup - _waitStart < ScreenshotTimeout) {
+					return false;
+				}
+				Debug.LogError($"No screenshot of \"{Prefab.name}\" after {ScreenshotTimeout}s, skipping it. Keep the editor in front while generating thumbnails.");
+				return true;
+			}
+			try {
+				Resize(ThumbnailGuid);
+			} catch (Exception e) {
+				Debug.LogError(e);
+			}
+			return true;
 		}
 
 		private void Resize(string guid)
