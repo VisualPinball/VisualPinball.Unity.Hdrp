@@ -1,0 +1,208 @@
+// Visual Pinball Engine
+// Copyright (C) 2026 freezy and VPE Team
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+// Fills a ball's reflection cubemap for BallReflectionsComponent. Every texel's direction is marched
+// from the ball's center through the depth buffer of the frame the camera just rendered, which finds
+// what stands on the playfield, like posts, plastics, flippers and ramps. A ray that hits nothing on
+// its way down takes the playfield where it meets its plane, and the lit color of every hit comes from
+// that frame. Everything looking up, or past the playfield's edge, gets the sky, like the ball had before.
+// HDRP stores probes and the sky without exposure, so the frame's color is divided by it.
+
+#pragma only_renderers d3d11 playstation xboxone xboxseries vulkan metal switch switch2
+
+#pragma kernel KFill
+
+#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
+#include "Packages/com.unity.render-pipelines.high-definition/Runtime/ShaderLibrary/ShaderVariables.hlsl"
+
+TEXTURE2D_X(_BallReflectionColor);
+// the six cube faces, in cube face order; a cubemap can't be written directly, so it's copied over afterwards
+RWTexture2DArray<float4> _BallReflectionFaces;
+
+// xyz: ball center in absolute world space, w: ball radius
+float4 _BallReflectionBall;
+// xyz: playfield normal, w: playfield plane distance along it
+float4 _BallReflectionPlane;
+// absolute world space to playfield space, where the playfield spans 0..1 in x and y
+float4x4 _BallReflectionWorldToPlayfield;
+// x: cube resolution, y: how far rays are marched, in world units
+float4 _BallReflectionParams;
+
+#define TRACE_STEPS 32
+#define TRACE_REFINE_STEPS 5
+// how far behind a surface the camera saw a ray may end up and still count as hitting it, relative to
+// how far it went
+#define TRACE_THICKNESS 0.1
+#define TRACE_MIN_THICKNESS 0.01
+// how many radii past the ball the playfield beside a hidden spot is looked for
+#define BESIDE_STEPS 8
+
+// Direction of a cube texel, in Unity's cubemap face order and orientation (+X, -X, +Y, -Y, +Z, -Z).
+float3 CubeTexelDirection(uint face, float2 st)
+{
+	switch (face) {
+		case 0: return float3(1, -st.y, -st.x);
+		case 1: return float3(-1, -st.y, st.x);
+		case 2: return float3(st.x, 1, st.y);
+		case 3: return float3(st.x, -1, -st.y);
+		case 4: return float3(st.x, -st.y, 1);
+		default: return float3(-st.x, -st.y, -1);
+	}
+}
+
+// The pixel showing a world position. Positions outside the screen get its nearest edge pixel, so a close
+// camera still reflects playfield colors where the playfield runs off screen. False if behind the camera.
+bool ToScreen(float3 positionWS, out uint2 positionSS)
+{
+	const float3 positionRWS = GetCameraRelativePositionWS(positionWS);
+	const float4 positionCS = mul(UNITY_MATRIX_VP, float4(positionRWS, 1));
+	positionSS = 0;
+	if (positionCS.w <= 0) {
+		return false;
+	}
+	const float2 positionNDC = ComputeNormalizedDeviceCoordinates(positionRWS, UNITY_MATRIX_VP);
+	positionSS = (uint2)clamp(positionNDC * _ScreenSize.xy, 0, _ScreenSize.xy - 1);
+	return true;
+}
+
+// Whether the opaque surface the camera sees at that pixel is the ball itself.
+bool IsBall(uint2 positionSS)
+{
+	const float deviceDepth = LoadCameraDepth(positionSS);
+	if (deviceDepth == UNITY_RAW_FAR_CLIP_VALUE) {
+		return false;
+	}
+	const float2 positionNDC = (positionSS + 0.5) * _ScreenSize.zw;
+	const float3 surfaceRWS = ComputeWorldSpacePosition(positionNDC, deviceDepth, UNITY_MATRIX_I_VP);
+	const float3 ballRWS = GetCameraRelativePositionWS(_BallReflectionBall.xyz);
+	return distance(surfaceRWS, ballRWS) < _BallReflectionBall.w * 1.15;
+}
+
+// How far the point at distance t along a ray from the ball is behind the surface the camera saw there,
+// negative if in front of it or if the camera saw nothing. False if the point is off screen.
+bool SampleRay(float3 center, float3 direction, float t, out float behind, out uint2 positionSS)
+{
+	behind = -1;
+	positionSS = 0;
+	const float3 positionRWS = GetCameraRelativePositionWS(center + direction * t);
+	const float4 positionCS = mul(UNITY_MATRIX_VP, float4(positionRWS, 1));
+	if (positionCS.w <= 0) {
+		return false;
+	}
+	const float2 positionNDC = ComputeNormalizedDeviceCoordinates(positionRWS, UNITY_MATRIX_VP);
+	if (any(positionNDC < 0) || any(positionNDC > 1)) {
+		return false;
+	}
+	positionSS = (uint2)min(positionNDC * _ScreenSize.xy, _ScreenSize.xy - 1);
+	const float deviceDepth = LoadCameraDepth(positionSS);
+	if (deviceDepth != UNITY_RAW_FAR_CLIP_VALUE) {
+		behind = positionCS.w - LinearEyeDepth(deviceDepth, _ZBufferParams);
+	}
+	return true;
+}
+
+// Marches a ray from the ball outwards, in steps that grow with the distance, and finds the first
+// surface it hits. False if it leaves the screen or reaches maxDistance first.
+bool TraceScreen(float3 center, float3 direction, float maxDistance, out uint2 hitSS)
+{
+	hitSS = 0;
+	float t = _BallReflectionBall.w * 1.1;
+	if (maxDistance <= t) {
+		return false;
+	}
+	const float growth = pow(abs(maxDistance / t), 1.0 / TRACE_STEPS);
+	float previous = t;
+	bool wasInFront = true;
+	for (uint i = 0; i < TRACE_STEPS; i++) {
+		t *= growth;
+		float behind;
+		uint2 positionSS;
+		if (!SampleRay(center, direction, t, behind, positionSS)) {
+			return false;
+		}
+		if (behind > 0 && wasInFront) {
+			// narrow down where the ray went behind: a surface it hit is right there, while one it only
+			// passed behind stays far in front of it
+			float near = previous;
+			float far = t;
+			for (uint k = 0; k < TRACE_REFINE_STEPS; k++) {
+				const float middle = (near + far) * 0.5;
+				float middleBehind;
+				uint2 middleSS;
+				SampleRay(center, direction, middle, middleBehind, middleSS);
+				if (middleBehind > 0) {
+					far = middle;
+					behind = middleBehind;
+					positionSS = middleSS;
+				} else {
+					near = middle;
+				}
+			}
+			if (behind < max(TRACE_MIN_THICKNESS, far * TRACE_THICKNESS) && !IsBall(positionSS)) {
+				hitSS = positionSS;
+				return true;
+			}
+		}
+		wasInFront = behind <= 0;
+		previous = t;
+	}
+	return false;
+}
+
+float3 FrameColor(uint2 positionSS)
+{
+	return LOAD_TEXTURE2D_X(_BallReflectionColor, positionSS).rgb * GetInverseCurrentExposureMultiplier();
+}
+
+[numthreads(8, 8, 1)]
+void KFill(uint3 id : SV_DispatchThreadID)
+{
+	const uint resolution = (uint)_BallReflectionParams.x;
+	if (any(id.xy >= resolution)) {
+		return;
+	}
+	const float2 st = (id.xy + 0.5) / resolution * 2 - 1;
+	const float3 direction = normalize(CubeTexelDirection(id.z, st));
+	const float3 normal = _BallReflectionPlane.xyz;
+	const float3 center = _BallReflectionBall.xyz;
+
+	float3 color = SampleSkyTexture(direction, 0, 0).rgb;
+	const float facing = dot(direction, normal);
+	const float planeDistance = facing < -1e-4 ? (_BallReflectionPlane.w - dot(normal, center)) / facing : _BallReflectionParams.y;
+	uint2 objectSS;
+	if (TraceScreen(center, direction, min(planeDistance * 0.98, _BallReflectionParams.y), objectSS)) {
+		color = FrameColor(objectSS);
+	} else if (facing < -1e-4) {
+		const float3 hitWS = center + direction * planeDistance;
+		const float2 playfield = mul(_BallReflectionWorldToPlayfield, float4(hitWS, 1)).xy;
+		if (all(playfield >= 0) && all(playfield <= 1)) {
+			uint2 positionSS;
+			if (ToScreen(hitWS, positionSS)) {
+				if (IsBall(positionSS)) {
+					// the spot is hidden behind the ball, so walk away from the contact point until the camera sees
+					// the playfield, which can take a few radii when it looks at the ball from low
+					const float3 contactWS = center - normal * (dot(normal, center) - _BallReflectionPlane.w);
+					const float3 away = (hitWS - contactWS) / max(length(hitWS - contactWS), 1e-5);
+					for (uint step = 0; step < BESIDE_STEPS && IsBall(positionSS); step++) {
+						ToScreen(contactWS + away * (_BallReflectionBall.w * (1.4 + step * 0.6)), positionSS);
+					}
+				}
+				color = FrameColor(positionSS);
+			}
+		}
+	}
+	_BallReflectionFaces[id] = float4(ClampToFloat16Max(color), 1);
+}
