@@ -23,8 +23,9 @@ using VisualPinball.Unity;
 namespace VisualPinball.Engine.Unity.Hdrp
 {
 	/// <summary>
-	/// Applies the host app's <see cref="VpeGraphicsSettings"/> to HDRP at runtime: camera anti-aliasing
-	/// and the live Volume effects (SSR/RT reflections, SSAO, SSGI/RT-GI, recursive ray tracing, Bloom).
+	/// Applies the host app's <see cref="VpeGraphicsSettings"/> to HDRP at runtime: camera anti-aliasing,
+	/// ball reflections and the live Volume effects (SSR/RT reflections, SSAO, SSGI/RT-GI, recursive ray
+	/// tracing, Bloom).
 	/// Registered before any scene loads, the same pattern as <c>HdrpMaterialResolver</c>. Engine-level
 	/// settings (resolution, vsync, quality level) are applied host-side and don't pass through here.
 	/// </summary>
@@ -38,6 +39,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			VpeGraphics.Register(new HdrpGraphicsApplier());
 			VpeGraphics.UpscalerSupport = IsUpscalerSupported;
 			VpeGraphics.RenderScaleSource = RenderScale;
+			VpeGraphics.BallReflectionsSupported = true;
 		}
 
 		// HDRP resets the active DynamicResolutionHandler after each render, so read the main camera's own size
@@ -62,9 +64,26 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			_upscaler = (VpeUpscaler)settings.Upscaler;
 			_upscalerQuality = (VpeUpscalerQuality)Mathf.Clamp(settings.UpscalerQuality, 0, 3);
 			ApplyCameraAntialiasing(Camera.main);
+			ApplyBallReflections(Camera.main, settings.BallReflections);
 			ApplyVolume(settings);
 			Logger.Info("Upscaling {Upscaler} {Quality} (DLSS detected: {Dlss}, FSR 2 detected: {Fsr2})",
 				_upscaler, _upscalerQuality, HDDynamicResolutionPlatformCapabilities.DLSSDetected, HDDynamicResolutionPlatformCapabilities.FSR2Detected);
+		}
+
+		// The component lives on the camera that renders the balls; it's only added once it's wanted.
+		private static void ApplyBallReflections(Camera cam, bool on)
+		{
+			if (cam == null) {
+				return;
+			}
+			var reflections = cam.GetComponent<BallReflectionsComponent>();
+			if (reflections == null) {
+				if (!on) {
+					return;
+				}
+				reflections = cam.gameObject.AddComponent<BallReflectionsComponent>();
+			}
+			reflections.enabled = on;
 		}
 
 		// DLSS needs the NVIDIA plugin and an RTX GPU, FSR 2 a DX12 or Vulkan device; HDRP detects both.
