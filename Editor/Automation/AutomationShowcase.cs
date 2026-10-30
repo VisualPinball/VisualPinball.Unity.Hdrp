@@ -79,7 +79,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 			var lamp = InsertLampPresets.Find().First(preset => preset.LampName == "Incandescent");
 			var sb = new StringBuilder();
 			foreach (var insert in Inserts) {
-				var applied = InsertColorPresets.CanApply(insert) && InsertColorPresets.Apply(red, insert, false);
+				var applied = InsertColorPresets.CanApply(insert) && InsertColorPresets.Apply(red, insert);
 				var body = insert.GetComponent<MeshRenderer>().sharedMaterial;
 				if (InsertColorPresets.CanLink(body, false) && InsertColorPresets.LinkedPreset(body) != red) {
 					InsertColorPresets.Link(body, red, false);
