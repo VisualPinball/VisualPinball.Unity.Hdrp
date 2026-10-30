@@ -58,6 +58,11 @@ namespace VisualPinball.Unity.Library
 		public void StartProcessing(bool newOnly = false, bool selectedOnly = false)
 		{
 			_camera = Camera.main;
+
+			// a reference to a cutout that was destroyed and restored (by an undo, for example) reads as null
+			if (InsertEnvironment == null) {
+				InsertEnvironment = FindAnyObjectByType<PlayfieldInsertCutout>(FindObjectsInactive.Include);
+			}
 			
 			var bgParent = DefaultEnvironment.transform.parent.gameObject;
 			_environmentObjects.Clear();
@@ -232,7 +237,12 @@ namespace VisualPinball.Unity.Library
 			a.ApplyMaterial(_currentGo);
 
 			var insert = _currentGo.GetComponentInChildren<InsertComponent>(true);
-			if (insert != null && InsertEnvironment != null) {
+			if (insert != null && InsertEnvironment == null) {
+				StopProcessing();
+				Debug.LogError("Cannot render insert thumbnail: there is no Playfield Insert Cutout to cut the playfield.");
+				return;
+			}
+			if (insert != null) {
 				InsertEnvironment.Insert = insert;
 				ToggleEnvironment(InsertEnvironment.gameObject);
 				InsertEnvironment.Rebuild();
