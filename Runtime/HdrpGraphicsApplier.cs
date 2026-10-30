@@ -168,6 +168,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			if (volumes.Count == 0) {
 				// no volume runs the recursive rendering, so no glass may stay flagged for it (it wouldn't draw)
 				ApplyRecursiveMaterials(false);
+				FittedClusters.Clear();
+				FitLightCluster(false);
 				return;
 			}
 			var primary = PrimaryVolume(volumes);
@@ -177,9 +179,13 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			var rtReflections = s.RayTracedReflections && rayTracing;
 			var rtGlobalIllumination = s.RayTracedGlobalIllumination && rayTracing;
 			var recursive = s.RayTracedRecursiveRendering && rayTracing;
+			var tracing = rtReflections || rtGlobalIllumination || recursive;
 
 			// a table's profile may lack the component a ray-traced effect runs on
 			var primaryProfile = ProfileOf(primary);
+			if (tracing && !volumes.Exists(v => ProfileOf(v).Has<LightCluster>())) {
+				primaryProfile.Add<LightCluster>();
+			}
 			if (rtReflections && !volumes.Exists(v => ProfileOf(v).Has<ScreenSpaceReflection>())) {
 				primaryProfile.Add<ScreenSpaceReflection>();
 			}
@@ -190,8 +196,12 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				primaryProfile.Add<RecursiveRendering>();
 			}
 
+			FittedClusters.Clear();
 			foreach (var volume in volumes) {
 				var profile = ProfileOf(volume);
+				if (tracing && profile.TryGet<LightCluster>(out var cluster)) {
+					FittedClusters.Add(cluster);
+				}
 				if (profile.TryGet<ScreenSpaceReflection>(out var ssr)) {
 					var on = s.ScreenSpaceReflections || rtReflections;
 					ssr.active = on;
@@ -229,11 +239,17 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				}
 			}
 			ApplyRecursiveMaterials(recursive);
+			FitLightCluster(tracing);
 			if (rayTracing) {
-				// ray-traced shadows and contact shadows trace the visibility rays the build strips
 				foreach (var light in Object.FindObjectsByType<HDAdditionalLightData>(FindObjectsInactive.Include)) {
+					// ray-traced shadows and contact shadows trace the visibility rays the build strips
 					light.useRayTracedShadows = false;
 					light.rayTraceContactShadow = false;
+					// A lamp lights what's around it in the reflections too. The bulb models used to leave their
+					// light out of ray tracing, and packages exported with them still do.
+					if (light.GetComponentInParent<LightComponent>(true) != null) {
+						light.includeForRayTracing = true;
+					}
 				}
 			}
 
@@ -241,6 +257,55 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				rayTracing ? "available" : "unavailable", SystemInfo.supportsRayTracing,
 				GraphicsSettings.currentRenderPipeline != null ? GraphicsSettings.currentRenderPipeline.name : "none",
 				string.Join(", ", volumes.ConvertAll(v => v.name)), rtReflections, rtGlobalIllumination, recursive);
+		}
+
+		// HDRP's ray tracing light cluster is a fixed 64x32x64 grid around the camera, as wide as the LightCluster
+		// range and clipped to the lights' bounds. The room's work lights reach 10 m, so at the default range the
+		// whole playfield fell into a few 30 cm cells, many with more lamps than a cell holds (HDRP leaves the rest
+		// out of the reflections). Every frame, the range shrinks to the smallest cube around the camera that still
+		// holds the playfield up to the glass, which keeps the cells a few centimetres wide wherever the camera is.
+		private const float ClusterRangeMargin = 0.1f;
+		private static readonly List<LightCluster> FittedClusters = new List<LightCluster>();
+		private static PlayfieldComponent _clusterPlayfield;
+
+		private static void FitLightCluster(bool on)
+		{
+			RenderPipelineManager.beginContextRendering -= FitLightClusterRange;
+			_clusterPlayfield = on ? Object.FindAnyObjectByType<PlayfieldComponent>() : null;
+			if (on && _clusterPlayfield != null && FittedClusters.Count > 0) {
+				// before HDRP evaluates the cameras' volumes, and after the camera has moved for the frame
+				RenderPipelineManager.beginContextRendering += FitLightClusterRange;
+			}
+		}
+
+		private static void FitLightClusterRange(ScriptableRenderContext context, List<Camera> cameras)
+		{
+			var cam = Camera.main;
+			if (cam == null || _clusterPlayfield == null) {
+				return;
+			}
+			var range = ClusterRange(cam.transform.position, _clusterPlayfield);
+			foreach (var cluster in FittedClusters) {
+				if (cluster != null) {
+					cluster.cameraClusterRange.Override(range);
+				}
+			}
+		}
+
+		// The largest distance along any axis from the camera to a corner of the playfield's box, surface to glass.
+		private static float ClusterRange(Vector3 cameraPosition, PlayfieldComponent playfield)
+		{
+			var toWorld = playfield.transform.localToWorldMatrix * (Matrix4x4)VisualPinball.Unity.Physics.VpxToWorld;
+			var range = 0f;
+			for (var i = 0; i < 8; i++) {
+				var corner = toWorld.MultiplyPoint3x4(new Vector3(
+					(i & 1) == 0 ? playfield.Left : playfield.Right,
+					(i & 2) == 0 ? playfield.Top : playfield.Bottom,
+					(i & 4) == 0 ? 0f : playfield.GlassHeight));
+				var d = corner - cameraPosition;
+				range = Mathf.Max(range, Mathf.Max(Mathf.Abs(d.x), Mathf.Max(Mathf.Abs(d.y), Mathf.Abs(d.z))));
+			}
+			return Mathf.Min(range + ClusterRangeMargin, 50f);
 		}
 
 		// Profiles we instantiated (Volume.profile clones the shared one on first access), so they and their
