@@ -40,6 +40,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			VpeGraphics.UpscalerSupport = IsUpscalerSupported;
 			VpeGraphics.RenderScaleSource = RenderScale;
 			VpeGraphics.BallReflectionsSupported = true;
+			VpeGraphics.DepthOfFieldHandler = SetDepthOfField;
 		}
 
 		// HDRP resets the active DynamicResolutionHandler after each render, so read the main camera's own size
@@ -84,6 +85,26 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				reflections = cam.gameObject.AddComponent<BallReflectionsComponent>();
 			}
 			reflections.enabled = on;
+		}
+
+		// The auto focus also lives on the main camera once it's wanted. Restarting it makes it look for the
+		// volume again, which a table load replaces.
+		private static void SetDepthOfField(bool on)
+		{
+			var cam = Camera.main;
+			if (cam == null) {
+				return;
+			}
+			var focus = cam.GetComponent<AutoFocusComponent>();
+			if (focus == null) {
+				if (on) {
+					focus = cam.gameObject.AddComponent<AutoFocusComponent>();
+					focus.FocusSpeed = 20f; // refocuses as quickly as the tables set it
+				}
+				return;
+			}
+			focus.enabled = false;
+			focus.enabled = on;
 		}
 
 		// DLSS needs the NVIDIA plugin and an RTX GPU, FSR 2 a DX12 or Vulkan device; HDRP detects both.
