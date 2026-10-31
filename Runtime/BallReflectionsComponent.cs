@@ -70,12 +70,9 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		private readonly Dictionary<BallComponent, BallProbe> _probes = new();
 		private readonly List<BallComponent> _gone = new();
 
-		// the camera's frame settings this component overrides, and what they were before
+		// the camera's frame settings this component turns on while it runs
 		private static readonly FrameSettingsField[] FrameSettingsFields = { FrameSettingsField.CustomPass, FrameSettingsField.ReflectionProbe };
 		private HDAdditionalCameraData _hdCamera;
-		private bool _hadCustomRenderingSettings;
-		private readonly bool[] _hadOverride = new bool[FrameSettingsFields.Length];
-		private readonly bool[] _hadEnabled = new bool[FrameSettingsFields.Length];
 
 		private sealed class BallProbe
 		{
@@ -139,28 +136,16 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			if (!TryGetComponent(out _hdCamera)) {
 				return;
 			}
-			_hadCustomRenderingSettings = _hdCamera.customRenderingSettings;
-			_hdCamera.customRenderingSettings = true;
-			for (var i = 0; i < FrameSettingsFields.Length; i++) {
-				var field = FrameSettingsFields[i];
-				_hadOverride[i] = _hdCamera.renderingPathCustomFrameSettingsOverrideMask.mask[(uint)field];
-				_hadEnabled[i] = _hdCamera.renderingPathCustomFrameSettings.IsEnabled(field);
-				_hdCamera.renderingPathCustomFrameSettingsOverrideMask.mask[(uint)field] = true;
-				_hdCamera.renderingPathCustomFrameSettings.SetEnabled(field, true);
+			foreach (var field in FrameSettingsFields) {
+				CameraFrameSettings.Enable(_hdCamera, field);
 			}
 		}
 
 		private void RestoreFrameSettings()
 		{
-			if (_hdCamera == null) {
-				return;
+			foreach (var field in FrameSettingsFields) {
+				CameraFrameSettings.Release(_hdCamera, field);
 			}
-			for (var i = 0; i < FrameSettingsFields.Length; i++) {
-				var field = FrameSettingsFields[i];
-				_hdCamera.renderingPathCustomFrameSettingsOverrideMask.mask[(uint)field] = _hadOverride[i];
-				_hdCamera.renderingPathCustomFrameSettings.SetEnabled(field, _hadEnabled[i]);
-			}
-			_hdCamera.customRenderingSettings = _hadCustomRenderingSettings;
 			_hdCamera = null;
 		}
 

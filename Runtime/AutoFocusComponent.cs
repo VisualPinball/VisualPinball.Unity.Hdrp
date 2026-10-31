@@ -57,6 +57,9 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		[HideInInspector]
 		public ComputeShader DepthProbeShader;
 
+		// where the depth probe shader is found when nothing assigned it, e.g. when added at runtime
+		private const string DepthProbeShaderResource = "VpeAutoFocus";
+
 		private static readonly int DepthId = Shader.PropertyToID("_AutoFocusDepth");
 		private static readonly int ResultId = Shader.PropertyToID("_AutoFocusResult");
 		private static readonly int ParamsId = Shader.PropertyToID("_AutoFocusParams");
@@ -66,6 +69,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		private static readonly System.Collections.Generic.Dictionary<DepthOfField, AutoFocusComponent> Owners = new();
 
 		private Camera _camera;
+		private HDAdditionalCameraData _hdCamera;
 		private DepthOfField _dof;
 		private DepthProbePass _pass;
 		private GraphicsBuffer _resultBuffer;
@@ -95,6 +99,9 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		private void OnEnable()
 		{
 			_camera = GetComponent<Camera>();
+			if (DepthProbeShader == null) {
+				DepthProbeShader = UnityEngine.Resources.Load<ComputeShader>(DepthProbeShaderResource);
+			}
 			if (DepthProbeShader == null) {
 				Logger.Warn("[AutoFocus] No depth probe shader assigned on {Camera}, cannot focus.", name);
 				return;
@@ -146,6 +153,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			}
 			_resultBuffer?.Release();
 			_resultBuffer = null;
+			CameraFrameSettings.Release(_hdCamera, FrameSettingsField.CustomPass);
+			_hdCamera = null;
 
 			if (_dof != null) {
 				if (Owners.TryGetValue(_dof, out var owner) && owner == this) {
@@ -158,21 +167,16 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 		/// <summary>
 		/// The depth probe is a custom pass, so it needs custom pass support in the pipeline asset and
-		/// the custom pass frame setting on the camera, which we override if needed.
+		/// the custom pass frame setting on the camera, which it turns on while it runs.
 		/// </summary>
 		private void EnableCustomPasses()
 		{
 			if (GraphicsSettings.currentRenderPipeline is HDRenderPipelineAsset asset && !asset.currentPlatformRenderPipelineSettings.supportCustomPass) {
 				Logger.Warn("[AutoFocus] Custom passes are disabled in the HDRP asset {Asset}, auto focus won't work. Enable Rendering > Custom Pass in the asset.", asset.name);
 			}
-			var hdCamera = GetComponent<HDAdditionalCameraData>();
-			if (hdCamera == null) {
-				return;
+			if (TryGetComponent(out _hdCamera)) {
+				CameraFrameSettings.Enable(_hdCamera, FrameSettingsField.CustomPass);
 			}
-			// overriding only this field leaves all others at their defaults
-			hdCamera.customRenderingSettings = true;
-			hdCamera.renderingPathCustomFrameSettingsOverrideMask.mask[(uint)FrameSettingsField.CustomPass] = true;
-			hdCamera.renderingPathCustomFrameSettings.SetEnabled(FrameSettingsField.CustomPass, true);
 		}
 
 		private void Update()
