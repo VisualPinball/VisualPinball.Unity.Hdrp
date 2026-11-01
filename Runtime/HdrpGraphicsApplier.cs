@@ -88,7 +88,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		}
 
 		// The auto focus also lives on the main camera once it's wanted. Restarting it makes it look for the
-		// volume again, which a table load replaces.
+		// volume again, which a table load replaces. Off goes to every volume the camera sees, since a table's
+		// profile can bring a depth of field of its own, which the auto focus never touched.
 		private static void SetDepthOfField(bool on)
 		{
 			var cam = Camera.main;
@@ -96,15 +97,20 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				return;
 			}
 			var focus = cam.GetComponent<AutoFocusComponent>();
-			if (focus == null) {
-				if (on) {
-					focus = cam.gameObject.AddComponent<AutoFocusComponent>();
-					focus.FocusSpeed = 20f; // refocuses as quickly as the tables set it
-				}
-				return;
+			if (focus == null && on) {
+				focus = cam.gameObject.AddComponent<AutoFocusComponent>();
+				focus.FocusSpeed = 20f; // refocuses as quickly as the tables set it
+			} else if (focus != null) {
+				focus.enabled = false;
+				focus.enabled = on;
 			}
-			focus.enabled = false;
-			focus.enabled = on;
+			if (!on) {
+				foreach (var volume in FindGlobalVolumes(cam)) {
+					if (ProfileOf(volume).TryGet<DepthOfField>(out var dof)) {
+						dof.focusMode.Override(DepthOfFieldMode.Off);
+					}
+				}
+			}
 		}
 
 		// DLSS needs the NVIDIA plugin and an RTX GPU, FSR 2 a DX12 or Vulkan device; HDRP detects both.
