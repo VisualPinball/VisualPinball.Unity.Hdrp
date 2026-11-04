@@ -263,7 +263,8 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 						break;
 					case ShaderPropertyType.Texture:
 						property.Kind = "texture";
-						var optical = name is "_OpticalNormalMap" or "_OpticalResponseMap";
+						// The Traced mode's maps are data too: HDR light, facet normals.
+						var optical = name is "_OpticalNormalMap" or "_OpticalResponseMap" || name.StartsWith("_Traced", StringComparison.Ordinal);
 						var linear = optical || name is "_NormalMap" or "_CoverNormalMap";
 						property.Texture = ctx.CaptureSideChannelTextureRef(material, name,
 							name == "_OpticalResponseMap" ? ResponseColorSpace(material.GetTexture(name))
