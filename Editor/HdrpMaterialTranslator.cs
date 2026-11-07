@@ -444,7 +444,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 		{
 			var source = ResolveSourceMaterialAsset(material);
 			var maskMap = CaptureShaderGraphTextureRef(ctx, material, source, VpeMaskMap, VpeColorSpaces.Linear)
-				?? ctx.CaptureTextureAssetRef("Packages/org.visualpinball.unity.assets/Assets/Library/_Generic/Tileable Textures/tx_wear_scratches_heavy_mask_MADR.png", VpeColorSpaces.Linear);
+				?? ctx.CaptureTextureAssetRef("Packages/org.visualpinball.engine.unity.hdrp/Assets/Art/Textures/tx_wear_scratches_heavy_mask_MADR.png", VpeColorSpaces.Linear);
 			if (maskMap != null) {
 				maskMap.Scale = SafeGetVector2(material, VpeTiling, SafeGetVector2(source, VpeTiling, maskMap.Scale));
 				maskMap.Offset = SafeGetVector2(material, VpeOffset, SafeGetVector2(source, VpeOffset, maskMap.Offset));

@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6e0ad37c5157a844b9026bfcfe140656, type: 3}
+  m_Name: Plunger Pull
+  m_EditorClassIdentifier: VisualPinball.Unity::VisualPinball.Unity.SoundEffectAsset
+  _description: Original g5k 1.25 / Fleep sample bank; see Mechanical/README.md for
+    provenance.
+  Clips:
+  - {fileID: 8300000, guid: 76d3b4f58b9bf5144a6819b33ddb698c, type: 3}
+  _clipSelectionMethod: 1
+  _audioMixerGroup: {fileID: -6565917931112018152, guid: 9784dda595e200a4dbef54316a45f16e, type: 2}
+  _volumeRange: {x: 1, y: 1}
+  _pitchRange: {x: 1, y: 1}
+  _type: 0
+  _loop: 0
+  _fadeInTime: 0
+  _fadeOutTime: 0
+  _cooldown: 0
