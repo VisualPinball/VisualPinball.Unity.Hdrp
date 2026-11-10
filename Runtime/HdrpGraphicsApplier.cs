@@ -399,6 +399,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			var result = new List<Volume>();
 			foreach (var v in Object.FindObjectsByType<Volume>(FindObjectsInactive.Exclude)) {
 				if (v.isGlobal && v.enabled && v.gameObject.activeInHierarchy && v.weight > 0f && (mask & (1 << v.gameObject.layer)) != 0
+					&& !HdrpEnvironmentApplier.Owns(v)
 					&& (v.sharedProfile != null || v.HasInstantiatedProfile())) {
 					result.Add(v);
 				}
@@ -492,7 +493,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			var volumes = Object.FindObjectsByType<Volume>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
 			Volume best = null;
 			foreach (var v in volumes) {
-				if (!v.isGlobal || !v.enabled || !v.gameObject.activeInHierarchy || (layerMask & (1 << v.gameObject.layer)) == 0) {
+				if (!v.isGlobal || !v.enabled || !v.gameObject.activeInHierarchy || (layerMask & (1 << v.gameObject.layer)) == 0
+					|| HdrpEnvironmentApplier.Owns(v)) {
 					continue;
 				}
 				if (best == null || v.priority > best.priority) {

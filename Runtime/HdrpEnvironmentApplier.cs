@@ -37,6 +37,13 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		private VolumeProfile _profile;
 		private SkySettings _override;
 		private VolumeStack _stack; // the volumes without this one's, to read the sky as the scene and the table set it
+		private int _layer;         // one the game camera's volume layer mask lets through
+
+		/// <summary>
+		/// Whether a volume is the one that scales the sky. It holds nothing but that override and is switched
+		/// off whenever the sky is left as it is, so nobody else's settings belong in it.
+		/// </summary>
+		internal static bool Owns(Volume volume) => _instance != null && volume != null && _instance._volume == volume;
 
 		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
 		private static void Register()
@@ -131,7 +138,13 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			var camera = Camera.main;
 			var data = camera != null ? camera.GetComponent<HDAdditionalCameraData>() : null;
 			var anchor = data != null && data.volumeAnchorOverride != null ? data.volumeAnchorOverride : camera != null ? camera.transform : null;
-			manager.Update(_stack, anchor, data != null ? data.volumeLayerMask : (LayerMask)(-1));
+			var mask = data != null ? (int)data.volumeLayerMask : ~0;
+			// the override goes where that camera looks for volumes: the lowest of its layers
+			_layer = 0;
+			while (_layer < 31 && (mask & (1 << _layer)) == 0) {
+				_layer++;
+			}
+			manager.Update(_stack, anchor, (LayerMask)mask);
 			var environment = _stack.GetComponent<VisualEnvironment>();
 			if (environment == null) {
 				return null;
@@ -155,8 +168,10 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				_volume.isGlobal = true;
 				_volume.priority = VolumePriority;
 				_profile = ScriptableObject.CreateInstance<VolumeProfile>();
-				_volume.sharedProfile = _profile;
+				// as the volume's own profile, so that reading Volume.profile never clones it
+				_volume.profile = _profile;
 			}
+			_volume.gameObject.layer = _layer;
 			if (_override != null && _override.GetType() == skyType) {
 				return;
 			}
