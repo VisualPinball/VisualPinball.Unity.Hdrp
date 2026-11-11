@@ -230,9 +230,9 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		// The share of the frame time the shutter stays open (HDRP's own default is 0.5). At 60 frames a second a
 		// fast ball crosses about its own width per frame, so High streaks it by less than half of that.
 		private static float MotionBlurIntensity(int level) => (VpeMotionBlur)level switch {
-			VpeMotionBlur.Low => 0.15f,
-			VpeMotionBlur.Medium => 0.3f,
-			VpeMotionBlur.High => 0.45f,
+			VpeMotionBlur.Low => 0.3f,
+			VpeMotionBlur.Medium => 0.6f,
+			VpeMotionBlur.High => 1.2f,
 			_ => 0f,
 		};
 
