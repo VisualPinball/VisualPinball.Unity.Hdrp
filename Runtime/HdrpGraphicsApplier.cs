@@ -40,6 +40,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			VpeGraphics.UpscalerSupport = IsUpscalerSupported;
 			VpeGraphics.RenderScaleSource = RenderScale;
 			VpeGraphics.BallReflectionsSupported = true;
+			VpeGraphics.MotionBlurSupported = true;
 			VpeGraphics.DepthOfFieldHandler = SetDepthOfField;
 		}
 
@@ -66,9 +67,31 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			_upscalerQuality = (VpeUpscalerQuality)Mathf.Clamp(settings.UpscalerQuality, 0, 3);
 			ApplyCameraAntialiasing(Camera.main);
 			ApplyBallReflections(Camera.main, settings.BallReflections);
+			ApplyCameraMotionBlur(Camera.main, settings.MotionBlur != (int)VpeMotionBlur.Off);
 			ApplyVolume(settings);
 			Logger.Info("Upscaling {Upscaler} {Quality} (DLSS detected: {Dlss}, FSR 2 detected: {Fsr2})",
 				_upscaler, _upscalerQuality, HDDynamicResolutionPlatformCapabilities.DLSSDetected, HDDynamicResolutionPlatformCapabilities.FSR2Detected);
+		}
+
+		// HDRP only blurs where the camera's frame settings allow it, whatever the volume says, and a camera with
+		// its own frame settings can have it off (the player's does). The balls move while the camera stands
+		// still, so the blur also needs the objects' motion vectors; those stay on once it was wanted.
+		private static void ApplyCameraMotionBlur(Camera cam, bool on)
+		{
+			if (cam == null || !cam.TryGetComponent<HDAdditionalCameraData>(out var hd) || !hd.customRenderingSettings) {
+				return;
+			}
+			ref var mask = ref hd.renderingPathCustomFrameSettingsOverrideMask;
+			ref var frame = ref hd.renderingPathCustomFrameSettings;
+			mask.mask[(uint)FrameSettingsField.MotionBlur] = true;
+			frame.SetEnabled(FrameSettingsField.MotionBlur, on);
+			if (on) {
+				foreach (var field in new[] { FrameSettingsField.MotionVectors, FrameSettingsField.ObjectMotionVectors }) {
+					if (mask.mask[(uint)field] && !frame.IsEnabled(field)) {
+						frame.SetEnabled(field, true);
+					}
+				}
+			}
 		}
 
 		// The component lives on the camera that renders the balls; it's only added once it's wanted.
@@ -204,6 +227,15 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			_ => VpeAntiAliasing.None,
 		};
 
+		// The share of the frame time the shutter stays open (HDRP's own default is 0.5). At 60 frames a second a
+		// fast ball crosses about its own width per frame, so High streaks it by less than half of that.
+		private static float MotionBlurIntensity(int level) => (VpeMotionBlur)level switch {
+			VpeMotionBlur.Low => 0.15f,
+			VpeMotionBlur.Medium => 0.3f,
+			VpeMotionBlur.High => 0.45f,
+			_ => 0f,
+		};
+
 		private static void ApplyVolume(VpeGraphicsSettings s)
 		{
 			// All active global volumes blend, and the table's and the player's can share a priority, so
@@ -242,9 +274,18 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				primaryProfile.Add<RecursiveRendering>();
 			}
 
+			// HDRP's default profile blurs at half the frame time, so off needs a component that says so too
+			if (!volumes.Exists(v => ProfileOf(v).Has<MotionBlur>())) {
+				primaryProfile.Add<MotionBlur>();
+			}
+
 			FittedClusters.Clear();
 			foreach (var volume in volumes) {
 				var profile = ProfileOf(volume);
+				if (profile.TryGet<MotionBlur>(out var motionBlur)) {
+					motionBlur.active = true;
+					motionBlur.intensity.Override(MotionBlurIntensity(s.MotionBlur));
+				}
 				if (tracing && profile.TryGet<LightCluster>(out var cluster)) {
 					FittedClusters.Add(cluster);
 				}
