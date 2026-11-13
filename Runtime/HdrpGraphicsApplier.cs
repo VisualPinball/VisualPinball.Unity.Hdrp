@@ -678,13 +678,14 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		}
 
 		/// <summary>
-		/// A light was set up anew with these shadows: what the settings kept of its earlier ones no longer
-		/// applies.
+		/// A light was set up anew, which says whether it casts shadows: that replaces what the settings
+		/// kept of it. Setting it up doesn't touch its shadow resolution, so where the settings lowered that,
+		/// what is kept is still the one to give back.
 		/// </summary>
 		internal static void LightConfigured(HDAdditionalLightData hd)
 		{
-			if (hd != null && hd.TryGetComponent<Light>(out var light)) {
-				ShadowLights.Remove(light);
+			if (hd != null && hd.TryGetComponent<Light>(out var light) && ShadowLights.TryGetValue(light, out var kept)) {
+				ShadowLights[light] = (light.shadows, kept.UseOverride, kept.Override, kept.Level);
 			}
 			ApplyLightShadows(hd);
 		}
