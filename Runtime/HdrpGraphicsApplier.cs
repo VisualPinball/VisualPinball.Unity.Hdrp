@@ -24,8 +24,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 {
 	/// <summary>
 	/// Applies the host app's <see cref="VpeGraphicsSettings"/> to HDRP at runtime: camera anti-aliasing,
-	/// ball reflections and the live Volume effects (SSR/RT reflections, SSAO, SSGI/RT-GI, recursive ray
-	/// tracing, Bloom).
+	/// ball reflections, the shadows of the lights around the table and the live Volume effects (SSR/RT
+	/// reflections and their quality, SSAO, SSGI/RT-GI, recursive ray tracing, Bloom).
 	/// Registered before any scene loads, the same pattern as <c>HdrpMaterialResolver</c>. Engine-level
 	/// settings (resolution, vsync, quality level) are applied host-side and don't pass through here.
 	/// </summary>
@@ -42,6 +42,74 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			VpeGraphics.BallReflectionsSupported = true;
 			VpeGraphics.MotionBlurSupported = true;
 			VpeGraphics.DepthOfFieldHandler = SetDepthOfField;
+			VpeGraphics.ReleaseRenderBuffersHandler = ReleaseRenderBuffers;
+			VpeGraphics.EffectSupport = IsEffectSupported;
+			VpeGraphics.EffectiveSettingsSource = DescribeEffective;
+			_shadows = VpeShadows.High;
+			ShadowLights.Clear();
+			Originals.Clear();
+		}
+
+		// What the camera's volume stack and frame settings come to, which is what HDRP renders with. The
+		// stack is the one HDRP updated for the camera's last frame.
+		private static string DescribeEffective(Camera cam)
+		{
+			var hd = HDCamera.GetOrCreate(cam);
+			var stack = hd.volumeStack;
+			if (stack == null) {
+				return "";
+			}
+			var frame = hd.frameSettings;
+			var bloom = stack.GetComponent<Bloom>();
+			var ao = stack.GetComponent<ScreenSpaceAmbientOcclusion>();
+			var ssr = stack.GetComponent<ScreenSpaceReflection>();
+			var gi = stack.GetComponent<GlobalIllumination>();
+			var shadows = stack.GetComponent<HDShadowSettings>();
+			var blur = stack.GetComponent<MotionBlur>();
+			string On(bool on) => on ? "on" : "off";
+			var shadowLights = 0;
+			foreach (var light in Object.FindObjectsByType<Light>(FindObjectsInactive.Exclude)) {
+				if (light.enabled && light.shadows != LightShadows.None) {
+					shadowLights++;
+				}
+			}
+			return string.Format(System.Globalization.CultureInfo.InvariantCulture,
+				"asset {0}; aa {1}; bloom {2:0.###} (frame {3}); ao {4:0.###} (frame {5}); ssr {6}/transparent {7} quality {8} (frame {9}); ssgi {10} (frame {11}); "
+				+ "shadows {12} light(s), {13} cascade(s) to {14:0.##} m (frame {15}); motion blur {16:0.##} (frame {17}); scale {18:0.###}",
+				GraphicsSettings.currentRenderPipeline != null ? GraphicsSettings.currentRenderPipeline.name : "none",
+				cam.TryGetComponent<HDAdditionalCameraData>(out var data) ? data.antialiasing.ToString() : "?",
+				bloom.intensity.value, On(frame.IsEnabled(FrameSettingsField.Bloom)),
+				ao.intensity.value, On(frame.IsEnabled(FrameSettingsField.SSAO)),
+				On(ssr.enabled.value), On(ssr.enabledTransparent.value), ssr.quality.value, On(frame.IsEnabled(FrameSettingsField.SSR)),
+				On(gi.enable.value), On(frame.IsEnabled(FrameSettingsField.SSGI)),
+				shadowLights, shadows.cascadeShadowSplitCount.value, shadows.maxShadowDistance.value, On(frame.IsEnabled(FrameSettingsField.ShadowMaps)),
+				blur.intensity.value, On(frame.IsEnabled(FrameSettingsField.MotionBlur)),
+				RenderScale());
+		}
+
+		// A pipeline asset can leave an effect out (the Performant tier has no SSR and no SSGI): its volume
+		// component and frame setting then do nothing.
+		private static bool IsEffectSupported(VpeEffect effect)
+		{
+			if (GraphicsSettings.currentRenderPipeline is not HDRenderPipelineAsset asset) {
+				return false;
+			}
+			var settings = asset.currentPlatformRenderPipelineSettings;
+			return effect switch {
+				VpeEffect.ScreenSpaceReflections => settings.supportSSR,
+				VpeEffect.AmbientOcclusion => settings.supportSSAO,
+				VpeEffect.ScreenSpaceGlobalIllumination => settings.supportSSGI,
+				_ => true,
+			};
+		}
+
+		// HDRP sizes its buffers for the largest camera it rendered and keeps them; after a larger
+		// off-screen target is gone, they go back to the screen's size.
+		private static void ReleaseRenderBuffers(int width, int height)
+		{
+			if (RenderPipelineManager.currentPipeline is HDRenderPipeline pipeline && width > 0 && height > 0) {
+				pipeline.ResetRTHandleReferenceSize(width, height);
+			}
 		}
 
 		// HDRP resets the active DynamicResolutionHandler after each render, so read the main camera's own size
@@ -236,21 +304,109 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			_ => 0f,
 		};
 
+		// A volume with what its profile holds, for the log: the components, and for the effects the settings
+		// switch, the value that says whether they render (a star marks one the profile overrides).
+		private static string DescribeVolume(Volume volume)
+			=> $"{volume.name} (priority {volume.priority.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}{(volume.HasInstantiatedProfile() ? "" : ", shared profile")}) {DescribeProfile(volume.HasInstantiatedProfile() ? volume.profile : volume.sharedProfile)}";
+
+		private static string DescribeProfile(VolumeProfile profile, bool effectsOnly = false)
+		{
+			if (profile == null) {
+				return "none";
+			}
+			string Mark(VolumeParameter parameter) => parameter.overrideState ? "*" : "";
+			var parts = new List<string>();
+			foreach (var component in profile.components) {
+				if (component == null) {
+					continue;
+				}
+				var text = component.GetType().Name + (component.active ? "" : " (inactive)");
+				if (effectsOnly && component is not (Bloom or ScreenSpaceAmbientOcclusion or ScreenSpaceReflection or GlobalIllumination)) {
+					continue; // a default profile has every component there is
+				}
+				switch (component) {
+					case Bloom bloom:
+						text += $" intensity {bloom.intensity.value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}{Mark(bloom.intensity)}";
+						break;
+					case ScreenSpaceAmbientOcclusion ao:
+						text += $" intensity {ao.intensity.value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}{Mark(ao.intensity)}";
+						break;
+					case ScreenSpaceReflection ssr:
+						text += $" enabled {ssr.enabled.value}{Mark(ssr.enabled)} transparent {ssr.enabledTransparent.value}{Mark(ssr.enabledTransparent)}";
+						break;
+					case GlobalIllumination gi:
+						text += $" enable {gi.enable.value}{Mark(gi.enable)}";
+						break;
+				}
+				parts.Add(text);
+			}
+			return $"{profile.name} [{string.Join(", ", parts)}]";
+		}
+
+		// What a volume parameter held before a setting overrode it, with the component it belongs to: a
+		// setting that's turned up again gives the volume's own value back.
+		private static readonly Dictionary<VolumeParameter, (VolumeComponent Owner, bool Overridden, object Value)> Originals = new(new ByReference());
+
+		// A volume parameter equals another one with the same value, and its hash changes with its value: as a
+		// key it has to be the object itself.
+		private sealed class ByReference : IEqualityComparer<VolumeParameter>
+		{
+			public bool Equals(VolumeParameter a, VolumeParameter b) => ReferenceEquals(a, b);
+			public int GetHashCode(VolumeParameter parameter) => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(parameter);
+		}
+
+		private static void Force<T>(VolumeComponent owner, VolumeParameter<T> parameter, T value)
+		{
+			if (!Originals.ContainsKey(parameter)) {
+				Originals[parameter] = (owner, parameter.overrideState, parameter.value);
+			}
+			parameter.Override(value);
+		}
+
+		private static void Release<T>(VolumeParameter<T> parameter)
+		{
+			if (Originals.Remove(parameter, out var original)) {
+				parameter.value = (T)original.Value;
+				parameter.overrideState = original.Overridden;
+			}
+		}
+
+		private static void ForgetOrphanedOriginals()
+		{
+			List<VolumeParameter> orphaned = null;
+			foreach (var entry in Originals) {
+				if (entry.Value.Owner == null) {
+					(orphaned ??= new List<VolumeParameter>()).Add(entry.Key);
+				}
+			}
+			if (orphaned != null) {
+				foreach (var parameter in orphaned) {
+					Originals.Remove(parameter);
+				}
+			}
+		}
+
 		private static void ApplyVolume(VpeGraphicsSettings s)
 		{
 			// All active global volumes blend, and the table's and the player's can share a priority, so
 			// the settings go to every one of them that has the effect, not just the one that happens to
 			// win the tie (which made the result depend on load order).
 			ReleaseOrphanedProfiles();
+			ForgetOrphanedOriginals();
+			_shadows = (VpeShadows)Mathf.Clamp(s.Shadows, 0, 2);
+			ApplyLightShadows();
 			var volumes = FindGlobalVolumes(Camera.main);
 			if (volumes.Count == 0) {
 				// no volume runs the recursive rendering, so no glass may stay flagged for it (it wouldn't draw)
 				ApplyRecursiveMaterials(false);
 				FittedClusters.Clear();
-				FitLightCluster(false);
+				FittedShadows.Clear();
+				FitToPlayfield();
 				return;
 			}
 			var primary = PrimaryVolume(volumes);
+			Logger.Info("Volumes the settings go to: {Volumes:l}; default profile {Default:l}, quality profile {Quality:l}",
+				string.Join("; ", volumes.ConvertAll(DescribeVolume)), DescribeProfile(VolumeManager.instance.globalDefaultProfile, true), DescribeProfile(VolumeManager.instance.qualityDefaultProfile, true));
 
 			// ray-traced effects only where the active pipeline asset (the Ray Tracing quality level) can trace
 			var rayTracing = IsRayTracingAvailable();
@@ -278,10 +434,35 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			if (!volumes.Exists(v => ProfileOf(v).Has<MotionBlur>())) {
 				primaryProfile.Add<MotionBlur>();
 			}
+			// The same goes for the other effects: where no volume has one, the default profile's applies, and
+			// an inactive component hands over to it as well. So an effect that's off needs a component that
+			// stays active and says so.
+			var reflections = s.ScreenSpaceReflections || rtReflections;
+			if (!reflections && !volumes.Exists(v => ProfileOf(v).Has<ScreenSpaceReflection>())) {
+				primaryProfile.Add<ScreenSpaceReflection>();
+			}
+			if (!s.AmbientOcclusion && !volumes.Exists(v => ProfileOf(v).Has<ScreenSpaceAmbientOcclusion>())) {
+				primaryProfile.Add<ScreenSpaceAmbientOcclusion>();
+			}
+			if (!s.Bloom && !volumes.Exists(v => ProfileOf(v).Has<Bloom>())) {
+				primaryProfile.Add<Bloom>();
+			}
+			// one cascade that ends behind the table, instead of the default profile's four over 150 m
+			if (!volumes.Exists(v => ProfileOf(v).Has<HDShadowSettings>())) {
+				primaryProfile.Add<HDShadowSettings>();
+			}
+			var reflectionQuality = (VpeReflectionQuality)Mathf.Clamp(s.ReflectionQuality, 0, 2);
 
 			FittedClusters.Clear();
+			FittedShadows.Clear();
 			foreach (var volume in volumes) {
 				var profile = ProfileOf(volume);
+				if (profile.TryGet<HDShadowSettings>(out var shadows)) {
+					shadows.active = true;
+					shadows.cascadeShadowSplitCount.Override(1);
+					shadows.maxShadowDistance.Override(DefaultShadowDistance);
+					FittedShadows.Add(shadows);
+				}
 				if (profile.TryGet<MotionBlur>(out var motionBlur)) {
 					motionBlur.active = true;
 					motionBlur.intensity.Override(MotionBlurIntensity(s.MotionBlur));
@@ -290,13 +471,28 @@ namespace VisualPinball.Engine.Unity.Hdrp
 					FittedClusters.Add(cluster);
 				}
 				if (profile.TryGet<ScreenSpaceReflection>(out var ssr)) {
-					var on = s.ScreenSpaceReflections || rtReflections;
-					ssr.active = on;
-					ssr.enabled.Override(on);
+					ssr.active = true;
+					ssr.enabled.Override(reflections);
 					ssr.tracing.Override(rtReflections ? RayCastingMode.RayTracing : RayCastingMode.RayMarching);
+					if (!reflections) {
+						// transparent surfaces trace on their own switch
+						Force(ssr, ssr.enabledTransparent, false);
+					} else if (reflectionQuality == VpeReflectionQuality.High || rtReflections) {
+						Release(ssr.enabledTransparent);
+						Release(ssr.quality);
+					} else {
+						// fewer steps per ray, and no second trace for what shows through glass and plastics
+						Force(ssr, ssr.enabledTransparent, false);
+						Force(ssr, ssr.quality, (int)reflectionQuality);
+					}
 				}
 				if (profile.TryGet<ScreenSpaceAmbientOcclusion>(out var ao)) {
-					ao.active = s.AmbientOcclusion;
+					ao.active = true;
+					if (s.AmbientOcclusion) {
+						Release(ao.intensity);
+					} else {
+						Force(ao, ao.intensity, 0f);
+					}
 					// the player build strips the visibility rays ray-traced AO needs (RayTracingPassStripper)
 					ao.rayTracing.Override(false);
 				}
@@ -309,7 +505,12 @@ namespace VisualPinball.Engine.Unity.Hdrp
 					pathTracing.enable.Override(false);
 				}
 				if (profile.TryGet<Bloom>(out var bloom)) {
-					bloom.active = s.Bloom;
+					bloom.active = true;
+					if (s.Bloom) {
+						Release(bloom.intensity);
+					} else {
+						Force(bloom, bloom.intensity, 0f);
+					}
 				}
 				if (profile.TryGet<GlobalIllumination>(out var gi)) {
 					var on = s.ScreenSpaceGlobalIllumination || rtGlobalIllumination;
@@ -326,7 +527,10 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				}
 			}
 			ApplyRecursiveMaterials(recursive);
-			FitLightCluster(tracing);
+			if (!tracing) {
+				FittedClusters.Clear();
+			}
+			FitToPlayfield();
 			if (rayTracing) {
 				foreach (var light in Object.FindObjectsByType<HDAdditionalLightData>(FindObjectsInactive.Include)) {
 					// ray-traced shadows and contact shadows trace the visibility rays the build strips
@@ -351,32 +555,138 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		// whole playfield fell into a few 30 cm cells, many with more lamps than a cell holds (HDRP leaves the rest
 		// out of the reflections). Every frame, the range shrinks to the smallest cube around the camera that still
 		// holds the playfield up to the glass, which keeps the cells a few centimetres wide wherever the camera is.
+		//
+		// The shadows are fitted the same way. A directional light's shadow map covers what the camera sees up
+		// to the maximum shadow distance. The default profile spreads four cascades over 150 m, which renders
+		// the table four times and gives it no more texels than one cascade that ends right behind it.
 		private const float ClusterRangeMargin = 0.1f;
+		private const float ShadowDistanceMargin = 0.25f;
+		private const float DefaultShadowDistance = 8f; // without a table to fit to
 		private static readonly List<LightCluster> FittedClusters = new List<LightCluster>();
+		private static readonly List<HDShadowSettings> FittedShadows = new List<HDShadowSettings>();
 		private static PlayfieldComponent _clusterPlayfield;
 
-		private static void FitLightCluster(bool on)
+		private static void FitToPlayfield()
 		{
-			RenderPipelineManager.beginContextRendering -= FitLightClusterRange;
+			RenderPipelineManager.beginContextRendering -= FitToPlayfield;
+			var on = FittedClusters.Count > 0 || FittedShadows.Count > 0 && _shadows != VpeShadows.Off;
 			_clusterPlayfield = on ? Object.FindAnyObjectByType<PlayfieldComponent>() : null;
-			if (on && _clusterPlayfield != null && FittedClusters.Count > 0) {
+			if (on && _clusterPlayfield != null) {
 				// before HDRP evaluates the cameras' volumes, and after the camera has moved for the frame
-				RenderPipelineManager.beginContextRendering += FitLightClusterRange;
+				RenderPipelineManager.beginContextRendering += FitToPlayfield;
 			}
 		}
 
-		private static void FitLightClusterRange(ScriptableRenderContext context, List<Camera> cameras)
+		private static void FitToPlayfield(ScriptableRenderContext context, List<Camera> cameras)
 		{
 			var cam = Camera.main;
 			if (cam == null || _clusterPlayfield == null) {
 				return;
 			}
-			var range = ClusterRange(cam.transform.position, _clusterPlayfield);
-			foreach (var cluster in FittedClusters) {
-				if (cluster != null) {
-					cluster.cameraClusterRange.Override(range);
+			if (FittedClusters.Count > 0) {
+				var range = ClusterRange(cam.transform.position, _clusterPlayfield);
+				foreach (var cluster in FittedClusters) {
+					if (cluster != null) {
+						cluster.cameraClusterRange.Override(range);
+					}
 				}
 			}
+			if (FittedShadows.Count > 0) {
+				var distance = ShadowDistance(cam.transform.position, _clusterPlayfield);
+				foreach (var shadows in FittedShadows) {
+					if (shadows != null) {
+						shadows.maxShadowDistance.Override(distance);
+					}
+				}
+			}
+		}
+
+		// How far the playfield's farthest corner is from the camera, surface to glass.
+		private static float ShadowDistance(Vector3 cameraPosition, PlayfieldComponent playfield)
+		{
+			var toWorld = playfield.transform.localToWorldMatrix * (Matrix4x4)VisualPinball.Unity.Physics.VpxToWorld;
+			var distance = 0f;
+			for (var i = 0; i < 8; i++) {
+				var corner = toWorld.MultiplyPoint3x4(new Vector3(
+					(i & 1) == 0 ? playfield.Left : playfield.Right,
+					(i & 2) == 0 ? playfield.Top : playfield.Bottom,
+					(i & 4) == 0 ? 0f : playfield.GlassHeight));
+				distance = Mathf.Max(distance, Vector3.Distance(corner, cameraPosition));
+			}
+			return Mathf.Clamp(distance + ShadowDistanceMargin, 1f, 50f);
+		}
+
+		// The lights around the table (the room's and the studio setups') are the only ones that cast shadows:
+		// the lamps on the table never do. Off takes their shadows away and Low gives them a small map; what
+		// they were set up with is kept, for High to give back.
+		private const int LowShadowResolution = 256;
+		private static VpeShadows _shadows = VpeShadows.High;
+		private static readonly Dictionary<Light, (LightShadows Shadows, bool UseOverride, int Override, int Level)> ShadowLights = new();
+
+		private static void ApplyLightShadows()
+		{
+			List<Light> gone = null;
+			foreach (var light in ShadowLights.Keys) {
+				if (light == null) {
+					(gone ??= new List<Light>()).Add(light);
+				}
+			}
+			if (gone != null) {
+				foreach (var light in gone) {
+					ShadowLights.Remove(light);
+				}
+			}
+			foreach (var light in Object.FindObjectsByType<HDAdditionalLightData>(FindObjectsInactive.Include)) {
+				ApplyLightShadows(light);
+			}
+		}
+
+		/// <summary>
+		/// Gives a light the shadows the graphics settings allow. For lights set up after the settings were
+		/// applied, such as a studio setup's.
+		/// </summary>
+		internal static void ApplyLightShadows(HDAdditionalLightData hd)
+		{
+			if (hd == null || !hd.TryGetComponent<Light>(out var light)) {
+				return;
+			}
+			if (!ShadowLights.TryGetValue(light, out var original)) {
+				if (light.shadows == LightShadows.None || _shadows == VpeShadows.High) {
+					return; // casts none, or keeps what it has
+				}
+				var resolution = hd.shadowResolution;
+				original = (light.shadows, resolution.useOverride, resolution.@override, resolution.level);
+				ShadowLights[light] = original;
+			}
+			switch (_shadows) {
+				case VpeShadows.Off:
+					light.shadows = LightShadows.None;
+					break;
+				case VpeShadows.Low:
+					light.shadows = original.Shadows;
+					hd.SetShadowResolutionOverride(true);
+					hd.SetShadowResolution(LowShadowResolution);
+					break;
+				default:
+					light.shadows = original.Shadows;
+					hd.shadowResolution.level = original.Level;
+					hd.shadowResolution.@override = original.Override;
+					hd.SetShadowResolutionOverride(original.UseOverride);
+					ShadowLights.Remove(light);
+					break;
+			}
+		}
+
+		/// <summary>
+		/// A light was set up anew with these shadows: what the settings kept of its earlier ones no longer
+		/// applies.
+		/// </summary>
+		internal static void LightConfigured(HDAdditionalLightData hd)
+		{
+			if (hd != null && hd.TryGetComponent<Light>(out var light)) {
+				ShadowLights.Remove(light);
+			}
+			ApplyLightShadows(hd);
 		}
 
 		// The largest distance along any axis from the camera to a corner of the playfield's box, surface to glass.
