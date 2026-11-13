@@ -121,6 +121,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			if (spec.Shadows) {
 				hdLight.SetShadowUpdateMode(ShadowUpdateMode.EveryFrame);
 			}
+			// the graphics settings may allow less
+			HdrpGraphicsApplier.LightConfigured(hdLight);
 		}
 
 		// The sky that shows, with the values the volumes blend to for the game camera (this one's left out,
