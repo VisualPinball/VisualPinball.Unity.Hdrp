@@ -84,7 +84,25 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				On(gi.enable.value), On(frame.IsEnabled(FrameSettingsField.SSGI)),
 				shadowLights, shadows.cascadeShadowSplitCount.value, shadows.maxShadowDistance.value, On(frame.IsEnabled(FrameSettingsField.ShadowMaps)),
 				blur.intensity.value, On(frame.IsEnabled(FrameSettingsField.MotionBlur)),
-				RenderScale());
+				RenderScale())
+				+ DescribeCost(frame, ssr, gi, ao, bloom);
+		}
+
+		// What the effects' cost hangs on: the size they work at, the steps their rays take and their
+		// denoising, as the volumes and the pipeline asset's quality levels resolve them.
+		private static string DescribeCost(FrameSettings frame, ScreenSpaceReflection ssr, GlobalIllumination gi, ScreenSpaceAmbientOcclusion ao, Bloom bloom)
+		{
+			var shadows = GraphicsSettings.currentRenderPipeline is HDRenderPipelineAsset asset
+				? asset.currentPlatformRenderPipelineSettings.hdShadowInitParams.punctualShadowFilteringQuality.ToString()
+				: "?";
+			return string.Format(System.Globalization.CultureInfo.InvariantCulture,
+				"; lit {0}; ssr {1}, {2} steps; ssgi {3} size, {4} steps, denoise {5}/{6} size/second {7}; ao {8} size, {9} steps x {10}; bloom {11}; punctual shadow filter {12}",
+				frame.litShaderMode,
+				ssr.usedAlgorithm.value, ssr.rayMaxIterations,
+				gi.fullResolutionSS.value ? "full" : "half", gi.maxRaySteps,
+				gi.denoiseSS ? "on" : "off", gi.halfResolutionDenoiserSS ? "half" : "full", gi.secondDenoiserPassSS ? "on" : "off",
+				ao.fullResolution ? "full" : "half", ao.stepCount, ao.directionCount,
+				bloom.resolution, shadows);
 		}
 
 		// A pipeline asset can leave an effect out (the Performant tier has no SSR and no SSGI): its volume
