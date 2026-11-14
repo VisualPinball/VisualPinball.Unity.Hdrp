@@ -38,7 +38,11 @@ namespace VisualPinball.Engine.Unity.Hdrp
 	/// <para>
 	/// HDRP 17.5 sizes TAA's jitter with <c>abs(left) + abs(right)</c> and <c>abs(bottom) + abs(top)</c>,
 	/// which is wrong when both bounds have the same sign, as they do for a cabinet view looking down at
-	/// the screen. Until that is patched, TAA falls back to SMAA while the projection is active.
+	/// the screen: the jitter is too large then, and not what the TAA resolve and the upscalers are told.
+	/// With Unity's own HDRP, TAA therefore falls back to SMAA while the projection is active, and the
+	/// temporal upscalers with it. The player is built with a copy of HDRP that measures the frustum's
+	/// extent as it is (<c>Installer~/tools/patch-hdrp.ps1</c> in the player package). That copy says
+	/// so with a method of its own, <see cref="PatchedJitterMethod"/>, and where it is found TAA stays.
 	/// </para>
 	/// </remarks>
 	public sealed class HdrpCabinetProjectionAdapter : ICabinetProjectionAdapter
@@ -102,9 +106,19 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			HdrpGraphicsApplier.ApplyCameraAntialiasing(camera, state.AntiAliasing);
 		}
 
+		/// <summary>The method the patched HDRP sizes TAA's jitter with; Unity's own has none of that name.</summary>
+		internal const string PatchedJitterMethod = "VpeFrustumExtent";
+
+		/// <summary>
+		/// Whether this HDRP jitters an off-centre frustum by what it says it does. The patched copy's
+		/// method is called by HDRP itself, so a build's code stripping leaves it in.
+		/// </summary>
+		internal static readonly bool JitterFitsOffCentre = typeof(HDCamera).GetMethod(PatchedJitterMethod,
+			System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public) != null;
+
 		public VpeAntiAliasing EffectiveAntiAliasing(VpeAntiAliasing requested, out string reason)
 		{
-			if (requested == VpeAntiAliasing.Taa) {
+			if (requested == VpeAntiAliasing.Taa && !JitterFitsOffCentre) {
 				reason = "HDRP's TAA jitters off-centre cabinet views incorrectly, so the cabinet view uses SMAA.";
 				return VpeAntiAliasing.Smaa;
 			}
