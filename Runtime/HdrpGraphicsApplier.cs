@@ -39,6 +39,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			VpeGraphics.Register(new HdrpGraphicsApplier());
 			VpeGraphics.UpscalerSupport = IsUpscalerSupported;
 			VpeGraphics.UpscalerQualitySupport = IsUpscalerQualitySupported;
+			DynamicResolutionHandler.SetDynamicResScaler(() => _stpPercentage, DynamicResScalePolicyType.ReturnsPercentage);
 			_fsr2PerformanceCrashes = SystemInfo.graphicsDeviceVendorID == 0x10DE
 				&& SystemInfo.graphicsDeviceName.IndexOf("RTX", System.StringComparison.OrdinalIgnoreCase) < 0;
 			VpeGraphics.RenderScaleSource = RenderScale;
@@ -229,10 +230,13 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			}
 		}
 
-		// DLSS needs the NVIDIA plugin and an RTX GPU, FSR 2 a DX12 or Vulkan device; HDRP detects both.
+		// DLSS needs the NVIDIA plugin and an RTX GPU, FSR 2 a DX12 or Vulkan device; HDRP detects both. STP is
+		// HDRP's own and needs hardware dynamic resolution, which HDRP has on every API but these.
 		private static bool IsUpscalerSupported(VpeUpscaler upscaler) => upscaler switch {
 			VpeUpscaler.Dlss => HDDynamicResolutionPlatformCapabilities.DLSSDetected,
 			VpeUpscaler.Fsr2 => HDDynamicResolutionPlatformCapabilities.FSR2Detected,
+			VpeUpscaler.Stp => SystemInfo.graphicsDeviceType is not (GraphicsDeviceType.Direct3D11 or GraphicsDeviceType.OpenGLES3
+				or GraphicsDeviceType.OpenGLCore or GraphicsDeviceType.WebGPU),
 			VpeUpscaler.Off => true,
 			_ => false,
 		};
@@ -259,22 +263,29 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				return;
 			}
 			var requested = _antiAliasing >= 0 ? (VpeAntiAliasing)_antiAliasing : ToVpe(unconfigured ?? hd.antialiasing);
-			// an upscaler does the anti-aliasing itself; HDRP would still run FXAA after it (it jitters regardless)
-			hd.antialiasing = ApplyCameraUpscaler(cam, hd)
-				? HDAdditionalCameraData.AntialiasingMode.None
-				: ToHdrp(CabinetProjection.EffectiveAntiAliasing(cam, requested));
+			// DLSS and FSR 2 do the anti-aliasing themselves; HDRP would still run FXAA after them (it jitters
+			// regardless). STP is HDRP's TAA upsampling, and only runs where the camera has TAA.
+			hd.antialiasing = ApplyCameraUpscaler(cam, hd) switch {
+				VpeUpscaler.Stp => HDAdditionalCameraData.AntialiasingMode.TemporalAntialiasing,
+				VpeUpscaler.Off => ToHdrp(CabinetProjection.EffectiveAntiAliasing(cam, requested)),
+				_ => HDAdditionalCameraData.AntialiasingMode.None,
+			};
 		}
 
 		// The upscalers are temporal like TAA: where the cabinet projection rules out TAA, they're off too.
-		// The pipeline assets list DLSS and FSR 2; the camera's flags pick one, at the scale its mode implies.
-		// Returns whether one is active.
-		private static bool ApplyCameraUpscaler(Camera cam, HDAdditionalCameraData hd)
+		// The pipeline assets list DLSS, FSR 2 and STP, in that order, and HDRP takes the first the camera
+		// allows: DLSS and FSR 2 by the camera's flags, at the scale their mode implies, and STP when neither
+		// is allowed, at the scale the dynamic resolution scaler returns. Returns the one that's active.
+		private static VpeUpscaler ApplyCameraUpscaler(Camera cam, HDAdditionalCameraData hd)
 		{
 			var upscaler = _upscaler;
 			if (!IsUpscalerSupported(upscaler) || !AssetOffers(upscaler) || CabinetProjection.EffectiveAntiAliasing(cam, VpeAntiAliasing.Taa) != VpeAntiAliasing.Taa) {
 				upscaler = VpeUpscaler.Off;
 			}
 			hd.allowDynamicResolution = upscaler != VpeUpscaler.Off;
+			if (upscaler == VpeUpscaler.Stp) {
+				_stpPercentage = 100f * StpScale(_upscalerQuality);
+			}
 
 			hd.allowDeepLearningSuperSampling = upscaler == VpeUpscaler.Dlss;
 			hd.deepLearningSuperSamplingUseCustomQualitySettings = true;
@@ -287,8 +298,20 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			hd.fidelityFX2SuperResolutionQuality = (uint)_upscalerQuality; // AMD FSR2Quality has the same order
 			hd.fidelityFX2SuperResolutionUseCustomAttributes = true;
 			hd.fidelityFX2SuperResolutionUseOptimalSettings = true;
-			return upscaler != VpeUpscaler.Off;
+			return upscaler;
 		}
+
+		// What the dynamic resolution scaler returns, for every camera: STP's screen percentage. DLSS and FSR 2
+		// set their own with their optimal settings, and a camera without an upscaler doesn't scale at all.
+		private static float _stpPercentage = 100f;
+
+		// The share of the output STP renders per mode, as URP's STP and the other upscalers have it.
+		private static float StpScale(VpeUpscalerQuality quality) => quality switch {
+			VpeUpscalerQuality.Quality => 1f / 1.5f,
+			VpeUpscalerQuality.Balanced => 1f / 1.7f,
+			VpeUpscalerQuality.Performance => 0.5f,
+			_ => 1f / 3f,
+		};
 
 		// HDRP only runs an upscaler the active pipeline asset lists, with its dynamic resolution on; without that,
 		// asking the camera for one would still turn its own anti-aliasing off.
@@ -301,7 +324,11 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				return false;
 			}
 			var drs = asset.currentPlatformRenderPipelineSettings.dynamicResolutionSettings;
-			var name = upscaler == VpeUpscaler.Dlss ? "DLSS" : "FSR2";
+			var name = upscaler switch { VpeUpscaler.Dlss => "DLSS", VpeUpscaler.Fsr2 => "FSR2", _ => "STP" };
+			// STP also needs the asset's dynamic resolution to be the hardware one (or a forced percentage)
+			if (upscaler == VpeUpscaler.Stp && drs.dynResType != DynamicResolutionType.Hardware && !drs.forceResolution) {
+				return false;
+			}
 			return drs.enabled && drs.advancedUpscalerNames != null && drs.advancedUpscalerNames.Contains(name);
 		}
 
