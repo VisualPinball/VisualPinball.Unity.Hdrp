@@ -38,6 +38,9 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		{
 			VpeGraphics.Register(new HdrpGraphicsApplier());
 			VpeGraphics.UpscalerSupport = IsUpscalerSupported;
+			VpeGraphics.UpscalerQualitySupport = IsUpscalerQualitySupported;
+			_fsr2PerformanceCrashes = SystemInfo.graphicsDeviceVendorID == 0x10DE
+				&& SystemInfo.graphicsDeviceName.IndexOf("RTX", System.StringComparison.OrdinalIgnoreCase) < 0;
 			VpeGraphics.RenderScaleSource = RenderScale;
 			VpeGraphics.BallReflectionsSupported = true;
 			VpeGraphics.MotionBlurSupported = true;
@@ -150,7 +153,11 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		{
 			_antiAliasing = Mathf.Clamp(settings.AntiAliasing, 0, 3);
 			_upscaler = (VpeUpscaler)settings.Upscaler;
-			_upscalerQuality = (VpeUpscalerQuality)Mathf.Clamp(settings.UpscalerQuality, 0, 3);
+			var quality = (VpeUpscalerQuality)Mathf.Clamp(settings.UpscalerQuality, 0, 3);
+			_upscalerQuality = VpeGraphics.SupportedUpscalerQuality(_upscaler, quality);
+			if (_upscalerQuality != quality) {
+				Logger.Info("{Upscaler} doesn't run in {Quality} mode on the {Gpu:l}, {Instead} instead.", _upscaler, quality, SystemInfo.graphicsDeviceName, _upscalerQuality);
+			}
 			ApplyCameraAntialiasing(Camera.main);
 			ApplyBallReflections(Camera.main, settings.BallReflections);
 			ApplyCameraMotionBlur(Camera.main, settings.MotionBlur != (int)VpeMotionBlur.Off);
@@ -229,6 +236,14 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			VpeUpscaler.Off => true,
 			_ => false,
 		};
+
+		// AMD's plugin crashes in FSR 2's Performance mode on NVIDIA GPUs without RTX: on a GTX 1080 (Windows
+		// 10, D3D12) it throws on the graphics thread while it sets the upscaler up, every time, right after the
+		// table loads. Its other modes run there, and so does Performance on an RTX card.
+		private static bool _fsr2PerformanceCrashes;
+
+		private static bool IsUpscalerQualitySupported(VpeUpscaler upscaler, VpeUpscalerQuality quality)
+			=> !(upscaler == VpeUpscaler.Fsr2 && quality == VpeUpscalerQuality.Performance && _fsr2PerformanceCrashes);
 
 		/// <summary>
 		/// The chosen anti-aliasing, or what the camera's cabinet projection allows instead. Without a choice
