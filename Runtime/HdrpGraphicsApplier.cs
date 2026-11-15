@@ -163,6 +163,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			ApplyBallReflections(Camera.main, settings.BallReflections);
 			ApplyCameraMotionBlur(Camera.main, settings.MotionBlur != (int)VpeMotionBlur.Off);
 			ApplyVolume(settings);
+			HdrpShadowCache.Refresh();
 			Logger.Info("Upscaling {Upscaler} {Quality} (DLSS detected: {Dlss}, FSR 2 detected: {Fsr2})",
 				_upscaler, _upscalerQuality, HDDynamicResolutionPlatformCapabilities.DLSSDetected, HDDynamicResolutionPlatformCapabilities.FSR2Detected);
 		}
