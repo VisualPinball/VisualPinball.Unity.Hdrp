@@ -17,6 +17,12 @@
 	"precompiledReferences": [],
 	"autoReferenced": true,
 	"defineConstraints": [],
-	"versionDefines": [],
+	"versionDefines": [
+		{
+			"name": "com.unity.modules.nvidia",
+			"expression": "1.0.0",
+			"define": "ENABLE_NVIDIA_MODULE"
+		}
+	],
 	"noEngineReferences": false
 }

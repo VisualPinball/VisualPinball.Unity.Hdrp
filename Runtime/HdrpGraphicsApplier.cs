@@ -15,6 +15,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.HighDefinition;
@@ -52,6 +53,9 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			_shadows = VpeShadows.High;
 			ShadowLights.Clear();
 			Originals.Clear();
+#if ENABLE_NVIDIA && ENABLE_NVIDIA_MODULE
+			ApplyDlssPresets();
+#endif
 		}
 
 		// What the camera's volume stack and frame settings come to, which is what HDRP renders with. The
@@ -89,7 +93,30 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				shadowLights, shadows.cascadeShadowSplitCount.value, shadows.maxShadowDistance.value, On(frame.IsEnabled(FrameSettingsField.ShadowMaps)),
 				blur.intensity.value, On(frame.IsEnabled(FrameSettingsField.MotionBlur)),
 				RenderScale())
-				+ DescribeCost(frame, ssr, gi, ao, bloom);
+				+ DescribeCost(frame, ssr, gi, ao, bloom)
+				+ DescribeDlss(data);
+		}
+
+		// HDRP's own word on whether DLSS rendered the camera's last frame: allowing it isn't enough, the asset
+		// can rank another upscaler first and path tracing goes without.
+		private static readonly System.Reflection.FieldInfo CameraCanRenderDlss = typeof(HDAdditionalCameraData).GetField("cameraCanRenderDLSS",
+			System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+
+		// The DLSS model that ran, which its cost hangs on more than on anything else.
+		private static string DescribeDlss(HDAdditionalCameraData data)
+		{
+#if ENABLE_NVIDIA && ENABLE_NVIDIA_MODULE
+			if (data == null || !data.allowDeepLearningSuperSampling || GraphicsSettings.currentRenderPipeline is not HDRenderPipelineAsset asset) {
+				return "";
+			}
+			if (CameraCanRenderDlss?.GetValue(data) is false) {
+				return "";
+			}
+			var preset = DlssPresetOf(asset.currentPlatformRenderPipelineSettings.dynamicResolutionSettings, _upscalerQuality);
+			return "; dlss preset " + PresetName(preset);
+#else
+			return "";
+#endif
 		}
 
 		// What the effects' cost hangs on: the size they work at, the steps their rays take and their
@@ -340,6 +367,129 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			VpeUpscalerQuality.Performance => 0,
 			_ => 3,
 		};
+
+#if ENABLE_NVIDIA && ENABLE_NVIDIA_MODULE
+		// The DLSS model per mode. NVIDIA's defaults in the DLSS that comes with Unity 6.5 (K for Quality, Balanced
+		// and DLAA, M for Performance, L for Ultra Performance) are made for RTX 40 and newer. RTX 20 and 30 cards
+		// lack the FP8 units they lean on: there M and L cost two to three times what K does, and K nearly three
+		// times the older CNN model F. On an RTX 2080 Ti at 4K, F takes 1.3 ms, K 3.5, M 7.5 and L 10.6 (NVIDIA's
+		// programming guide), of the 8.3 ms a frame at 120 Hz has, so those cards take the cheapest model a mode
+		// has: F where it's offered (Ultra Performance and DLAA), K elsewhere (Ada and Blackwell workstation
+		// cards, called RTX 2000 Ada and the like, have FP8). Newer cards get NVIDIA's
+		// defaults by name, so that a benchmark can say which model ran. The command line can set one preset
+		// for every mode instead: --dlss-preset=f|j|k|l|m|default.
+		private static readonly System.Text.RegularExpressions.Regex RtxWithoutFp8 = new(
+			@"\bRTX\s*(20|30)\d\d\b|\bTITAN RTX\b|\bQuadro RTX\b|\bRTX\s*A\d{3,4}\b",
+			System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+		private static readonly System.Text.RegularExpressions.Regex RtxWithFp8 = new(
+			@"\bAda\b|\bBlackwell\b|\bRTX PRO\b",
+			System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+		// Only in a player, before the first frame: a new setting for the active pipeline asset makes HDRP build
+		// the pipeline again, and in the editor the assets would keep what was set.
+		private static void ApplyDlssPresets()
+		{
+			if (Application.isEditor || SystemInfo.graphicsDeviceVendorID != 0x10DE) {
+				return;
+			}
+			var forced = CommandLineDlssPreset();
+			var name = SystemInfo.graphicsDeviceName;
+			var older = RtxWithoutFp8.IsMatch(name) && !RtxWithFp8.IsMatch(name);
+			var offered = new List<string>();
+			UnityEngine.NVIDIA.DLSSPreset For(UnityEngine.NVIDIA.DLSSQuality mode)
+			{
+				// the DLSS knows which models it has for a mode (in 310.5, F only for Ultra Performance and DLAA);
+				// where it can't tell, the first choice stands
+				var available = UnityEngine.NVIDIA.GraphicsDevice.GetAvailableDLSSPresetsForQuality(mode);
+				bool Has(UnityEngine.NVIDIA.DLSSPreset preset) => available == 0 || (available & (uint)preset) != 0;
+				offered.Add($"{mode} {(available == 0 ? "?" : string.Join("", System.Enum.GetValues(typeof(UnityEngine.NVIDIA.DLSSPreset)).Cast<UnityEngine.NVIDIA.DLSSPreset>().Where(p => p != UnityEngine.NVIDIA.DLSSPreset.Preset_Default && (available & (uint)p) != 0).Select(PresetName)))}");
+				var choices = forced is { } one ? new[] { one }
+					: older ? new[] { UnityEngine.NVIDIA.DLSSPreset.Preset_F, UnityEngine.NVIDIA.DLSSPreset.Preset_K } // the cheapest there is
+					: new[] { mode switch {
+						UnityEngine.NVIDIA.DLSSQuality.MaximumPerformance => UnityEngine.NVIDIA.DLSSPreset.Preset_M,
+						UnityEngine.NVIDIA.DLSSQuality.UltraPerformance => UnityEngine.NVIDIA.DLSSPreset.Preset_L,
+						_ => UnityEngine.NVIDIA.DLSSPreset.Preset_K,
+					} };
+				foreach (var preset in choices) {
+					if (preset == UnityEngine.NVIDIA.DLSSPreset.Preset_Default || Has(preset)) {
+						return preset;
+					}
+				}
+				Logger.Warn("DLSS has no preset {Presets} for {Mode} here, NVIDIA's default instead.", string.Join(" or ", choices.Select(PresetName)), mode);
+				return UnityEngine.NVIDIA.DLSSPreset.Preset_Default;
+			}
+			var quality = For(UnityEngine.NVIDIA.DLSSQuality.MaximumQuality);
+			var balanced = For(UnityEngine.NVIDIA.DLSSQuality.Balanced);
+			var performance = For(UnityEngine.NVIDIA.DLSSQuality.MaximumPerformance);
+			var ultra = For(UnityEngine.NVIDIA.DLSSQuality.UltraPerformance);
+			var dlaa = For(UnityEngine.NVIDIA.DLSSQuality.DLAA);
+
+			var assets = new List<HDRenderPipelineAsset>();
+			for (var i = 0; i < QualitySettings.names.Length; i++) {
+				if (QualitySettings.GetRenderPipelineAssetAt(i) is HDRenderPipelineAsset asset && !assets.Contains(asset)) {
+					assets.Add(asset);
+				}
+			}
+			if (GraphicsSettings.defaultRenderPipeline is HDRenderPipelineAsset fallback && !assets.Contains(fallback)) {
+				assets.Add(fallback);
+			}
+			foreach (var asset in assets) {
+				var settings = asset.currentPlatformRenderPipelineSettings;
+				var drs = settings.dynamicResolutionSettings;
+				if (drs.DLSSRenderPresetForQuality == (uint)quality && drs.DLSSRenderPresetForBalanced == (uint)balanced
+					&& drs.DLSSRenderPresetForPerformance == (uint)performance && drs.DLSSRenderPresetForUltraPerformance == (uint)ultra
+					&& drs.DLSSRenderPresetForDLAA == (uint)dlaa) {
+					continue;
+				}
+				drs.DLSSRenderPresetForQuality = (uint)quality;
+				drs.DLSSRenderPresetForBalanced = (uint)balanced;
+				drs.DLSSRenderPresetForPerformance = (uint)performance;
+				drs.DLSSRenderPresetForUltraPerformance = (uint)ultra;
+				drs.DLSSRenderPresetForDLAA = (uint)dlaa;
+				settings.dynamicResolutionSettings = drs;
+				asset.currentPlatformRenderPipelineSettings = settings;
+			}
+			Logger.Info("DLSS presets on the {Gpu:l} ({Why:l}): quality {Quality:l}, balanced {Balanced:l}, performance {Performance:l}, ultra performance {Ultra:l}, DLAA {Dlaa:l} (offered: {Offered:l})",
+				name, forced != null ? "--dlss-preset" : older ? "RTX 20 or 30, the cheapest model" : "NVIDIA's defaults",
+				PresetName(quality), PresetName(balanced), PresetName(performance), PresetName(ultra), PresetName(dlaa), string.Join(", ", offered));
+		}
+
+		// --dlss-preset=k or --dlss-preset k; null where the command line doesn't set one.
+		private static UnityEngine.NVIDIA.DLSSPreset? CommandLineDlssPreset()
+		{
+			var args = System.Environment.GetCommandLineArgs();
+			for (var i = 0; i < args.Length; i++) {
+				string value = null;
+				if (args[i].StartsWith("--dlss-preset=", System.StringComparison.OrdinalIgnoreCase)) {
+					value = args[i].Substring("--dlss-preset=".Length);
+				} else if (string.Equals(args[i], "--dlss-preset", System.StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length) {
+					value = args[i + 1];
+				}
+				if (value == null) {
+					continue;
+				}
+				value = value.Trim();
+				if (string.Equals(value, "default", System.StringComparison.OrdinalIgnoreCase)) {
+					return UnityEngine.NVIDIA.DLSSPreset.Preset_Default;
+				}
+				if (System.Enum.TryParse<UnityEngine.NVIDIA.DLSSPreset>("Preset_" + value.ToUpperInvariant(), out var preset)) {
+					return preset;
+				}
+				Logger.Warn("--dlss-preset: no preset \"{Value:l}\" (f, j, k, l, m or default).", value);
+			}
+			return null;
+		}
+
+		private static UnityEngine.NVIDIA.DLSSPreset DlssPresetOf(GlobalDynamicResolutionSettings drs, VpeUpscalerQuality quality) => (UnityEngine.NVIDIA.DLSSPreset)(quality switch {
+			VpeUpscalerQuality.Quality => drs.DLSSRenderPresetForQuality,
+			VpeUpscalerQuality.Balanced => drs.DLSSRenderPresetForBalanced,
+			VpeUpscalerQuality.Performance => drs.DLSSRenderPresetForPerformance,
+			_ => drs.DLSSRenderPresetForUltraPerformance,
+		});
+
+		private static string PresetName(UnityEngine.NVIDIA.DLSSPreset preset)
+			=> preset == UnityEngine.NVIDIA.DLSSPreset.Preset_Default ? "default" : preset.ToString().Replace("Preset_", "");
+#endif
 
 		// HDRP orders its modes None, FXAA, TAA, SMAA; VPE's are None, FXAA, SMAA, TAA.
 		private static HDAdditionalCameraData.AntialiasingMode ToHdrp(VpeAntiAliasing aa) => aa switch {
