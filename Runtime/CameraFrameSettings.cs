@@ -52,6 +52,20 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			camera.renderingPathCustomFrameSettings.SetEnabled(field, true);
 		}
 
+		/// <summary>
+		/// Switches a field the caller holds through <see cref="Enable"/> on or off: for a setting the camera has to
+		/// keep either way while the caller runs (ray tracing, which is on by default where the asset traces).
+		/// </summary>
+		public static void Set(HDAdditionalCameraData camera, FrameSettingsField field, bool enabled)
+		{
+			if (camera == null || !Cameras.TryGetValue(camera, out var saved) || !saved.Fields.ContainsKey(field)) {
+				return;
+			}
+			camera.customRenderingSettings = true;
+			camera.renderingPathCustomFrameSettingsOverrideMask.mask[(uint)field] = true;
+			camera.renderingPathCustomFrameSettings.SetEnabled(field, enabled);
+		}
+
 		/// <summary>Gives up one <see cref="Enable"/> of the field. A destroyed camera has nothing to restore.</summary>
 		public static void Release(HDAdditionalCameraData camera, FrameSettingsField field)
 		{

@@ -54,6 +54,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			_shadows = VpeShadows.High;
 			_rayTracedShadows = false;
 			_tracing = false;
+			// without a domain reload, the last play session's holds are still counted
+			ReleaseCameraRayTracing();
 			ShadowLights.Clear();
 			Originals.Clear();
 #if ENABLE_NVIDIA && ENABLE_NVIDIA_MODULE
@@ -240,27 +242,56 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		// volume asks for rays, and leaves out every light that isn't included for ray tracing. So the camera
 		// only traces while a setting wants it: with all of them off, it renders as on an asset without ray
 		// tracing. Traced shadows are drawn into the screen-space shadow buffer, which the camera needs too.
+		// Both go through CameraFrameSettings, which other components (autofocus, ball reflections) share: one
+		// of them giving the camera its own settings back would otherwise drop these too.
 		private static void ApplyCameraRayTracing(Camera cam, bool on)
 		{
-			if (cam == null || !cam.TryGetComponent<HDAdditionalCameraData>(out var hd)) {
+			HDAdditionalCameraData hd = null;
+			if (cam != null) {
+				cam.TryGetComponent(out hd);
+			}
+			// nothing to keep off where the asset doesn't trace
+			if (!IsRayTracingAvailable()) {
+				hd = null;
+			}
+			// by reference: a destroyed camera equals null, and still has to be released
+			if (!ReferenceEquals(_rayTracingCamera, hd)) {
+				ReleaseCameraRayTracing();
+				if (hd == null) {
+					return;
+				}
+				CameraFrameSettings.Enable(hd, FrameSettingsField.RayTracing);
+				_rayTracingCamera = hd;
+			}
+			if (hd == null) {
 				return;
 			}
-			if (!hd.customRenderingSettings) {
-				if (!IsRayTracingAvailable()) {
-					return; // nothing to keep off
+			CameraFrameSettings.Set(hd, FrameSettingsField.RayTracing, on);
+			if (on != _screenSpaceShadowsHeld) {
+				if (on) {
+					CameraFrameSettings.Enable(hd, FrameSettingsField.ScreenSpaceShadows);
+				} else {
+					CameraFrameSettings.Release(hd, FrameSettingsField.ScreenSpaceShadows);
 				}
-				// only the fields overridden here differ from the defaults
-				hd.customRenderingSettings = true;
-			}
-			ref var mask = ref hd.renderingPathCustomFrameSettingsOverrideMask;
-			ref var frame = ref hd.renderingPathCustomFrameSettings;
-			mask.mask[(uint)FrameSettingsField.RayTracing] = true;
-			frame.SetEnabled(FrameSettingsField.RayTracing, on);
-			if (on) {
-				mask.mask[(uint)FrameSettingsField.ScreenSpaceShadows] = true;
-				frame.SetEnabled(FrameSettingsField.ScreenSpaceShadows, true);
+				_screenSpaceShadowsHeld = on;
 			}
 		}
+
+		private static void ReleaseCameraRayTracing()
+		{
+			if (!ReferenceEquals(_rayTracingCamera, null)) {
+				if (_screenSpaceShadowsHeld) {
+					CameraFrameSettings.Release(_rayTracingCamera, FrameSettingsField.ScreenSpaceShadows);
+				}
+				CameraFrameSettings.Release(_rayTracingCamera, FrameSettingsField.RayTracing);
+			}
+			_rayTracingCamera = null;
+			_screenSpaceShadowsHeld = false;
+		}
+
+		// the camera whose ray tracing frame setting the applier holds, and whether it holds its screen-space shadows
+		private static HDAdditionalCameraData _rayTracingCamera;
+		private static bool _screenSpaceShadowsHeld;
 
 		// The component lives on the camera that renders the balls; it's only added once it's wanted.
 		private static void ApplyBallReflections(Camera cam, bool on)
