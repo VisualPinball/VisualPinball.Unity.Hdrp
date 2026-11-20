@@ -25,7 +25,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 {
 	/// <summary>
 	/// Applies the host app's <see cref="VpeGraphicsSettings"/> to HDRP at runtime: camera anti-aliasing,
-	/// ball reflections, the shadows of the lights around the table and the live Volume effects (SSR/RT
+	/// ball reflections, the shadows of the lights around the table, ray traced or not, and the live Volume effects (SSR/RT
 	/// reflections and their quality, SSAO, SSGI/RT-GI, recursive ray tracing, Bloom).
 	/// Registered before any scene loads, the same pattern as <c>HdrpMaterialResolver</c>. Engine-level
 	/// settings (resolution, vsync, quality level) are applied host-side and don't pass through here.
@@ -49,8 +49,11 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			VpeGraphics.DepthOfFieldHandler = SetDepthOfField;
 			VpeGraphics.ReleaseRenderBuffersHandler = ReleaseRenderBuffers;
 			VpeGraphics.EffectSupport = IsEffectSupported;
+			VpeGraphics.TierEffectSupport = IsEffectSupportedAt;
 			VpeGraphics.EffectiveSettingsSource = DescribeEffective;
 			_shadows = VpeShadows.High;
+			_rayTracedShadows = false;
+			_tracing = false;
 			ShadowLights.Clear();
 			Originals.Clear();
 #if ENABLE_NVIDIA && ENABLE_NVIDIA_MODULE
@@ -76,14 +79,20 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			var blur = stack.GetComponent<MotionBlur>();
 			string On(bool on) => on ? "on" : "off";
 			var shadowLights = 0;
+			var tracedLights = 0; // of them, the ones whose shadows are ray traced
 			foreach (var light in Object.FindObjectsByType<Light>(FindObjectsInactive.Exclude)) {
 				if (light.enabled && light.shadows != LightShadows.None) {
 					shadowLights++;
+					if (frame.IsEnabled(FrameSettingsField.RayTracing) && frame.IsEnabled(FrameSettingsField.ScreenSpaceShadows)
+						&& light.TryGetComponent<HDAdditionalLightData>(out var hdLight) && hdLight.useRayTracedShadows
+						&& (light.type != LightType.Directional || hdLight.useScreenSpaceShadows)) {
+						tracedLights++;
+					}
 				}
 			}
 			return string.Format(System.Globalization.CultureInfo.InvariantCulture,
 				"asset {0}; aa {1}; bloom {2:0.###} (frame {3}); ao {4:0.###} (frame {5}); ssr {6}/transparent {7} quality {8} (frame {9}); ssgi {10} (frame {11}); "
-				+ "shadows {12} light(s), {13} cascade(s) to {14:0.##} m (frame {15}); motion blur {16:0.##} (frame {17}); scale {18:0.###}",
+				+ "shadows {12} light(s), {19} ray traced, {13} cascade(s) to {14:0.##} m (frame {15}); motion blur {16:0.##} (frame {17}); scale {18:0.###}",
 				GraphicsSettings.currentRenderPipeline != null ? GraphicsSettings.currentRenderPipeline.name : "none",
 				cam.TryGetComponent<HDAdditionalCameraData>(out var data) ? data.antialiasing.ToString() : "?",
 				bloom.intensity.value, On(frame.IsEnabled(FrameSettingsField.Bloom)),
@@ -92,7 +101,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				On(gi.enable.value), On(frame.IsEnabled(FrameSettingsField.SSGI)),
 				shadowLights, shadows.cascadeShadowSplitCount.value, shadows.maxShadowDistance.value, On(frame.IsEnabled(FrameSettingsField.ShadowMaps)),
 				blur.intensity.value, On(frame.IsEnabled(FrameSettingsField.MotionBlur)),
-				RenderScale())
+				RenderScale(), tracedLights)
 				+ DescribeCost(frame, ssr, gi, ao, bloom)
 				+ DescribeDlss(data);
 		}
@@ -138,9 +147,16 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 		// A pipeline asset can leave an effect out (the Performant tier has no SSR and no SSGI): its volume
 		// component and frame setting then do nothing.
-		private static bool IsEffectSupported(VpeEffect effect)
+		private static bool IsEffectSupported(VpeEffect effect) => IsEffectSupported(GraphicsSettings.currentRenderPipeline, effect);
+
+		// The same for a tier that isn't the active one: its asset says what it renders without a switch to it.
+		private static bool IsEffectSupportedAt(int qualityLevel, VpeEffect effect)
+			=> qualityLevel >= 0 && qualityLevel < QualitySettings.names.Length
+				&& IsEffectSupported(QualitySettings.GetRenderPipelineAssetAt(qualityLevel) ?? GraphicsSettings.defaultRenderPipeline, effect);
+
+		private static bool IsEffectSupported(RenderPipelineAsset pipeline, VpeEffect effect)
 		{
-			if (GraphicsSettings.currentRenderPipeline is not HDRenderPipelineAsset asset) {
+			if (pipeline is not HDRenderPipelineAsset asset) {
 				return false;
 			}
 			var settings = asset.currentPlatformRenderPipelineSettings;
@@ -148,6 +164,9 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				VpeEffect.ScreenSpaceReflections => settings.supportSSR,
 				VpeEffect.AmbientOcclusion => settings.supportSSAO,
 				VpeEffect.ScreenSpaceGlobalIllumination => settings.supportSSGI,
+				// traced shadows are drawn into the screen-space shadow buffer, which the asset has to have as well
+				VpeEffect.RayTracedShadows => SystemInfo.supportsRayTracing && settings.supportRayTracing
+					&& settings.hdShadowInitParams.supportScreenSpaceShadows,
 				_ => true,
 			};
 		}
@@ -190,6 +209,7 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			ApplyBallReflections(Camera.main, settings.BallReflections);
 			ApplyCameraMotionBlur(Camera.main, settings.MotionBlur != (int)VpeMotionBlur.Off);
 			ApplyVolume(settings);
+			ApplyCameraRayTracing(Camera.main, _tracing);
 			HdrpShadowCache.Refresh();
 			Logger.Info("Upscaling {Upscaler} {Quality} (DLSS detected: {Dlss}, FSR 2 detected: {Fsr2})",
 				_upscaler, _upscalerQuality, HDDynamicResolutionPlatformCapabilities.DLSSDetected, HDDynamicResolutionPlatformCapabilities.FSR2Detected);
@@ -213,6 +233,32 @@ namespace VisualPinball.Engine.Unity.Hdrp
 						frame.SetEnabled(field, true);
 					}
 				}
+			}
+		}
+
+		// With ray tracing in its frame settings, a camera builds the acceleration structure once a light or a
+		// volume asks for rays, and leaves out every light that isn't included for ray tracing. So the camera
+		// only traces while a setting wants it: with all of them off, it renders as on an asset without ray
+		// tracing. Traced shadows are drawn into the screen-space shadow buffer, which the camera needs too.
+		private static void ApplyCameraRayTracing(Camera cam, bool on)
+		{
+			if (cam == null || !cam.TryGetComponent<HDAdditionalCameraData>(out var hd)) {
+				return;
+			}
+			if (!hd.customRenderingSettings) {
+				if (!IsRayTracingAvailable()) {
+					return; // nothing to keep off
+				}
+				// only the fields overridden here differ from the defaults
+				hd.customRenderingSettings = true;
+			}
+			ref var mask = ref hd.renderingPathCustomFrameSettingsOverrideMask;
+			ref var frame = ref hd.renderingPathCustomFrameSettings;
+			mask.mask[(uint)FrameSettingsField.RayTracing] = true;
+			frame.SetEnabled(FrameSettingsField.RayTracing, on);
+			if (on) {
+				mask.mask[(uint)FrameSettingsField.ScreenSpaceShadows] = true;
+				frame.SetEnabled(FrameSettingsField.ScreenSpaceShadows, true);
 			}
 		}
 
@@ -605,8 +651,18 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			ReleaseOrphanedProfiles();
 			ForgetOrphanedOriginals();
 			_shadows = (VpeShadows)Mathf.Clamp(s.Shadows, 0, 2);
-			ApplyLightShadows();
+			// ray-traced effects only where the active pipeline asset can trace
+			var rayTracing = IsRayTracingAvailable();
+			_rayTracedShadows = s.RayTracedShadows && _shadows != VpeShadows.Off && IsEffectSupported(VpeEffect.RayTracedShadows);
 			var volumes = FindGlobalVolumes(Camera.main);
+			// the other ray-traced effects run on a volume; traced shadows are the lights' own
+			var rtReflections = s.RayTracedReflections && rayTracing && volumes.Count > 0;
+			var rtGlobalIllumination = s.RayTracedGlobalIllumination && rayTracing && volumes.Count > 0;
+			var recursive = s.RayTracedRecursiveRendering && rayTracing && volumes.Count > 0;
+			// what needs the light cluster; traced shadows don't
+			var tracing = rtReflections || rtGlobalIllumination || recursive;
+			_tracing = _rayTracedShadows || tracing;
+			ApplyLightShadows();
 			if (volumes.Count == 0) {
 				// no volume runs the recursive rendering, so no glass may stay flagged for it (it wouldn't draw)
 				ApplyRecursiveMaterials(false);
@@ -618,13 +674,6 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			var primary = PrimaryVolume(volumes);
 			Logger.Info("Volumes the settings go to: {Volumes:l}; default profile {Default:l}, quality profile {Quality:l}",
 				string.Join("; ", volumes.ConvertAll(DescribeVolume)), DescribeProfile(VolumeManager.instance.globalDefaultProfile, true), DescribeProfile(VolumeManager.instance.qualityDefaultProfile, true));
-
-			// ray-traced effects only where the active pipeline asset (the Ray Tracing quality level) can trace
-			var rayTracing = IsRayTracingAvailable();
-			var rtReflections = s.RayTracedReflections && rayTracing;
-			var rtGlobalIllumination = s.RayTracedGlobalIllumination && rayTracing;
-			var recursive = s.RayTracedRecursiveRendering && rayTracing;
-			var tracing = rtReflections || rtGlobalIllumination || recursive;
 
 			// a table's profile may lack the component a ray-traced effect runs on
 			var primaryProfile = ProfileOf(primary);
@@ -704,11 +753,11 @@ namespace VisualPinball.Engine.Unity.Hdrp
 					} else {
 						Force(ao, ao.intensity, 0f);
 					}
-					// the player build strips the visibility rays ray-traced AO needs (RayTracingPassStripper)
+					// no setting asks for ray-traced occlusion, whatever a table's profile says
 					ao.rayTracing.Override(false);
 				}
 				if (profile.TryGet<SubSurfaceScattering>(out var sss)) {
-					// same for ray-traced subsurface scattering
+					// the player build strips the passes of ray-traced subsurface scattering (RayTracingPassStripper)
 					sss.rayTracing.Override(false);
 				}
 				if (profile.TryGet<PathTracing>(out var pathTracing)) {
@@ -742,23 +791,10 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				FittedClusters.Clear();
 			}
 			FitToPlayfield();
-			if (rayTracing) {
-				foreach (var light in Object.FindObjectsByType<HDAdditionalLightData>(FindObjectsInactive.Include)) {
-					// ray-traced shadows and contact shadows trace the visibility rays the build strips
-					light.useRayTracedShadows = false;
-					light.rayTraceContactShadow = false;
-					// A lamp lights what's around it in the reflections too. The bulb models used to leave their
-					// light out of ray tracing, and packages exported with them still do.
-					if (light.GetComponentInParent<LightComponent>(true) != null) {
-						light.includeForRayTracing = true;
-					}
-				}
-			}
-
-			Logger.Info("Ray tracing {State} (GPU support: {Gpu}, pipeline asset: {Asset}, volumes: {Volumes}); reflections {Reflections}, GI {Gi}, recursive {Recursive}.",
+			Logger.Info("Ray tracing {State} (GPU support: {Gpu}, pipeline asset: {Asset}, volumes: {Volumes}); shadows {Shadows}, reflections {Reflections}, GI {Gi}, recursive {Recursive}.",
 				rayTracing ? "available" : "unavailable", SystemInfo.supportsRayTracing,
 				GraphicsSettings.currentRenderPipeline != null ? GraphicsSettings.currentRenderPipeline.name : "none",
-				string.Join(", ", volumes.ConvertAll(v => v.name)), rtReflections, rtGlobalIllumination, recursive);
+				string.Join(", ", volumes.ConvertAll(v => v.name)), _rayTracedShadows, rtReflections, rtGlobalIllumination, recursive);
 		}
 
 		// HDRP's ray tracing light cluster is a fixed 64x32x64 grid around the camera, as wide as the LightCluster
@@ -832,6 +868,9 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		// they were set up with is kept, for High to give back.
 		private const int LowShadowResolution = 256;
 		private static VpeShadows _shadows = VpeShadows.High;
+		// whether the directional light traces its shadows, and whether anything traces at all
+		private static bool _rayTracedShadows;
+		private static bool _tracing;
 		private static readonly Dictionary<Light, (LightShadows Shadows, bool UseOverride, int Override, int Level)> ShadowLights = new();
 
 		private static void ApplyLightShadows()
@@ -861,6 +900,51 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			if (hd == null || !hd.TryGetComponent<Light>(out var light)) {
 				return;
 			}
+			ApplyShadowMaps(hd, light);
+			ApplyRayTracedShadows(hd, light);
+		}
+
+		// How many rays a pixel sends towards the light, and how far the denoiser looks, in pixels. A traced
+		// light costs both per pixel: on an RTX 4090 at 3840 x 2160, 0.8 ms per ray, and 1.3 ms to denoise at
+		// 8 pixels (2.2 ms at HDRP's 16). The table stands still under a camera that does too, so the
+		// denoiser's history holds: one ray with half the reach gives the same still picture as four with
+		// all of it, at well under half the time.
+		private const int ShadowRays = 1;
+		private const int ShadowFilterSize = 8;
+
+		// Only the directional light traces its shadows: it is the one whose shadows show most, and every
+		// traced light costs the same again (the room's four together took a 4K frame from 6 to 16 ms). The
+		// spots keep their shadow maps. Whether a light traces is the setting's to say, not the table's: a
+		// light a package brought with traced shadows would otherwise trace on its own. The shadow is as soft
+		// as the light's angular diameter makes it, and coloured by what is transparent on the way, so clear
+		// plastics and ramps still cast one. A directional light only traces into the screen-space shadow
+		// buffer, and would be rasterized into it when it doesn't trace. A camera that traces also leaves out
+		// the lights that aren't included for ray tracing, in what it rasterizes too: the bulb models used to
+		// leave their light out, and packages exported with them still do, so every light is included: no
+		// lamp may go dark with the setting.
+		private static void ApplyRayTracedShadows(HDAdditionalLightData hd, Light light)
+		{
+			var directional = light.type == LightType.Directional;
+			var trace = _rayTracedShadows && directional && light.shadows != LightShadows.None;
+			hd.useRayTracedShadows = trace;
+			hd.rayTraceContactShadow = false;
+			if (directional) {
+				hd.useScreenSpaceShadows = trace;
+			}
+			if (_tracing) {
+				hd.includeForRayTracing = true;
+			}
+			if (!trace) {
+				return;
+			}
+			hd.numRayTracingSamples = ShadowRays;
+			hd.filterTracedShadow = true;
+			hd.filterSizeTraced = ShadowFilterSize;
+			hd.colorShadow = true;
+		}
+
+		private static void ApplyShadowMaps(HDAdditionalLightData hd, Light light)
+		{
 			if (!ShadowLights.TryGetValue(light, out var original)) {
 				if (light.shadows == LightShadows.None || _shadows == VpeShadows.High) {
 					return; // casts none, or keeps what it has
