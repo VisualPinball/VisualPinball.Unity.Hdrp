@@ -115,6 +115,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				light.range = spec.Range;
 				// a studio light is a wide source: its shadows and highlights are soft
 				light.shapeRadius = 0.15f;
+			} else if (spec.AngularDiameter > 0f) {
+				hdLight.angularDiameter = spec.AngularDiameter;
 			}
 			hdLight.affectsVolumetric = false;
 			hdLight.EnableShadows(spec.Shadows);
