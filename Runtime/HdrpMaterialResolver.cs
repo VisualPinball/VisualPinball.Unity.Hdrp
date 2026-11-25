@@ -379,7 +379,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 			ApplySurfaceState(material, lit);
 			ApplyDoubleSidedState(material, lit);
-			ApplyTranslucencyState(material, lit, textures);
+			ApplyTranslucencyState(material, lit);
+			ApplyThicknessState(material, lit, textures);
 			ApplySsrTransparentState(material, lit);
 
 			material.doubleSidedGI = lit.DoubleSidedGi;
@@ -422,14 +423,14 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			}
 			var hdrp = lit.Hdrp ?? new VpeHdrpLitHints();
 
-			if (Mathf.Abs(hdrp.DiffusionProfileHash) > 0.000001f) {
+			if (hdrp.DiffusionProfileHash != 0f) {
 				SetFloat(material, "_DiffusionProfileHash", hdrp.DiffusionProfileHash);
 				SetVector(material, "_DiffusionProfileAsset", hdrp.DiffusionProfileAsset);
 				return;
 			}
 
 			if (material.HasProperty("_DiffusionProfileHash")
-				&& Mathf.Abs(material.GetFloat("_DiffusionProfileHash")) > 0.000001f) {
+				&& material.GetFloat("_DiffusionProfileHash") != 0f) {
 				return;
 			}
 
@@ -868,12 +869,11 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			}
 		}
 
-		private void ApplyTranslucencyState(Material material, VpeLitProfile lit, IVpeTextureProvider textures)
+		private static void ApplyTranslucencyState(Material material, VpeLitProfile lit)
 		{
 			var hdrp = lit.Hdrp ?? new VpeHdrpLitHints();
-			// HDRP Translucent material archetype (MaterialID=5) combined with a refraction model.
-			// VPE schema treats transmission/refraction as transparent-surface features; applying
-			// them to alpha-test materials can push them into odd mixed variants.
+			// Refraction controls apply to transparent surfaces. Transmission also works in opaque
+			// and alpha-clipped materials via the material feature and thickness settings.
 			if (lit.SurfaceType != VpeSurfaceTypes.Transparent) {
 				return;
 			}
@@ -903,8 +903,6 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				material.EnableKeyword("_MATERIAL_FEATURE_TRANSMISSION");
 			}
 
-			SetFloat(material, "_Thickness", lit.Thickness);
-			SetVector(material, "_ThicknessRemap", new Vector4(lit.ThicknessRemap.x, lit.ThicknessRemap.y, 0f, 0f));
 			SetFloat(material, "_ATDistance", lit.AbsorptionDistance);
 			SetFloat(material, "_Ior", Mathf.Max(1f, lit.Ior));
 			SetColor(material, "_TransmittanceColor", lit.TransmittanceColor);
@@ -929,17 +927,19 @@ namespace VisualPinball.Engine.Unity.Hdrp
 					SetFloat(material, "_RefractionModel", 0f);
 					break;
 			}
+		}
 
-			// Thickness map — HDRP packs thickness channels specifically; side-channel only.
-			if (lit.ThicknessMap != null && !string.IsNullOrWhiteSpace(lit.ThicknessMap.TextureId)) {
-				var tex = textures?.Get(lit.ThicknessMap.TextureId);
-				if (tex && material.HasProperty("_ThicknessMap")) {
-					material.SetTexture("_ThicknessMap", tex);
-					material.SetTextureOffset("_ThicknessMap", lit.ThicknessMap.Offset);
-					material.SetTextureScale("_ThicknessMap", lit.ThicknessMap.Scale);
-					material.EnableKeyword("_THICKNESSMAP");
-				}
+		private static void ApplyThicknessState(Material material, VpeLitProfile lit, IVpeTextureProvider textures)
+		{
+			var usesRefraction = lit.SurfaceType == VpeSurfaceTypes.Transparent && lit.RefractionModel != VpeRefractionModels.None;
+			if (!lit.HasTransmission && !usesRefraction) {
+				return;
 			}
+
+			SetFloat(material, "_Thickness", lit.Thickness);
+			SetVector(material, "_ThicknessRemap", new Vector4(lit.ThicknessRemap.x, lit.ThicknessRemap.y, 0f, 0f));
+			// HDRP's thickness map is a side-channel texture. ValidateMaterial sets its keyword.
+			SetTexture(material, "_ThicknessMap", lit.ThicknessMap, textures, importedMaterial: null);
 		}
 
 		// Emits a single log per distinct (surfaceType, refractionModel, templateName) triple so we
