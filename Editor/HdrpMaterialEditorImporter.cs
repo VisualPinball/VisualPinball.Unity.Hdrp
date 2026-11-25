@@ -219,6 +219,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				}
 				renderer.shadowCastingMode = VpeMaterialEnums.ParseShadowCastingMode(state.CastShadows);
 				renderer.receiveShadows = state.ReceiveShadows;
+				VpeMaterialReader.ApplyStaticShadowCaster(renderer, state.StaticShadowCaster);
 				renderer.renderingLayerMask = state.RenderingLayerMask;
 				if (state.Hdrp != null && state.Hdrp.RayTracingMode >= 0) {
 					renderer.rayTracingMode = (UnityEngine.Experimental.Rendering.RayTracingMode)state.Hdrp.RayTracingMode;

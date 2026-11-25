@@ -192,6 +192,7 @@ namespace VisualPinball.Engine.Unity.Hdrp.Editor
 				NodeId = id,
 				CastShadows = VpeMaterialEnums.ToShadowCastingMode(renderer.shadowCastingMode),
 				ReceiveShadows = renderer.receiveShadows,
+				StaticShadowCaster = renderer.staticShadowCaster,
 				RenderingLayerMask = renderer.renderingLayerMask,
 				Hdrp = new VpeHdrpRendererHints {
 					RayTracingMode = (int)renderer.rayTracingMode,
