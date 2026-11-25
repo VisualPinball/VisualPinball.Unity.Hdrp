@@ -59,6 +59,43 @@ namespace VisualPinball.Engine.Unity.Hdrp
 				hdLight.color = color;
 			}
 		}
+		public void CaptureShadowSettings(Light light, ref HdrpLightSourcePackable data)
+		{
+			var hd = light.GetComponent<HDAdditionalLightData>();
+			data.ShadowUpdateMode = (int)hd.shadowUpdateMode;
+			data.ShadowResolutionLevel = hd.shadowResolution.level;
+			data.ShadowResolutionOverride = hd.shadowResolution.@override;
+			data.UseShadowResolutionOverride = hd.shadowResolution.useOverride;
+			data.AlwaysDrawDynamicShadows = hd.alwaysDrawDynamicShadows;
+			data.UpdateUponLightMovement = hd.updateUponLightMovement;
+			data.ShadowTranslationThreshold = hd.cachedShadowTranslationUpdateThreshold;
+			data.ShadowAngleThreshold = hd.cachedShadowAngleUpdateThreshold;
+			data.RenderShadowOnPlacement = hd.onDemandShadowRenderOnPlacement;
+			data.ShadowDimmer = hd.shadowDimmer;
+			data.NormalBias = hd.normalBias;
+			data.SlopeBias = hd.slopeBias;
+		}
+
+		public void RestoreShadowSettings(Light light, HdrpLightSourcePackable data)
+		{
+			var hd = light.GetComponent<HDAdditionalLightData>();
+			var updateMode = (ShadowUpdateMode)data.ShadowUpdateMode;
+			HdrpShadowCache.SetAuthoredSettings(hd, updateMode != ShadowUpdateMode.EveryFrame
+				|| data.AlwaysDrawDynamicShadows || data.UpdateUponLightMovement || !data.RenderShadowOnPlacement);
+			hd.SetShadowResolutionLevel(data.ShadowResolutionLevel);
+			hd.SetShadowResolution(data.ShadowResolutionOverride);
+			hd.SetShadowResolutionOverride(data.UseShadowResolutionOverride);
+			hd.alwaysDrawDynamicShadows = data.AlwaysDrawDynamicShadows;
+			hd.cachedShadowTranslationUpdateThreshold = data.ShadowTranslationThreshold;
+			hd.cachedShadowAngleUpdateThreshold = data.ShadowAngleThreshold;
+			hd.updateUponLightMovement = data.UpdateUponLightMovement;
+			hd.onDemandShadowRenderOnPlacement = data.RenderShadowOnPlacement;
+			hd.shadowDimmer = data.ShadowDimmer;
+			hd.normalBias = data.NormalBias;
+			hd.slopeBias = data.SlopeBias;
+			hd.SetShadowUpdateMode(updateMode);
+		}
+
 		public void SetShadow(Light light, bool enabled, bool isDynamic, float nearPlane = 0.01f)
 		{
 			var hdLight = light.GetComponent<HDAdditionalLightData>();

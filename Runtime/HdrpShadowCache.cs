@@ -118,9 +118,21 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			}
 		}
 
+		private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<HDAdditionalLightData, object> AuthoredLights = new();
+
+		internal static void SetAuthoredSettings(HDAdditionalLightData light, bool hasCustomCacheSettings)
+		{
+			_instance?.Restore(light);
+			if (hasCustomCacheSettings) {
+				AuthoredLights.GetOrCreateValue(light);
+			} else {
+				AuthoredLights.Remove(light);
+			}
+		}
+
 		private static void Configure(HDAdditionalLightData hd, HDShadowInitParameters init, ref long budget)
 		{
-			if (!hd.TryGetComponent<Light>(out var light)) {
+			if (AuthoredLights.TryGetValue(hd, out _) || !hd.TryGetComponent<Light>(out var light)) {
 				return;
 			}
 			var cache = _instance;
@@ -313,10 +325,13 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			var byTransform = new Dictionary<Transform, StaticCaster>();
 			var statics = 0;
 			foreach (var r in Object.FindObjectsByType<Renderer>(FindObjectsInactive.Include)) {
-				// a skinned mesh bends without its transform moving
-				var moves = dynamic.Contains(r) || r is SkinnedMeshRenderer || _demoted.Contains(r.transform);
-				r.staticShadowCaster = !moves;
-				if (moves) {
+				if (!VpeMaterialReader.HasAuthoredStaticShadowCaster(r)) {
+					// A skinned mesh bends without its transform moving.
+					var moves = dynamic.Contains(r) || r is SkinnedMeshRenderer || _demoted.Contains(r.transform);
+					r.staticShadowCaster = !moves;
+				}
+				// Authored static casters still invalidate a cached studio shadow when they change.
+				if (!r.staticShadowCaster) {
 					continue;
 				}
 				statics++;
