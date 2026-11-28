@@ -206,12 +206,11 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			if (_upscalerQuality != quality) {
 				Logger.Info("{Upscaler} doesn't run in {Quality} mode on the {Gpu:l}, {Instead} instead.", _upscaler, quality, SystemInfo.graphicsDeviceName, _upscalerQuality);
 			}
-			var upscaling = _upscaler;
 			if (!IsUpscalerSupported(_upscaler)) {
 				Logger.Info("{Upscaler} doesn't run on the {Gpu:l}, so nothing upscales.", _upscaler, SystemInfo.graphicsDeviceName);
-				upscaling = VpeUpscaler.Off;
 			}
-			ApplyCameraAntialiasing(Camera.main);
+			// what the camera ends up with: the pipeline asset and the cabinet projection can rule the upscaler out too
+			var upscaling = ApplyCameraAntialiasing(Camera.main);
 			ApplyBallReflections(Camera.main, settings.BallReflections);
 			ApplyCameraMotionBlur(Camera.main, settings.MotionBlur != (int)VpeMotionBlur.Off);
 			ApplyVolume(settings);
@@ -357,25 +356,27 @@ namespace VisualPinball.Engine.Unity.Hdrp
 
 		/// <summary>
 		/// The chosen anti-aliasing, or what the camera's cabinet projection allows instead. Without a choice
-		/// from the host, <paramref name="unconfigured"/> stands in for it.
+		/// from the host, <paramref name="unconfigured"/> stands in for it. Returns the upscaler the camera runs.
 		/// </summary>
-		internal static void ApplyCameraAntialiasing(Camera cam, HDAdditionalCameraData.AntialiasingMode? unconfigured = null)
+		internal static VpeUpscaler ApplyCameraAntialiasing(Camera cam, HDAdditionalCameraData.AntialiasingMode? unconfigured = null)
 		{
 			if (cam == null) {
-				return;
+				return VpeUpscaler.Off;
 			}
 			var hd = cam.GetComponent<HDAdditionalCameraData>();
 			if (hd == null) {
-				return;
+				return VpeUpscaler.Off;
 			}
 			var requested = _antiAliasing >= 0 ? (VpeAntiAliasing)_antiAliasing : ToVpe(unconfigured ?? hd.antialiasing);
 			// DLSS and FSR 2 do the anti-aliasing themselves; HDRP would still run FXAA after them (it jitters
 			// regardless). STP is HDRP's TAA upsampling, and only runs where the camera has TAA.
-			hd.antialiasing = ApplyCameraUpscaler(cam, hd) switch {
+			var upscaler = ApplyCameraUpscaler(cam, hd);
+			hd.antialiasing = upscaler switch {
 				VpeUpscaler.Stp => HDAdditionalCameraData.AntialiasingMode.TemporalAntialiasing,
 				VpeUpscaler.Off => ToHdrp(CabinetProjection.EffectiveAntiAliasing(cam, requested)),
 				_ => HDAdditionalCameraData.AntialiasingMode.None,
 			};
+			return upscaler;
 		}
 
 		// The upscalers are temporal like TAA: where the cabinet projection rules out TAA, they're off too.
