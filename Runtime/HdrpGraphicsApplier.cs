@@ -39,9 +39,8 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		{
 			VpeGraphics.Register(new HdrpGraphicsApplier());
 			VpeGraphics.UpscalerSupport = IsUpscalerSupported;
-			VpeGraphics.UpscalerQualitySupport = IsUpscalerQualitySupported;
 			DynamicResolutionHandler.SetDynamicResScaler(() => _stpPercentage, DynamicResScalePolicyType.ReturnsPercentage);
-			_fsr2PerformanceCrashes = SystemInfo.graphicsDeviceVendorID == 0x10DE
+			_fsr2Crashes = SystemInfo.graphicsDeviceVendorID == 0x10DE
 				&& SystemInfo.graphicsDeviceName.IndexOf("RTX", System.StringComparison.OrdinalIgnoreCase) < 0;
 			VpeGraphics.RenderScaleSource = RenderScale;
 			VpeGraphics.BallReflectionsSupported = true;
@@ -207,14 +206,18 @@ namespace VisualPinball.Engine.Unity.Hdrp
 			if (_upscalerQuality != quality) {
 				Logger.Info("{Upscaler} doesn't run in {Quality} mode on the {Gpu:l}, {Instead} instead.", _upscaler, quality, SystemInfo.graphicsDeviceName, _upscalerQuality);
 			}
-			ApplyCameraAntialiasing(Camera.main);
+			if (!IsUpscalerSupported(_upscaler)) {
+				Logger.Info("{Upscaler} doesn't run on the {Gpu:l}, so nothing upscales.", _upscaler, SystemInfo.graphicsDeviceName);
+			}
+			// what the camera ends up with: the pipeline asset and the cabinet projection can rule the upscaler out too
+			var upscaling = ApplyCameraAntialiasing(Camera.main);
 			ApplyBallReflections(Camera.main, settings.BallReflections);
 			ApplyCameraMotionBlur(Camera.main, settings.MotionBlur != (int)VpeMotionBlur.Off);
 			ApplyVolume(settings);
 			ApplyCameraRayTracing(Camera.main, _tracing);
 			HdrpShadowCache.Refresh();
 			Logger.Info("Upscaling {Upscaler} {Quality} (DLSS detected: {Dlss}, FSR 2 detected: {Fsr2})",
-				_upscaler, _upscalerQuality, HDDynamicResolutionPlatformCapabilities.DLSSDetected, HDDynamicResolutionPlatformCapabilities.FSR2Detected);
+				upscaling, _upscalerQuality, HDDynamicResolutionPlatformCapabilities.DLSSDetected, HDDynamicResolutionPlatformCapabilities.FSR2Detected);
 		}
 
 		// HDRP only blurs where the camera's frame settings allow it, whatever the volume says, and a camera with
@@ -339,42 +342,41 @@ namespace VisualPinball.Engine.Unity.Hdrp
 		// HDRP's own and needs hardware dynamic resolution, which HDRP has on every API but these.
 		private static bool IsUpscalerSupported(VpeUpscaler upscaler) => upscaler switch {
 			VpeUpscaler.Dlss => HDDynamicResolutionPlatformCapabilities.DLSSDetected,
-			VpeUpscaler.Fsr2 => HDDynamicResolutionPlatformCapabilities.FSR2Detected,
+			VpeUpscaler.Fsr2 => HDDynamicResolutionPlatformCapabilities.FSR2Detected && !_fsr2Crashes,
 			VpeUpscaler.Stp => SystemInfo.graphicsDeviceType is not (GraphicsDeviceType.Direct3D11 or GraphicsDeviceType.OpenGLES3
 				or GraphicsDeviceType.OpenGLCore or GraphicsDeviceType.WebGPU),
 			VpeUpscaler.Off => true,
 			_ => false,
 		};
 
-		// AMD's plugin crashes in FSR 2's Performance mode on NVIDIA GPUs without RTX: on a GTX 1080 (Windows
-		// 10, D3D12) it throws on the graphics thread while it sets the upscaler up, every time, right after the
-		// table loads. Its other modes run there, and so does Performance on an RTX card.
-		private static bool _fsr2PerformanceCrashes;
-
-		private static bool IsUpscalerQualitySupported(VpeUpscaler upscaler, VpeUpscalerQuality quality)
-			=> !(upscaler == VpeUpscaler.Fsr2 && quality == VpeUpscalerQuality.Performance && _fsr2PerformanceCrashes);
+		// AMD's plugin crashes FSR 2 on NVIDIA GPUs without RTX: on a GTX 1080 (Windows 10, D3D12) it throws on
+		// the graphics thread while it sets the upscaler up, in Performance mode after a table loads, and in
+		// Balanced mode on the menu's first frames. It runs on RTX cards; STP is there for the others.
+		private static bool _fsr2Crashes;
 
 		/// <summary>
 		/// The chosen anti-aliasing, or what the camera's cabinet projection allows instead. Without a choice
-		/// from the host, <paramref name="unconfigured"/> stands in for it.
+		/// from the host, <paramref name="unconfigured"/> stands in for it. Returns the upscaler the camera runs.
 		/// </summary>
-		internal static void ApplyCameraAntialiasing(Camera cam, HDAdditionalCameraData.AntialiasingMode? unconfigured = null)
+		internal static VpeUpscaler ApplyCameraAntialiasing(Camera cam, HDAdditionalCameraData.AntialiasingMode? unconfigured = null)
 		{
 			if (cam == null) {
-				return;
+				return VpeUpscaler.Off;
 			}
 			var hd = cam.GetComponent<HDAdditionalCameraData>();
 			if (hd == null) {
-				return;
+				return VpeUpscaler.Off;
 			}
 			var requested = _antiAliasing >= 0 ? (VpeAntiAliasing)_antiAliasing : ToVpe(unconfigured ?? hd.antialiasing);
 			// DLSS and FSR 2 do the anti-aliasing themselves; HDRP would still run FXAA after them (it jitters
 			// regardless). STP is HDRP's TAA upsampling, and only runs where the camera has TAA.
-			hd.antialiasing = ApplyCameraUpscaler(cam, hd) switch {
+			var upscaler = ApplyCameraUpscaler(cam, hd);
+			hd.antialiasing = upscaler switch {
 				VpeUpscaler.Stp => HDAdditionalCameraData.AntialiasingMode.TemporalAntialiasing,
 				VpeUpscaler.Off => ToHdrp(CabinetProjection.EffectiveAntiAliasing(cam, requested)),
 				_ => HDAdditionalCameraData.AntialiasingMode.None,
 			};
+			return upscaler;
 		}
 
 		// The upscalers are temporal like TAA: where the cabinet projection rules out TAA, they're off too.
